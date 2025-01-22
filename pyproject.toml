@@ -12,8 +12,43 @@ gunicorn = "^23.0.0"
 django-environ = "^0.12.0"
 djangorestframework = "^3.15.2"
 django-cors-headers = "^4.6.0"
+typedict = "^0.0.4"
+mypy = "^1.14.1"
+django-stubs = "^5.1.2"
+ruff = "^0.9.2"
+wemake-python-styleguide = "^1.0.0"
+pytest = "^8.3.4"
+hypothesis = "^6.124.2"
 
 
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
+
+
+[tool.mypy]
+check_untyped_defs = true
+ignore_missing_imports = true
+strict_optional = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+no_implicit_optional = true
+plugins = ["mypy_django_plugin.main"]
+
+
+[tool.django-stubs]
+django_settings_module = "plants.settings"
+
+
+select = ["W", "E", "F", "C", "Q"]
+target-version = "py312" 
+fix = true 
+organize-imports = true
+
+
+[tool.pytest.ini_options]
+minversion = "7.0"  # Ensure a specific minimum pytest version
+addopts = "-ra -q"  # Custom options for pytest runs
+testpaths = [
+    "tests"  # Directory where your tests are located
+]
