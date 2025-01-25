@@ -19,7 +19,11 @@ export default function RootLayout({
       <body>
         <Box sx={{ display: "flex", flexDirection: "row" }}>
           <MuiDrawer></MuiDrawer>
-          {children}
+          <Box
+            sx={{ display: "flex", justifyContent: "center", width: "100%" }}
+          >
+            {children}
+          </Box>
         </Box>
       </body>
     </html>
