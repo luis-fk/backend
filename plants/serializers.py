@@ -1,5 +1,6 @@
 from rest_framework import serializers
 
 
-class HelloWorldSerializer(serializers.Serializer):
-    message = serializers.CharField(max_length=100)
+class MessageSerializer(serializers.Serializer):
+    user_id = serializers.IntegerField()
+    message = serializers.CharField(max_length=1000)
