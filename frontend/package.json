@@ -16,9 +16,12 @@
     "@fontsource/roboto": "^5.1.1",
     "@mui/icons-material": "^6.4.1",
     "@mui/material": "^6.4.1",
+    "axios": "^1.7.9",
     "next": "15.1.6",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
+    "react-markdown": "^9.0.3",
+    "remark-gfm": "^4.0.0",
     "typescript-eslint": "^8.21.0"
   },
   "devDependencies": {
