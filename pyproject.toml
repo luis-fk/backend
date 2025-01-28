@@ -24,6 +24,8 @@ langgraph = "^0.2.67"
 langchain-community = "^0.3.15"
 tavily-python = "^0.5.0"
 langchain-openai = "^0.3.2"
+psycopg2-binary = "^2.9.10"
+dj-database-url = "^2.3.0"
 
 
 [build-system]

@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/5.1/ref/settings/
 
 from pathlib import Path
 
+import dj_database_url
 from environ import Env
 
 env = Env()
@@ -33,18 +34,19 @@ DEBUG = env("ENVIRONMENT") == "development"
 ALLOWED_HOSTS = [
     "localhost",
     "127.0.0.1",
-    "backend-production-4837.up.railway.app",
-    "backend-staging-fae6.up.railway.app",
+    env("SERVER_URL"),
 ]
 
-CSRF_TRUSTED_ORIGINS = [
-    "https://backend-production-4837.up.railway.app",
-    "https://backend-staging-fae6.up.railway.app",
-]
-
+# CORS Allowed Origins
 CORS_ALLOWED_ORIGINS = [
-    "http://localhost:8000",
-    "https://backend-production-4837.up.railway.app",
+    "http://localhost:3000",
+    env("FRONT_END_URL"),
+]
+
+# CSRF Trusted Origins
+CSRF_TRUSTED_ORIGINS = [
+    "http://localhost:3000",
+    env("FRONT_END_URL"),
 ]
 # Application definition
 
@@ -95,11 +97,9 @@ WSGI_APPLICATION = "plants.wsgi.application"
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
 
+
 DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR / "plants" / "plants.sqlite3",
-    }
+    "default": dj_database_url.config(default=env("DATABASE_URL")),
 }
 
 
