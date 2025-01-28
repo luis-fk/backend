@@ -1,6 +1,5 @@
-from typing import ClassVar, Literal
-
 from dotenv import load_dotenv
+from langchain_community.tools.tavily_search import TavilySearchResults
 from langchain_core.messages import (
     AIMessage,
     BaseMessage,
@@ -8,36 +7,15 @@ from langchain_core.messages import (
     SystemMessage,
 )
 from langchain_openai import ChatOpenAI
-from langgraph.graph import MessagesState, StateGraph
+from langgraph.graph import StateGraph
 from langgraph.prebuilt import create_react_agent
-from pydantic import BaseModel, Field
 
-from ..models import ChatHistory, UserMemory
-from langchain_community.tools.tavily_search import TavilySearchResults
-
+from plants.chatbot.schemas import ChatInfo, Routing, SquadState
+from plants.models import ChatHistory, UserMemory
 
 load_dotenv()
 
 llm_personality = "You are a web search assistant. Retrieve accurate and relevant information based on the user query."
-
-class Routing(BaseModel):
-    route_description: ClassVar = (
-        "Answer the user's question to the best of your ability. "
-        "Redirect to the web search agent if requested. "
-        "End the conversation after the user question has been asnwered."
-    )
-    route: Literal["continue", "web_search"] = Field(description=route_description)
-
-
-class ChatInfo(BaseModel):
-    info: str = Field(
-        description="Relevant details about the user and the conversation so far."
-    )
-
-
-class SquadState(MessagesState):
-    route: str
-    memory: dict[str, str]
 
 
 class LLM:
@@ -68,7 +46,7 @@ class LLM:
             ChatInfo, method="json_schema"
         )
 
-        self.graph = self._build_graph()
+        self.graph = self.build_graph()
 
     def process_message(self, message: str, user_id: str) -> str:
         try:
@@ -78,16 +56,17 @@ class LLM:
 
         human_messages = ChatHistory.objects.filter(
             user_id=user_id, role="human"
-        ).order_by("id")
+        ).order_by("id")[:5]
         ai_messages = ChatHistory.objects.filter(user_id=user_id, role="ai").order_by(
             "id"
-        )
+        )[:5]
         chat_history = []
 
         for human, ai in zip(human_messages, ai_messages):
             chat_history.append(HumanMessage(content=human.message))
             chat_history.append(AIMessage(content=ai.message))
 
+        print(chat_history)
         self.user_id = user_id
         self.user_message = message
         self.graph.invoke(
@@ -98,16 +77,7 @@ class LLM:
         )
         return self.llm_response
 
-    def call_agent(self, state: SquadState) -> SquadState:
-        llm_response = self.llm.invoke(
-            [SystemMessage(content=state["memory"])]
-            if state["memory"]
-            else [] + state["messages"]
-        )
-
-        return {"messages": [llm_response]}
-
-    def router(self, state: SquadState):
+    def route_picker(self, state: SquadState):
         if state["route"] in ["web_search", "continue"]:
             return state["route"]
         else:
@@ -148,7 +118,7 @@ class LLM:
             ]
             + messages
         )
-        
+
         return {
             "messages": state["messages"],
             "memory": llm_response.info,
@@ -161,6 +131,14 @@ class LLM:
             "route": response.route,
         }
 
+    def call_agent(self, state: SquadState) -> SquadState:
+        memory = state["memory"] if state["memory"] else []
+        llm_response = self.llm.invoke(
+            state["messages"] + [SystemMessage(content=memory)]
+        )
+
+        return {"messages": [llm_response]}
+
     def web_search_agent(self, state: SquadState) -> str:
         llm_response = self.web_search_llm.invoke(
             {
@@ -170,7 +148,7 @@ class LLM:
 
         return {"messages": [AIMessage(content=llm_response["messages"][-1].content)]}
 
-    def _build_graph(self) -> StateGraph:
+    def build_graph(self) -> StateGraph:
         workflow = StateGraph(SquadState)
 
         workflow.set_entry_point("router")
@@ -183,7 +161,7 @@ class LLM:
 
         workflow.add_conditional_edges(
             "router",
-            self.router,
+            self.route_picker,
             {
                 "continue": "agent",
                 "web_search": "web_search_agent",
