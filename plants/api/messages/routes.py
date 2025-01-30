@@ -2,11 +2,11 @@ from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from plants.api.messages.serializers import MessageSerializer
 from plants.chatbot.chatbot import LLM
-from .serializers import MessageSerializer
 
 
-class MessageView(APIView):
+class MessageApi(APIView):
     def post(self, request, *args, **kwargs):
         serializer = MessageSerializer(data=request.data)
 
