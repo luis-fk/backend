@@ -21,7 +21,8 @@
     "paths": {
       "@/*": ["./src/*"],
       "@/components/*": ["./src/app/components/*"],
-      "@/css/*": ["./src/app/css/*"]
+      "@/css/*": ["./src/app/css/*"],
+      "@/actions/*": ["./src/app/actions/*"]
     },
     "forceConsistentCasingInFileNames": true
   },

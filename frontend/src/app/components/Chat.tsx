@@ -1,6 +1,6 @@
-"use client"; // Ensures this is a client-side component
+"use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   ChatContainer,
   MessageList,
@@ -10,6 +10,8 @@ import {
 import "@chatscope/chat-ui-kit-styles/dist/default/styles.min.css";
 import "@/css/chat.css";
 import axios from "axios";
+import { getSession } from "@/actions/session";
+import { JWTPayload } from "jose";
 
 interface MessageType {
   message: string;
@@ -17,6 +19,7 @@ interface MessageType {
 }
 
 export default function Chat() {
+  const [session, setSession] = useState<JWTPayload | undefined>(undefined);
   const [messages, setMessages] = useState<MessageType[]>([
     {
       message: "Hello! How can I help you today?",
@@ -26,8 +29,18 @@ export default function Chat() {
   const [activeSendButton, setSendButton] = useState(true);
   const [messageInput, setMessageInput] = useState("");
 
+  const serverUrl = process.env.NEXT_PUBLIC_SERVER_URL;
+
+  useEffect(() => {
+    async function fetchSession() {
+      const sessionData = await getSession();
+      setSession(sessionData);
+    }
+
+    fetchSession();
+  }, []);
+
   async function handleSendMessage() {
-    console.log(messages);
     if (messages[messages.length - 1]["sender"] === "ai") {
       setSendButton(true);
 
@@ -40,8 +53,8 @@ export default function Chat() {
 
       setMessageInput("");
       try {
-        const response = await axios.post("http://localhost:8000/message/", {
-          user_id: 2,
+        const response = await axios.post(`${serverUrl}/api/message/`, {
+          user_id: session?.userId,
           message: userMessage,
         });
 
