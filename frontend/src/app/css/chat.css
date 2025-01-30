@@ -10,6 +10,7 @@
 
 .cs-message-input__content-editor-wrapper,
 .cs-message-input__content-editor {
+  position: relative;
   background-color: #3e3e3e;
   color: white;
 }
