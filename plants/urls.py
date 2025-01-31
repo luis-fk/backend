@@ -1,8 +1,6 @@
 from django.contrib import admin
 from django.urls import path
-from views import HelloWorldView
 
-urlpatterns = [
-    path("admin/", admin.site.urls),
-    path("hello-world/", HelloWorldView.as_view(), name="hello-world"),
-]
+from .api.urls import api_urls
+
+urlpatterns = [path("admin/", admin.site.urls),] + api_urls
