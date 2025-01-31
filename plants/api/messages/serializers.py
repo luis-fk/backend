@@ -1,6 +1,9 @@
 from rest_framework import serializers
 
+from plants.models import ChatHistory
 
-class MessageSerializer(serializers.Serializer):
-    user_id = serializers.IntegerField()
-    message = serializers.CharField(max_length=1000)
+
+class ChatHistorySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ChatHistory
+        fields = ["role", "message"]

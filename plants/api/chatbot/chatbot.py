@@ -10,7 +10,7 @@ from langchain_openai import ChatOpenAI
 from langgraph.graph import StateGraph
 from langgraph.prebuilt import create_react_agent
 
-from plants.chatbot.schemas import ChatInfo, Routing, SquadState
+from plants.api.chatbot.schemas import ChatInfo, Routing, SquadState
 from plants.models import ChatHistory, UserMemory
 
 load_dotenv()
@@ -21,7 +21,8 @@ llm_personality = "You are a web search assistant. Retrieve accurate and relevan
 class LLM:
     def __init__(self):
         self.user_id: str = None
-        self.llm: ChatOpenAI = None
+        self.chatbot_llm: ChatOpenAI = None
+        self.structured_llm: ChatOpenAI = None
         self.user_memory: str = None
         self.user_message: str = None
         self.llm_response: str = None
@@ -32,17 +33,18 @@ class LLM:
         self.chat_history: list[BaseMessage] = None
 
     def setup(self):
-        self.llm = ChatOpenAI(model="gpt-4o-mini")
+        self.chatbot_llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.5)
+        self.structured_llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
 
         self.web_search_llm = create_react_agent(
-            self.llm,
+            self.chatbot_llm,
             [TavilySearchResults(max_results=2)],
             state_modifier=SystemMessage(content=llm_personality),
         )
-        self.routing_llm = self.llm.with_structured_output(
+        self.routing_llm = self.structured_llm.with_structured_output(
             Routing, method="json_schema"
         )
-        self.user_info_llm = self.llm.with_structured_output(
+        self.user_info_llm = self.structured_llm.with_structured_output(
             ChatInfo, method="json_schema"
         )
 
@@ -66,7 +68,6 @@ class LLM:
             chat_history.append(HumanMessage(content=human.message))
             chat_history.append(AIMessage(content=ai.message))
 
-        print(chat_history)
         self.user_id = user_id
         self.user_message = message
         self.graph.invoke(
@@ -133,7 +134,7 @@ class LLM:
 
     def call_agent(self, state: SquadState) -> SquadState:
         memory = state["memory"] if state["memory"] else []
-        llm_response = self.llm.invoke(
+        llm_response = self.chatbot_llm.invoke(
             state["messages"] + [SystemMessage(content=memory)]
         )
 
