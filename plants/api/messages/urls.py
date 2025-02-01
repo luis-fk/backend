@@ -1,7 +1,7 @@
 from django.urls import path
 
-from plants.api.messages.routes import MessageApi
+from plants.api.messages.routes import MessagesApi
 
 messages_urls = [
-    path("api/message/", MessageApi.as_view(), name="message"),
+    path("api/chat-history/<str:userId>/", MessagesApi.as_view(), name="message"),
 ]
