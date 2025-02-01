@@ -10,60 +10,80 @@ import {
 import "@chatscope/chat-ui-kit-styles/dist/default/styles.min.css";
 import "@/css/chat.css";
 import axios from "axios";
-import { getSession } from "@/actions/session";
-import { JWTPayload } from "jose";
+import { useSession } from "@/actions/useSession";
 
-interface MessageType {
+export interface MessageType {
   message: string;
-  sender: string;
+  role: string;
 }
 
 export default function Chat() {
-  const [session, setSession] = useState<JWTPayload | undefined>(undefined);
   const [messages, setMessages] = useState<MessageType[]>([
     {
       message: "Hello! How can I help you today?",
-      sender: "ai",
+      role: "ai",
     },
   ]);
   const [activeSendButton, setSendButton] = useState(true);
   const [messageInput, setMessageInput] = useState("");
 
+  const session = useSession();
   const serverUrl = process.env.NEXT_PUBLIC_SERVER_URL;
 
   useEffect(() => {
-    async function fetchSession() {
-      const sessionData = await getSession();
-      setSession(sessionData);
-    }
+    if (session?.userId) {
+      async function fetchChatHistory() {
+        const response = await axios.get(
+          `${serverUrl}/api/chat-history/${session?.userId}`,
+        );
 
-    fetchSession();
-  }, []);
+        if (response.status === 200) {
+          console.log(response.data);
+          setMessages(response.data);
+        } else if (response.status === 204) {
+          setMessages([
+            {
+              message: "Hello! How can I help you today?",
+              role: "ai",
+            },
+          ]);
+        }
+      }
+
+      fetchChatHistory();
+    }
+  }, [session?.userId, serverUrl]);
 
   async function handleSendMessage() {
-    if (messages[messages.length - 1]["sender"] === "ai") {
+    if (messages[messages.length - 1]["role"] === "ai") {
       setSendButton(true);
 
       const userMessage = messageInput;
 
       setMessages((prevMessages) => [
         ...prevMessages,
-        { message: userMessage, sender: "user" },
+        { message: userMessage, role: "human" },
       ]);
 
       setMessageInput("");
       try {
-        const response = await axios.post(`${serverUrl}/api/message/`, {
+        const response = await axios.post(`${serverUrl}/api/chatbot/message`, {
           user_id: session?.userId,
           message: userMessage,
         });
 
         setMessages((prevMessages) => [
           ...prevMessages,
-          { message: response.data.response, sender: "ai" },
+          { message: response.data.response, role: "ai" },
         ]);
       } catch {
-        console.error("Error sending message:");
+        setMessages((prevMessages) => [
+          ...prevMessages,
+          {
+            message: "Deu um problema, tenta novamente ou fala pro Felipe :)",
+            role: "ai",
+          },
+        ]);
       } finally {
         setSendButton(false);
       }
@@ -74,6 +94,7 @@ export default function Chat() {
 
   return (
     <ChatContainer
+      suppressHydrationWarning
       style={{
         paddingTop: "30px",
         width: "50vw",
@@ -99,8 +120,8 @@ export default function Chat() {
             model={{
               message: msg.message,
               sentTime: "just now",
-              sender: msg.sender,
-              direction: msg.sender === "user" ? "outgoing" : "incoming",
+              sender: msg.role,
+              direction: msg.role === "human" ? "outgoing" : "incoming",
               position: "single",
             }}
           >
