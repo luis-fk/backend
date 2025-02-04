@@ -11,6 +11,7 @@ import "@chatscope/chat-ui-kit-styles/dist/default/styles.min.css";
 import "@/css/chat.css";
 import axios from "axios";
 import { useSession } from "@/actions/useSession";
+import { useMediaQuery } from "@mui/material";
 
 export interface MessageType {
   message: string;
@@ -24,11 +25,15 @@ export default function Chat() {
       role: "ai",
     },
   ]);
-  const [activeSendButton, setSendButton] = useState(true);
+  const [activeSendButton, setSendButton] = useState(false);
   const [messageInput, setMessageInput] = useState("");
 
   const session = useSession();
   const serverUrl = process.env.NEXT_PUBLIC_SERVER_URL;
+
+  const isMobile = useMediaQuery("(max-width: 900px)");
+  const chatWidth = isMobile ? "90vw" : "50vw";
+  const chatHeight = isMobile ? "85vh" : "90vh";
 
   useEffect(() => {
     if (session?.userId) {
@@ -38,7 +43,6 @@ export default function Chat() {
         );
 
         if (response.status === 200) {
-          console.log(response.data);
           setMessages(response.data);
         } else if (response.status === 204) {
           setMessages([
@@ -49,7 +53,6 @@ export default function Chat() {
           ]);
         }
       }
-
       fetchChatHistory();
     }
   }, [session?.userId, serverUrl]);
@@ -97,8 +100,8 @@ export default function Chat() {
       suppressHydrationWarning
       style={{
         paddingTop: "30px",
-        width: "50vw",
-        height: "90vh",
+        width: chatWidth,
+        height: chatHeight,
         backgroundColor: "#292929",
       }}
     >
