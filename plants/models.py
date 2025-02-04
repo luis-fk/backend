@@ -24,3 +24,15 @@ class UserMemory(models.Model):
 
     def __str__(self):
         return f"Memory for {self.user.username}"
+
+
+class Esp32Data(models.Model):
+    analog_value = models.IntegerField()
+    digital_value = models.IntegerField()
+    temperature = models.IntegerField(null=True)
+    humidity = models.IntegerField(null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Analog value: {self.analog_value}, Digital value: {self.digital_value}"
+
