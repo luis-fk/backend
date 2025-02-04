@@ -34,6 +34,7 @@ DEBUG = env("ENVIRONMENT") == "development"
 ALLOWED_HOSTS = [
     "localhost",
     "127.0.0.1",
+    env("NGROK_URL"),
     env("SERVER_URL"),
 ]
 
