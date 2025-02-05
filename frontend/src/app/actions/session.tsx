@@ -8,6 +8,8 @@ const secretKey = process.env.SESSION_SECRET;
 const encodedKey = new TextEncoder().encode(secretKey);
 
 export async function encrypt(userId: number) {
+  console.log(`Encrypting session for user ${userId}`);
+
   const payload: JWTPayload = { userId: userId };
   return new SignJWT(payload)
     .setProtectedHeader({ alg: "HS256" })
@@ -17,6 +19,8 @@ export async function encrypt(userId: number) {
 }
 
 export async function getSession() {
+  console.log("Getting session from cookies");
+
   const cookieStore = await cookies();
   const session = cookieStore.get("session")?.value;
   const payload = await decrypt(session);
@@ -25,17 +29,21 @@ export async function getSession() {
 }
 
 export async function decrypt(session: string | undefined = "") {
+  console.log("Decrypting session");
+
   try {
     const { payload } = await jwtVerify(session, encodedKey, {
       algorithms: ["HS256"],
     });
     return payload;
   } catch {
-    console.log("Failed to verify session");
+    console.error("Failed to verify session");
   }
 }
 
 export async function createSession(userId: number) {
+  console.log(`Creating session for user ${userId}`);
+
   const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
   const session = await encrypt(userId);
   const cookieStore = await cookies();
@@ -50,6 +58,8 @@ export async function createSession(userId: number) {
 }
 
 export async function updateSession() {
+  console.log("Updating session");
+
   const session = (await cookies()).get("session")?.value;
   const payload = await decrypt(session);
 
@@ -70,6 +80,8 @@ export async function updateSession() {
 }
 
 export const verifySession = cache(async () => {
+  console.log("Verifying session");
+
   const cookie = (await cookies()).get("session")?.value;
   const session = await decrypt(cookie);
 
@@ -81,6 +93,8 @@ export const verifySession = cache(async () => {
 });
 
 export async function deleteSession() {
+  console.log("Deleting session");
+
   const cookieStore = await cookies();
   cookieStore.delete("session");
 }
