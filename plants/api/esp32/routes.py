@@ -13,14 +13,17 @@ logger = logging.getLogger(__name__)
 class Esp32Api(APIView):
     def post(self, request, *args, **kwargs):
         logger.info("Receiving data from ESP32, starting data treatment")
+        
         serializer = HumidityDataSerializer(data=request.data)
 
         if serializer.is_valid():
             analog_value = serializer.validated_data["analogValue"]
             digital_value = serializer.validated_data["digitalValue"]
+            user_id = serializer.validated_data["userId"]
 
             logger.info("Fechting weather data")
-            weather_data = fetch_weather_data()
+            
+            weather_data = fetch_weather_data(user_id=user_id)
 
             if "error" in weather_data:
                 logger.error("Error fetching weather data")
@@ -36,6 +39,7 @@ class Esp32Api(APIView):
                 digital_value=digital_value,
                 temperature=temperature,
                 humidity=humidity,
+                user_id=user_id,
             )
 
             logger.info("Data created successfully")
