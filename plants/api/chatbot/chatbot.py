@@ -10,6 +10,8 @@ from langchain_openai import ChatOpenAI
 from langgraph.graph import StateGraph
 from langgraph.prebuilt import create_react_agent
 
+import logging
+
 from plants.api.chatbot.schemas import ChatInfo, Routing, SquadState
 from plants.models import ChatHistory, UserMemory
 
@@ -17,6 +19,7 @@ load_dotenv()
 
 llm_personality = "You are a web search assistant. Retrieve accurate and relevant information based on the user query."
 
+logger = logging.getLogger(__name__)
 
 class LLM:
     def __init__(self):
@@ -33,6 +36,8 @@ class LLM:
         self.chat_history: list[BaseMessage] = None
 
     def setup(self):
+        logger.info("Setting up LLM")
+        
         self.chatbot_llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.5)
         self.structured_llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
 
@@ -49,8 +54,12 @@ class LLM:
         )
 
         self.graph = self.build_graph()
+        
+        logger.info("LLM setup complete")
 
     def process_message(self, message: str, user_id: str) -> str:
+        logger.info(f"Processing message for user {user_id}")
+        
         try:
             self.user_memory = UserMemory.objects.get(user_id=user_id).memory
         except UserMemory.DoesNotExist:
@@ -76,9 +85,14 @@ class LLM:
                 "memory": self.user_memory,
             }
         )
+        
+        logger.info(f"Sending LLM response for user {user_id}: {self.llm_response}")
+        
         return self.llm_response
 
     def route_picker(self, state: SquadState):
+        logger.info(f"Routing user {self.user_id} to {state['route']}")
+        
         if state["route"] in ["web_search", "continue"]:
             return state["route"]
         else:
@@ -87,6 +101,8 @@ class LLM:
             )
 
     def wrap_up(self, state: SquadState) -> None:
+        logger.info(f"Wrapping up user {self.user_id}, storing memory and chat history")
+        
         UserMemory.objects.update_or_create(
             user_id=self.user_id,
             defaults={"user_id": self.user_id, "memory": state["memory"]},
@@ -106,6 +122,8 @@ class LLM:
         )
 
     def update_memory(self, state: SquadState) -> SquadState:
+        logger.info(f"Updating memory for user {self.user_id}")
+        
         messages = state["messages"]
         llm_response = self.user_info_llm.invoke(
             [
@@ -127,12 +145,16 @@ class LLM:
         }
 
     def router(self, state: SquadState) -> SquadState:
+        logger.info(f"Initiating routing verification for user {self.user_id}")
+        
         response = self.routing_llm.invoke(state["messages"])
         return {
             "route": response.route,
         }
 
     def call_agent(self, state: SquadState) -> SquadState:
+        logger.info(f"Calling agent for user {self.user_id}")
+        
         memory = state["memory"] if state["memory"] else []
         llm_response = self.chatbot_llm.invoke(
             state["messages"] + [SystemMessage(content=memory)]
@@ -141,6 +163,8 @@ class LLM:
         return {"messages": [llm_response]}
 
     def web_search_agent(self, state: SquadState) -> str:
+        logger.info(f"Calling web search agent for user {self.user_id}")
+        
         llm_response = self.web_search_llm.invoke(
             {
                 "messages": state["messages"][-1].content,
@@ -150,6 +174,8 @@ class LLM:
         return {"messages": [AIMessage(content=llm_response["messages"][-1].content)]}
 
     def build_graph(self) -> StateGraph:
+        logger.info("Building LLM graph")
+        
         workflow = StateGraph(SquadState)
 
         workflow.set_entry_point("router")
@@ -176,4 +202,6 @@ class LLM:
 
         workflow.set_finish_point("wrap_up")
 
+        logger.info("LLM graph built")
+        
         return workflow.compile()
