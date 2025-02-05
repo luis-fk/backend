@@ -12,13 +12,18 @@ export function LoginForm() {
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
+    console.log(`Sending login data to component`);
+
     const formData = new FormData(event.currentTarget);
     const result = await login(formData);
 
     if (result?.message) {
+      console.error(`An error occurred when trying to loggin the user`);
+
       setErrorMessage(result.message);
     }
 
+    console.log(`Redirecting to chat page, login was successful`);
     router.push("/chat");
   }
 

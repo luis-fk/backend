@@ -7,7 +7,7 @@ import { useState } from "react";
 export default function MuiDrawer() {
   const [open, setOpen] = useState(false);
 
-  const isMobile = useMediaQuery("(max-width: 900px)");
+  const isMobile = useMediaQuery("(max-width: 800px)");
   const boxIconPaddingTop = isMobile ? "0px" : "10px";
   const iconFontSize = isMobile ? 20 : 40;
 
