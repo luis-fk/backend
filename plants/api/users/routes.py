@@ -4,7 +4,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from plants.api.users.serializers import UserSerializer
-from plants.models import User
+from plants.models import Users
 
 logger = logging.getLogger(__name__)
 
@@ -15,7 +15,7 @@ class UserApi(APIView):
         
         logger.info(f"Fetching user info for {name}")
         
-        user = User.objects.filter(username=name).first()
+        user = Users.objects.filter(username=name).first()
 
         if user:
             serializer = UserSerializer(user)

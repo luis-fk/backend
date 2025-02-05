@@ -6,6 +6,7 @@ from plants.models import Esp32Data
 class HumidityDataSerializer(serializers.Serializer):
     analogValue = serializers.IntegerField()
     digitalValue = serializers.IntegerField()
+    userId = serializers.IntegerField()
     
 class Esp32DataSerializer(serializers.Serializer):
     class Meta:

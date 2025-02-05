@@ -1,8 +1,8 @@
-from django.contrib.auth.models import User
+from plants.models import Users
 from rest_framework import serializers
 
 
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
-        model = User
+        model = Users
         fields = ["id", "username"]
