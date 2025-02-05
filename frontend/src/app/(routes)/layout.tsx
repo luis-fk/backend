@@ -8,7 +8,7 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const isMobile = useMediaQuery("(max-width: 900px)");
+  const isMobile = useMediaQuery("(max-width: 800px)");
   const flexDirection = isMobile ? "column" : "row";
 
   return (

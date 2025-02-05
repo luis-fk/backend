@@ -25,13 +25,13 @@ export default function Chat() {
       role: "ai",
     },
   ]);
-  const [activeSendButton, setSendButton] = useState(false);
+  const [activeSendButton, setActivateSendButton] = useState(false);
   const [messageInput, setMessageInput] = useState("");
 
   const session = useSession();
   const serverUrl = process.env.NEXT_PUBLIC_SERVER_URL;
 
-  const isMobile = useMediaQuery("(max-width: 900px)");
+  const isMobile = useMediaQuery("(max-width: 800px)");
   const chatWidth = isMobile ? "90vw" : "50vw";
   const chatHeight = isMobile ? "85vh" : "90vh";
 
@@ -59,7 +59,7 @@ export default function Chat() {
 
   async function handleSendMessage() {
     if (messages[messages.length - 1]["role"] === "ai") {
-      setSendButton(true);
+      setActivateSendButton(true);
 
       const userMessage = messageInput;
 
@@ -70,6 +70,8 @@ export default function Chat() {
 
       setMessageInput("");
       try {
+        console.log(`Sending message to server: ${userMessage}`);
+
         const response = await axios.post(`${serverUrl}/api/chatbot/message`, {
           user_id: session?.userId,
           message: userMessage,
@@ -80,6 +82,8 @@ export default function Chat() {
           { message: response.data.response, role: "ai" },
         ]);
       } catch {
+        console.error("Failed to send message to server");
+        
         setMessages((prevMessages) => [
           ...prevMessages,
           {
@@ -88,7 +92,7 @@ export default function Chat() {
           },
         ]);
       } finally {
-        setSendButton(false);
+        setActivateSendButton(false);
       }
     } else {
       setMessageInput(messageInput);
