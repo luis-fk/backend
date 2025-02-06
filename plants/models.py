@@ -3,8 +3,8 @@ from django.db import models
 
 
 class Users(AbstractUser):
-    latitude = models.CharField(max_length=10)
-    longitude = models.CharField(max_length=10)
+    latitude = models.CharField(max_length=10, null=True, blank=True)
+    longitude = models.CharField(max_length=10, null=True, blank=True)
 
     def __str__(self):
         return self.username
