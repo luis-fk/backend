@@ -1,4 +1,5 @@
 import logging
+from typing import Any
 
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -10,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 
 class MessagesApi(APIView):
-    def get(self, request, *args, **kwargs):
+    def get(self, request: Any, *args: Any, **kwargs: Any) -> Response:
         user_id = kwargs.get("userId")
         
         logger.info(f"Fetching chat history for user {user_id}")

@@ -6,4 +6,11 @@
       "source.organizeImports": "explicit"
     }
   },
+  "python.defaultInterpreterPath": "/home/felipelk/backend/.venv/bin/python",
+  "mypy-type-checker.path": ["/home/felipelk/backend/.venv/bin/mypy"],
+  "mypy-type-checker.cwd": "${workspaceFolder}",
+  "mypy-type-checker.args": [
+    "--config-file=pyproject.toml"
+  ],
+  "mypy-type-checker.reportingScope": "workspace",
 }
