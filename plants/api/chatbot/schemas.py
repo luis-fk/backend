@@ -4,21 +4,32 @@ from langgraph.graph import MessagesState
 from pydantic import BaseModel, Field
 
 
+
 class Routing(BaseModel):
     route_description: ClassVar = (
-        "Answer the user's question to the best of your ability. "
-        "Redirect to the web search agent if requested. "
-        "End the conversation after the user question has been asnwered."
+        "Redirect to the web search agent if requested or the question "
+        "asked is not something you can answer yourself and would warrant "
+        "a web search. Otherwise, continue the conversation."
     )
-    route: Literal["continue", "web_search"] = Field(description=route_description)
+    route: Literal["continue", "tools_agent"] = Field(..., description=route_description)
 
 
 class ChatInfo(BaseModel):
     info: str = Field(
-        description="Relevant details about the user and the conversation so far."
+        ..., description="Relevant details about the user and the conversation so far."
     )
 
 
 class SquadState(MessagesState):
+    user_id: int
     route: str
-    memory: dict[str, str]
+    memory: str
+
+
+class LLMAnswerSchema(BaseModel):
+    message: str = Field(..., description="The response to the user's question.")
+    reasoning: str = Field(
+        ...,
+        description="The reasoning behind the response in a clear and concise manner.",
+    )
+
