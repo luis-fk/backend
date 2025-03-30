@@ -61,6 +61,7 @@ INSTALLED_APPS = [
     "corsheaders",
     "rest_framework",
     "plants",
+    "political_culture",
 ]
 
 MIDDLEWARE = [
@@ -100,10 +101,15 @@ WSGI_APPLICATION = "backend.wsgi.application"
 
 
 DATABASES = {
-    "default": dj_database_url.config(default=env("DATABASE_URL")),
+    "default": dj_database_url.config(default=env("AUTH_DATABASE_URL")),
+    "auth_db": dj_database_url.config(default=env("AUTH_DATABASE_URL")),
+    "plants_db": dj_database_url.config(default=env("PLANTS_DATABASE_URL")),
+    "political_culture_db": dj_database_url.config(
+        default=env("POLITICAL_CULTURE_DATABASE_URL")
+    ),
 }
 
-AUTH_USER_MODEL = 'plants.Users'
+DATABASE_ROUTERS = ["backend.apps_routers.AppsRouter", "backend.auth_router.AuthRouter"]
 
 
 # Password validation
