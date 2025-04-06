@@ -1,9 +1,9 @@
 "use client";
-import { login } from "@/app/plants/actions/login";
+import { login } from "@/app/actions/login";
 import { useState, useEffect } from "react";
 import ErrorMessage from "./ErrorMessage";
 import { useRouter } from "next/navigation";
-import "@/css/login.css";
+import "@/plants/css/login.css";
 
 export function LoginForm() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -21,7 +21,7 @@ export function LoginForm() {
       setErrorMessage(result.message);
     }
 
-    router.push("/chat");
+    router.push("/plants/chat");
   }
 
   useEffect(() => {

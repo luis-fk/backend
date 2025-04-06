@@ -1,7 +1,7 @@
 "use client";
 import MuiDrawer from "@/app/plants/components/MuiDrawer";
 import { Box, useMediaQuery } from "@mui/material";
-import "@/css/layout.css";
+import "@/plants/css/layout.css";
 
 export default function RootLayout({
   children,
