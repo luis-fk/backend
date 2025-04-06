@@ -31,13 +31,16 @@ class LLM:
 
         logger.info("Schema built successfully")
 
-    def process_message(self, message: str, user_id: int) -> ChatHistorySerializer | None:
+    def process_message(
+        self, message: str, user_id: int
+    ) -> ChatHistorySerializer | None:
         logger.info(f"Processing message for user {user_id}")
 
-        if user_id:
-            user_memory = UserMemory.objects.get(user_id=user_id).memory
-        else:
-            user_memory = None
+        user_memory = (
+            UserMemory.objects.filter(user_id=user_id)
+            .values_list("memory", flat=True)
+            .first()
+        )
 
         human_messages = ChatHistory.objects.filter(
             user_id=user_id, role="human"
@@ -45,7 +48,7 @@ class LLM:
         ai_messages = ChatHistory.objects.filter(user_id=user_id, role="ai").order_by(
             "id"
         )[:5]
-        
+
         chat_history: list[BaseMessage] = []
 
         for human, ai in zip(human_messages, ai_messages):

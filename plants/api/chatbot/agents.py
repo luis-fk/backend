@@ -1,6 +1,7 @@
 from datetime import datetime
 from typing import cast
 
+from langchain.agents import AgentExecutor, create_tool_calling_agent
 from langchain_core.messages import BaseMessage, HumanMessage
 from langchain_core.prompts import (
     ChatPromptTemplate,
@@ -112,13 +113,16 @@ def call_tools_agent(message: HumanMessage, memory: str) -> str:
     system_prompt = instructions + memory
     instructions_prompt = ChatPromptTemplate.from_messages(
         [
-            SystemMessagePromptTemplate.from_template(instructions + system_prompt),
+            SystemMessagePromptTemplate.from_template(system_prompt),
             HumanMessagePromptTemplate.from_template("{input}"),
+            ("placeholder", "{agent_scratchpad}"),
         ]
     )
 
-    chain = instructions_prompt | llm_4.bind_tools([web_search])
+    tools = [web_search]
+    agent = create_tool_calling_agent(llm_4, tools, prompt=instructions_prompt)
+    agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=False)
 
-    response = chain.invoke({"input": message})
+    response = agent_executor.invoke({"input": message.content})
 
-    return cast(str, response.content)
+    return cast(str, response["output"])
