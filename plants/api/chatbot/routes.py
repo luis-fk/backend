@@ -33,7 +33,7 @@ class ChatBotApi(APIView):
                 return Response({"error": "Error processing user message"}, status=400)
 
             return Response(
-                {"user_id": user_id, "message": message, "response": response.data},
+                {"user_id": user_id, "response": response.data},
                 status=status.HTTP_200_OK,
             )
         else:
