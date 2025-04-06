@@ -14,8 +14,6 @@ from plants.models import ChatHistory, UserMemory
 
 load_dotenv()
 
-llm_personality = "You are a web search assistant. Retrieve accurate and relevant information based on the user query."
-
 logger = logging.getLogger(__name__)
 
 
@@ -68,8 +66,10 @@ class LLM:
 
         llm_response = ChatHistory.objects.filter(user_id=user_id, role="ai").last()
 
-        serializer = ChatHistorySerializer(llm_response)
+        serialized_response = ChatHistorySerializer(llm_response)
 
-        logger.info(f"Sending LLM response for user {user_id}: {serializer.data}")
+        logger.info(
+            f"Sending LLM response for user {user_id}: {serialized_response.data}"
+        )
 
-        return serializer
+        return serialized_response
