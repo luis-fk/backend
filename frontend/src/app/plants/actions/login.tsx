@@ -1,3 +1,4 @@
+"use server";
 import { createSession } from "./session";
 
 import axios from "axios";
