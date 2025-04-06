@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { decrypt } from "@/app/actions/session";
+import { decrypt } from "@/app/plants/actions/session";
 import { cookies } from "next/headers";
 
 const protectedRoutes = ["/chat"];

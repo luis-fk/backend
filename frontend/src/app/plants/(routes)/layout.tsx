@@ -1,5 +1,5 @@
 "use client";
-import MuiDrawer from "@/components/MuiDrawer";
+import MuiDrawer from "@/app/plants/components/MuiDrawer";
 import { Box, useMediaQuery } from "@mui/material";
 import "@/css/layout.css";
 

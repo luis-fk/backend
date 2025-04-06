@@ -1,5 +1,5 @@
 "use client";
-import { login } from "@/actions/login";
+import { login } from "@/app/plants/actions/login";
 import { useState, useEffect } from "react";
 import ErrorMessage from "./ErrorMessage";
 import { useRouter } from "next/navigation";
@@ -12,8 +12,6 @@ export function LoginForm() {
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    console.log(`Sending login data to component`);
-
     const formData = new FormData(event.currentTarget);
     const result = await login(formData);
 
@@ -23,7 +21,6 @@ export function LoginForm() {
       setErrorMessage(result.message);
     }
 
-    console.log(`Redirecting to chat page, login was successful`);
     router.push("/chat");
   }
 
