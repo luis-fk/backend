@@ -1,5 +1,5 @@
 // useSession.ts
-import { getSession } from "@/actions/session";
+import { getSession } from "@/app/plants/actions/session";
 import { JWTPayload } from "jose";
 import { useState, useEffect } from "react";
 

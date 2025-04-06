@@ -10,7 +10,7 @@ import {
 import "@chatscope/chat-ui-kit-styles/dist/default/styles.min.css";
 import "@/css/chat.css";
 import axios from "axios";
-import { useSession } from "@/actions/useSession";
+import { useSession } from "@/app/plants/actions/useSession";
 import { useMediaQuery } from "@mui/material";
 
 export interface MessageType {
@@ -70,8 +70,6 @@ export default function Chat() {
 
       setMessageInput("");
       try {
-        console.log(`Sending message to server: ${userMessage}`);
-
         const response = await axios.post(`${serverUrl}/api/chatbot/message`, {
           user_id: session?.userId,
           message: userMessage,
@@ -79,11 +77,11 @@ export default function Chat() {
 
         setMessages((prevMessages) => [
           ...prevMessages,
-          { message: response.data.response, role: "ai" },
+          { message: response.data.response.message, role: "ai" },
         ]);
       } catch {
         console.error("Failed to send message to server");
-        
+
         setMessages((prevMessages) => [
           ...prevMessages,
           {
