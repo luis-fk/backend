@@ -4,9 +4,9 @@ from typing import Any
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from political_culture.api.chatbot.agents import call_title_and_author_extractor_agent
 from political_culture.api.word_counter.serializers import TextsSerializer
 from political_culture.api.word_counter.service import (
-    call_title_and_author_extractor_agent,
     count_words,
 )
 from political_culture.models import Texts, TextWordCount
