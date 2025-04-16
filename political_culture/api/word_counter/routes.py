@@ -8,6 +8,7 @@ from political_culture.api.chatbot.agents import call_title_and_author_extractor
 from political_culture.api.word_counter.serializers import TextsSerializer
 from political_culture.api.word_counter.service import (
     count_words,
+    word_picker,
 )
 from political_culture.models import Texts, TextWordCount
 
@@ -43,6 +44,7 @@ class WordCounterApi(APIView):
 
         title = text_data.title
         author = text_data.author
+        content_description = text_data.content_description
 
         logger.info("Adding text to the database")
 
@@ -51,13 +53,21 @@ class WordCounterApi(APIView):
             text=text,
             title=title,
             author=author,
+            content_description=content_description,
         )
 
     def _add_text_word_count(self, text_db: Texts) -> None:
         word_frequencies, total_word_count = count_words(text_db.text, 1000)
 
+        new_word_frequencies = word_picker(word_frequencies)
+
+        dict_word_frequencies = dict(
+            (word_count.word, word_count.count)
+            for word_count in new_word_frequencies.words_list
+        )
+        
         TextWordCount.objects.create(
             text=text_db,
             total_word_count=total_word_count,
-            word_frequencies=dict(word_frequencies),
+            word_frequencies=dict_word_frequencies,
         )

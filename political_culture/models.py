@@ -12,6 +12,7 @@ class Texts(models.Model):
     title = models.CharField(max_length=100, null=True, blank=True)
     author = models.CharField(max_length=30, null=True, blank=True)
     text = models.TextField()
+    content_description = models.TextField()
     user = models.ForeignKey(Users, on_delete=models.CASCADE, related_name="texts")
 
     def __str__(self) -> str:
