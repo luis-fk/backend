@@ -5,7 +5,7 @@ from plants.api.chatbot.urls import chatbot_urls
 from plants.api.esp32.urls import esp32_urls
 from plants.api.messages.urls import messages_urls
 from plants.api.users.urls import users_urls
-from political_culture.api.word_counter.urls import word_counter_urls
+from political_culture.api.urls import political_culture_urls
 
 urlpatterns = (
     [
@@ -15,5 +15,5 @@ urlpatterns = (
     + users_urls
     + messages_urls
     + esp32_urls
-    + word_counter_urls
+    + political_culture_urls
 )
