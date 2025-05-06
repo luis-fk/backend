@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import {
   ChatContainer,
   MessageList,
@@ -32,30 +32,30 @@ export default function Chat() {
   const serverUrl = process.env.NEXT_PUBLIC_SERVER_URL;
 
   const isMobile = useMediaQuery("(max-width: 800px)");
-  const chatWidth = isMobile ? "90vw" : "50vw";
+  const chatWidth = isMobile ? "90vw" : "60vw";
   const chatHeight = isMobile ? "85vh" : "90vh";
 
-  useEffect(() => {
-    if (session?.userId) {
-      async function fetchChatHistory() {
-        const response = await axios.get(
-          `${serverUrl}/api/chat-history/${session?.userId}`,
-        );
+  // useEffect(() => {
+  //   if (session?.userId) {
+  //     async function fetchChatHistory() {
+  //       const response = await axios.get(
+  //         `${serverUrl}/api/chat-history/${session?.userId}`,
+  //       );
 
-        if (response.status === 200) {
-          setMessages(response.data);
-        } else if (response.status === 204) {
-          setMessages([
-            {
-              message: "Hello! How can I help you today?",
-              role: "ai",
-            },
-          ]);
-        }
-      }
-      fetchChatHistory();
-    }
-  }, [session?.userId, serverUrl]);
+  //       if (response.status === 200) {
+  //         setMessages(response.data);
+  //       } else if (response.status === 204) {
+  //         setMessages([
+  //           {
+  //             message: "Hello! How can I help you today?",
+  //             role: "ai",
+  //           },
+  //         ]);
+  //       }
+  //     }
+  //     fetchChatHistory();
+  //   }
+  // }, [session?.userId, serverUrl]);
 
   async function handleSendMessage() {
     if (messages[messages.length - 1]["role"] === "ai") {
@@ -70,14 +70,17 @@ export default function Chat() {
 
       setMessageInput("");
       try {
-        const response = await axios.post(`${serverUrl}/api/chatbot/message`, {
-          user_id: session?.userId,
-          message: userMessage,
-        });
+        const response = await axios.post(
+          `${serverUrl}/api/political-culture/chatbot/message`,
+          {
+            user_id: session?.userId,
+            text: userMessage,
+          },
+        );
 
         setMessages((prevMessages) => [
           ...prevMessages,
-          { message: response.data.response.message, role: "ai" },
+          { message: response.data.response, role: "ai" },
         ]);
       } catch {
         console.error("Failed to send message to server");
