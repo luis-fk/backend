@@ -16,8 +16,11 @@ def build_graph() -> CompiledStateGraph:
     workflow.set_entry_point("text_info_extraction")
 
     workflow.add_node("text_info_extraction", nodes.text_info_extraction)
+    workflow.add_node("text_analysis", nodes.text_analysis)
 
-    workflow.set_finish_point("text_info_extraction")
+    workflow.add_edge("text_info_extraction", "text_analysis")
+
+    workflow.set_finish_point("text_analysis")
 
     logging.info("LLM graph built")
 
