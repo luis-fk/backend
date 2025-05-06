@@ -13,6 +13,7 @@ class Texts(models.Model):
     author = models.CharField(max_length=30, null=True, blank=True)
     text = models.TextField()
     content_description = models.TextField()
+    user_submitted_text = models.BooleanField(default=False)
     user = models.ForeignKey(Users, on_delete=models.CASCADE, related_name="texts")
 
     def __str__(self) -> str:
@@ -28,3 +29,23 @@ class TextWordCount(models.Model):
 
     def __str__(self) -> str:
         return f"Word count for Text ID {self.text.id} - {self.total_word_count} words"
+
+
+class ChatHistory(models.Model):
+    ROLE_CHOICES = [
+        ("ai", "AI"),
+        ("human", "Human"),
+    ]
+
+    user = models.ForeignKey(
+        Users,
+        on_delete=models.CASCADE,
+        related_name="chat_histories",
+    )
+    message = models.TextField()
+    role = models.CharField(max_length=10, choices=ROLE_CHOICES)
+
+
+class UserMemory(models.Model):
+    user = models.OneToOneField(Users, on_delete=models.CASCADE, related_name="memory")
+    memory = models.JSONField()
