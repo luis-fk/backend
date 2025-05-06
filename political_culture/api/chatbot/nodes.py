@@ -1,8 +1,13 @@
 import logging
 
-from political_culture.api.chatbot.agents import text_analyist_agent
+from political_culture.api.chatbot.agents import (
+    call_user_info_agent,
+    text_analyist_agent,
+)
 from political_culture.api.chatbot.schemas import SquadState
+from political_culture.api.chatbot.utils import clean_html
 from political_culture.api.word_counter.service import add_text, add_text_word_count
+from political_culture.models import ChatHistory, UserMemory
 
 
 def text_info_extraction(state: SquadState) -> SquadState:
@@ -39,3 +44,34 @@ def text_analysis(state: SquadState) -> SquadState:
     response = text_analyist_agent(input)
 
     return {**state, "response": response}
+
+
+def wrap_up(state: SquadState) -> None:
+    human_message: str = state["input"]
+
+    updated_user_memory = call_user_info_agent(human_message)
+
+    user_id = state["user_id"]
+
+    UserMemory.objects.update_or_create(
+        user_id=user_id,
+        defaults={"user_id": user_id, "memory": updated_user_memory.info},
+    )
+
+    logging.info(f"Wrapping up user {user_id}, storing memory and chat history")
+
+    ChatHistory.objects.create(
+        user_id=user_id,
+        message=human_message,
+        role="human",
+    )
+
+    llm_response = str(state["response"])
+
+    cleaned_llm_response = clean_html(llm_response)
+
+    ChatHistory.objects.create(
+        user_id=user_id,
+        message=cleaned_llm_response,
+        role="ai",
+    )
