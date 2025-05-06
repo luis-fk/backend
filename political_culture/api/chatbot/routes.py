@@ -13,7 +13,6 @@ logger = logging.getLogger(__name__)
 
 class ChatBotApi(APIView):
     llm = LLM()
-    llm.setup()
 
     def post(self, request: Any, *args: Any, **kwargs: Any) -> Response:
         logger.info("Receiving message from user to be processed by LLM")
@@ -33,7 +32,7 @@ class ChatBotApi(APIView):
                 return Response({"error": "Error processing user text"}, status=400)
 
             return Response(
-                {"user_id": user_id, "response": "Text inserted sucessfully"},
+                {"user_id": user_id, "response": response},
                 status=status.HTTP_200_OK,
             )
         else:
