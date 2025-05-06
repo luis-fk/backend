@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 
-import "@/css/layout.css";
+import "@/plants/css/layout.css";
 
 export const metadata: Metadata = {
   title: "Plants",

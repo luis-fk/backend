@@ -20,9 +20,15 @@
     ],
     "paths": {
       "@/*": ["./src/*"],
-      "@/components/*": ["./src/app/plants/components/*"],
-      "@/css/*": ["./src/app/plants/css/*"],
-      "@/actions/*": ["./src/app/plants/actions/*"]
+      "@/plants/components/*": ["./src/app/plants/components/*"],
+      "@/plants/css/*": ["./src/app/plants/css/*"],
+      "@/plants/actions/*": ["./src/app/plants/actions/*"],
+
+      "@/political-culture/components/*": [
+        "./src/app/political-culture/components/*"
+      ],
+      "@/political-culture/css/*": ["./src/app/political-culture/css/*"],
+      "@/political-culture/actions/*": ["./src/app/political-culture/actions/*"]
     },
     "forceConsistentCasingInFileNames": true
   },

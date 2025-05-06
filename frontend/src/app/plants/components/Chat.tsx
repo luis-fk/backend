@@ -8,9 +8,9 @@ import {
   MessageInput,
 } from "@chatscope/chat-ui-kit-react";
 import "@chatscope/chat-ui-kit-styles/dist/default/styles.min.css";
-import "@/css/chat.css";
+import "@/plants/css/chat.css";
 import axios from "axios";
-import { useSession } from "@/app/plants/actions/useSession";
+import { useSession } from "@/app/actions/useSession";
 import { useMediaQuery } from "@mui/material";
 
 export interface MessageType {
