@@ -1,18 +1,44 @@
-from langchain import hub
+from typing import cast
+
+from langchain.agents import AgentExecutor, create_tool_calling_agent
+from langchain_core.prompts import (
+    AIMessagePromptTemplate,
+    ChatPromptTemplate,
+    HumanMessagePromptTemplate,
+    SystemMessagePromptTemplate,
+)
 from langchain_openai import ChatOpenAI
 
-from political_culture.api.word_counter.schemas import TitleAndAuthorSchema
+from political_culture.api.chatbot import tools as chatbot_tools
+from political_culture.api.chatbot.prompts import TEXT_TECHNICAL_ANALYSIS_PROMPT
 
 llm_4 = ChatOpenAI(model="gpt-4o-mini", temperature=0.5)
 
 
-def call_title_and_author_extractor_agent(text: str) -> TitleAndAuthorSchema:
-    instructions = hub.pull("extract_title_and_author")
-
-    chain = instructions | llm_4.with_structured_output(
-        schema=TitleAndAuthorSchema, method="json_schema"
+def text_analyist_agent(
+    input: str,
+) -> str:
+    instructions_prompt = ChatPromptTemplate.from_messages(
+        [
+            SystemMessagePromptTemplate.from_template(TEXT_TECHNICAL_ANALYSIS_PROMPT),
+            HumanMessagePromptTemplate.from_template("{input}"),
+            AIMessagePromptTemplate.from_template("{agent_scratchpad}"),
+        ]
     )
-    
-    response = chain.invoke({"input": text})
 
-    return TitleAndAuthorSchema.model_validate(response)
+    tools = [
+        chatbot_tools.get_all_texts_info,
+        chatbot_tools.get_text_by_id,
+        chatbot_tools.get_text_word_count_by_id,
+    ]
+    agent = create_tool_calling_agent(llm_4, tools, prompt=instructions_prompt)
+    agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=False)
+
+    response = agent_executor.invoke(
+        {
+            "input": input,
+            "agent_scratchpad": "",
+        }
+    )
+
+    return cast(str, response["output"])
