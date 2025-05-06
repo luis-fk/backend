@@ -11,17 +11,19 @@ from political_culture.api.chatbot.schemas import SquadState
 def build_graph() -> CompiledStateGraph:
     logging.info("Building LLM graph")
 
-    workflow = StateGraph(SquadState)
+    graph_builder = StateGraph(SquadState)
 
-    workflow.set_entry_point("text_info_extraction")
+    graph_builder.set_entry_point("text_info_extraction")
 
-    workflow.add_node("text_info_extraction", nodes.text_info_extraction)
-    workflow.add_node("text_analysis", nodes.text_analysis)
+    graph_builder.add_node("text_info_extraction", nodes.text_info_extraction)
+    graph_builder.add_node("text_analysis", nodes.text_analysis)
+    graph_builder.add_node("wrap_up", nodes.wrap_up)
 
-    workflow.add_edge("text_info_extraction", "text_analysis")
+    graph_builder.add_edge("text_info_extraction", "text_analysis")
+    graph_builder.add_edge("text_analysis", "wrap_up")
 
-    workflow.set_finish_point("text_analysis")
+    graph_builder.set_finish_point("wrap_up")
 
     logging.info("LLM graph built")
 
-    return workflow.compile()
+    return graph_builder.compile()

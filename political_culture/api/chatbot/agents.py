@@ -10,7 +10,11 @@ from langchain_core.prompts import (
 from langchain_openai import ChatOpenAI
 
 from political_culture.api.chatbot import tools as chatbot_tools
-from political_culture.api.chatbot.prompts import TEXT_TECHNICAL_ANALYSIS_PROMPT
+from political_culture.api.chatbot.prompts import (
+    TEXT_TECHNICAL_ANALYSIS_PROMPT,
+    USER_INFO_PROMPT,
+)
+from political_culture.api.chatbot.schemas import ChatInfo
 
 llm_4 = ChatOpenAI(model="gpt-4o-mini", temperature=0.5)
 
@@ -42,3 +46,22 @@ def text_analyist_agent(
     )
 
     return cast(str, response["output"])
+
+
+def call_user_info_agent(
+    message: str,
+) -> ChatInfo:
+    instructions_prompt = ChatPromptTemplate.from_messages(
+        [
+            SystemMessagePromptTemplate.from_template(USER_INFO_PROMPT),
+            HumanMessagePromptTemplate.from_template("{input}"),
+        ]
+    )
+
+    chain = instructions_prompt | llm_4.with_structured_output(
+        schema=ChatInfo, method="json_schema"
+    )
+
+    response = chain.invoke({"input": message})
+
+    return ChatInfo.model_validate(response)

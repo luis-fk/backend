@@ -16,5 +16,14 @@ TEXT_TECHNICAL_ANALYSIS_PROMPT = (
     "\n3. For each selected text_id, call get_text_word_count_by_id(id) and then"
     "get_text_by_id(id) only for deep lexical and rhetorical metrics."
     "\n4. Once you have fetched all required data, stop calling tools and return "
-    "a concise, structured analysis of the input text and do not call any more tools."
+    "a concise, structured analysis of the input text "
+    "and do not call any more tools."
+    "\n5. You respond only in plain text format, no HTML or Markdown."
+)
+
+USER_INFO_PROMPT = (
+    "You will receive an exchange of messages between a human and "
+    "an AI. Summarize the conversation so far, including the latest "
+    "messages. Add or update any relevant user information while "
+    "retaining existing details."
 )

@@ -7,6 +7,7 @@ from rest_framework.views import APIView
 
 from political_culture.api.chatbot.chatbot import LLM
 from political_culture.api.chatbot.serializers import MessageSerializer
+from political_culture.api.chatbot.utils import clean_html
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +26,9 @@ class ChatBotApi(APIView):
 
             logger.info(f"Processing user text {text} for user {user_id}")
 
-            response = self.llm.process_text(text=text, user_id=int(user_id))
+            cleaned_text = clean_html(text)
+
+            response = self.llm.process_text(text=cleaned_text, user_id=int(user_id))
 
             if not response:
                 logger.error("Error processing user text")

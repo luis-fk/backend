@@ -10,6 +10,7 @@ class SquadState(MessagesState):
     content_description: str
     word_count: list[tuple[str, int]]
     response: str
+    memory: str
 
 
 class ChatInfo(BaseModel):

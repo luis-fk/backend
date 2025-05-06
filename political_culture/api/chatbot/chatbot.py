@@ -6,6 +6,7 @@ from langgraph.graph.state import CompiledStateGraph
 
 from political_culture.api.chatbot.graph import build_graph
 from political_culture.api.chatbot.utils import singleton
+from political_culture.models import UserMemory
 
 load_dotenv()
 
@@ -26,16 +27,23 @@ class LLM:
     def process_text(self, text: str, user_id: int) -> str:
         logger.info(f"Processing message for user {user_id}")
 
+        user_memory = (
+            UserMemory.objects.filter(user_id=user_id)
+            .values_list("memory", flat=True)
+            .first()
+        )
+
         if self.graph:
             result = self.graph.invoke(
                 input={
                     "input": text,
+                    "memory": user_memory,
                     "user_id": user_id,
                 }
             )
 
             logger.info(f"Message processed for user {user_id}")
 
-            return cast(str, result["output"])
+            return cast(str, result["response"])
         else:
             return "An error occurred while processing the message."

@@ -16,8 +16,6 @@ def get_all_texts_info() -> list[tuple[int, Optional[str], Optional[str], str]]:
         "id", "title", "author", "content_description"
     )
 
-    print("@@@ texts_info", list(texts_info))
-
     return list(texts_info)
 
 
