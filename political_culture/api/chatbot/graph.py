@@ -25,7 +25,7 @@ def build_graph() -> CompiledStateGraph:
         "router",
         nodes.route_picker,
         {
-            "continue": "general_chat",
+            "chat": "general_chat",
             "analysis": "text_info_extraction",
         },
     )

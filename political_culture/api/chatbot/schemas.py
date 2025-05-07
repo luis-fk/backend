@@ -13,7 +13,7 @@ class SquadState(MessagesState):
     word_count: list[tuple[str, int]]
     response: str
     memory: str
-    route: "Routes"
+    route: str
 
 
 class ChatInfo(BaseModel):
