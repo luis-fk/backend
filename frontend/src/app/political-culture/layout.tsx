@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 
+import "@/political-culture/css/layout.css";
+
 export const metadata: Metadata = {
   title: "Political Culture",
 };

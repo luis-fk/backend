@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { decrypt } from "@/app/plants/actions/session";
+import { decrypt } from "@/app/actions/session";
 import { cookies } from "next/headers";
 
-const protectedRoutes = ["/chat"];
-const publicRoutes = ["/"];
+const protectedRoutes = ["/political-culture/chat", "/"];
+const publicRoutes = ["/political-culture"];
 
 export default async function middleware(req: NextRequest) {
   const path = req.nextUrl.pathname;
@@ -14,7 +14,7 @@ export default async function middleware(req: NextRequest) {
   const session = await decrypt(cookie);
 
   if (isProtectedRoute && !session?.userId) {
-    return NextResponse.redirect(new URL("/", req.nextUrl));
+    return NextResponse.redirect(new URL("/political-culture", req.nextUrl));
   }
 
   if (
