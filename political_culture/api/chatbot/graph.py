@@ -31,7 +31,8 @@ def build_graph() -> CompiledStateGraph:
     )
 
     graph_builder.add_edge("text_info_extraction", "text_analysis")
-    graph_builder.add_edge(["text_analysis", "general_chat"], "wrap_up")
+    graph_builder.add_edge("text_analysis", "wrap_up")
+    graph_builder.add_edge("general_chat", "wrap_up")
 
     graph_builder.set_finish_point("wrap_up")
 
