@@ -6,7 +6,7 @@ export const metadata: Metadata = {
   title: "Political Culture",
 };
 
-export default function RootLayout({
+export default function PoliticalCultureLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
