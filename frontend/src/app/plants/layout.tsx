@@ -6,7 +6,7 @@ export const metadata: Metadata = {
   title: "Plants",
 };
 
-export default function RootLayout({
+export default function PlantsLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
