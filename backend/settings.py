@@ -109,7 +109,7 @@ DATABASES = {
     ),
 }
 
-DATABASE_ROUTERS = ["backend.apps_routers.AppsRouter", "backend.auth_router.AuthRouter"]
+DATABASE_ROUTERS = ["backend.apps_routers.AppsRouter"]
 
 
 # Password validation
