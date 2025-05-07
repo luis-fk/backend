@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ChatContainer,
   MessageList,
@@ -35,27 +35,27 @@ export default function Chat() {
   const chatWidth = isMobile ? "90vw" : "60vw";
   const chatHeight = isMobile ? "85vh" : "90vh";
 
-  // useEffect(() => {
-  //   if (session?.userId) {
-  //     async function fetchChatHistory() {
-  //       const response = await axios.get(
-  //         `${serverUrl}/api/chat-history/${session?.userId}`,
-  //       );
+  useEffect(() => {
+    if (session?.userId) {
+      async function fetchChatHistory() {
+        const response = await axios.get(
+          `${serverUrl}/api/political-culture/chat-history/${session?.userId}`,
+        );
 
-  //       if (response.status === 200) {
-  //         setMessages(response.data);
-  //       } else if (response.status === 204) {
-  //         setMessages([
-  //           {
-  //             message: "Hello! How can I help you today?",
-  //             role: "ai",
-  //           },
-  //         ]);
-  //       }
-  //     }
-  //     fetchChatHistory();
-  //   }
-  // }, [session?.userId, serverUrl]);
+        if (response.status === 200) {
+          setMessages(response.data);
+        } else if (response.status === 204) {
+          setMessages([
+            {
+              message: "Hello! How can I help you today?",
+              role: "ai",
+            },
+          ]);
+        }
+      }
+      fetchChatHistory();
+    }
+  }, [session?.userId, serverUrl]);
 
   async function handleSendMessage() {
     if (messages[messages.length - 1]["role"] === "ai") {
