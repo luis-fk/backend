@@ -1,13 +1,47 @@
 import logging
+from typing import cast
+
+from langchain_core.messages import HumanMessage
 
 from political_culture.api.chatbot.agents import (
+    call_router_agent,
     call_user_info_agent,
     text_analyist_agent,
 )
-from political_culture.api.chatbot.schemas import SquadState
+from political_culture.api.chatbot.schemas import Routes, SquadState
 from political_culture.api.chatbot.utils import clean_html
 from political_culture.api.word_counter.service import add_text, add_text_word_count
 from political_culture.models import ChatHistory, UserMemory
+
+
+def router(state: SquadState) -> SquadState:
+    logging.info("Initiating routing verification for user")
+
+    lastest_message: HumanMessage = cast(HumanMessage, state["input"])
+
+    response = call_router_agent(message=lastest_message)
+
+    return {
+        **state,
+        "route": response.route,
+    }
+
+
+def route_picker(state: SquadState) -> Routes:
+    logging.info(f"Routing to {state['route']}")
+
+    if state["route"] in [Routes.CHAT, Routes.ANALYSIS]:
+        return state["route"]
+    else:
+        raise ValueError(
+            f"Invalid route '{state['route']}'. Supported routes are {Routes.CHAT} and {Routes.ANALYSIS}."
+        )
+
+
+def general_chat(state: SquadState) -> SquadState:
+    logging.info("Starting general chat")
+
+    return state
 
 
 def text_info_extraction(state: SquadState) -> SquadState:

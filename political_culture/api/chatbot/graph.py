@@ -13,14 +13,25 @@ def build_graph() -> CompiledStateGraph:
 
     graph_builder = StateGraph(SquadState)
 
-    graph_builder.set_entry_point("text_info_extraction")
+    graph_builder.set_entry_point("router")
 
+    graph_builder.add_node("router", nodes.router)
+    graph_builder.add_node("general_chat", nodes.general_chat)
     graph_builder.add_node("text_info_extraction", nodes.text_info_extraction)
     graph_builder.add_node("text_analysis", nodes.text_analysis)
     graph_builder.add_node("wrap_up", nodes.wrap_up)
 
+    graph_builder.add_conditional_edges(
+        "router",
+        nodes.route_picker,
+        {
+            "continue": "general_chat",
+            "analysis": "text_info_extraction",
+        },
+    )
+
     graph_builder.add_edge("text_info_extraction", "text_analysis")
-    graph_builder.add_edge("text_analysis", "wrap_up")
+    graph_builder.add_edge(["text_analysis", "general_chat"], "wrap_up")
 
     graph_builder.set_finish_point("wrap_up")
 
