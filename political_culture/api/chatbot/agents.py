@@ -12,6 +12,7 @@ from langchain_openai import ChatOpenAI
 
 from political_culture.api.chatbot import tools as chatbot_tools
 from political_culture.api.chatbot.prompts import (
+    GENERAL_CHAT_PROMPT,
     ROUTER_PROMPT,
     TEXT_TECHNICAL_ANALYSIS_PROMPT,
     USER_INFO_PROMPT,
@@ -86,3 +87,34 @@ def call_router_agent(
     response = chain.invoke({"input": message})
 
     return Routing.model_validate(response)
+
+
+def general_chat_agent(
+    input: str,
+) -> str:
+    instructions_prompt = ChatPromptTemplate.from_messages(
+        [
+            SystemMessagePromptTemplate.from_template(GENERAL_CHAT_PROMPT),
+            HumanMessagePromptTemplate.from_template("{input}"),
+            AIMessagePromptTemplate.from_template("{agent_scratchpad}"),
+        ]
+    )
+
+    tools = [
+        chatbot_tools.get_user_submitted_texts_info,
+        chatbot_tools.get_text_by_id,
+        chatbot_tools.get_text_word_count_by_id,
+        chatbot_tools.get_recent_chat_history,
+        chatbot_tools.get_user_memory,
+    ]
+    agent = create_tool_calling_agent(llm_4, tools, prompt=instructions_prompt)
+    agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=False)
+
+    response = agent_executor.invoke(
+        {
+            "input": input,
+            "agent_scratchpad": "",
+        }
+    )
+
+    return cast(str, response["output"])

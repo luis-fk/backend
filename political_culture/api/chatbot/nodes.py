@@ -6,6 +6,7 @@ from langchain_core.messages import HumanMessage
 from political_culture.api.chatbot.agents import (
     call_router_agent,
     call_user_info_agent,
+    general_chat_agent,
     text_analyist_agent,
 )
 from political_culture.api.chatbot.schemas import Routes, SquadState
@@ -23,14 +24,14 @@ def router(state: SquadState) -> SquadState:
 
     return {
         **state,
-        "route": response.route,
+        "route": response.route.value,
     }
 
 
-def route_picker(state: SquadState) -> Routes:
+def route_picker(state: SquadState) -> str:
     logging.info(f"Routing to {state['route']}")
 
-    if state["route"] in [Routes.CHAT, Routes.ANALYSIS]:
+    if state["route"] in [Routes.CHAT.value, Routes.ANALYSIS.value]:
         return state["route"]
     else:
         raise ValueError(
@@ -41,7 +42,11 @@ def route_picker(state: SquadState) -> Routes:
 def general_chat(state: SquadState) -> SquadState:
     logging.info("Starting general chat")
 
-    return state
+    input = f"User message: {state['input']}"
+
+    response = general_chat_agent(input)
+
+    return {**state, "response": response}
 
 
 def text_info_extraction(state: SquadState) -> SquadState:
