@@ -1,6 +1,7 @@
 from typing import cast
 
 from langchain.agents import AgentExecutor, create_tool_calling_agent
+from langchain_core.messages import HumanMessage
 from langchain_core.prompts import (
     AIMessagePromptTemplate,
     ChatPromptTemplate,
@@ -11,10 +12,11 @@ from langchain_openai import ChatOpenAI
 
 from political_culture.api.chatbot import tools as chatbot_tools
 from political_culture.api.chatbot.prompts import (
+    ROUTER_PROMPT,
     TEXT_TECHNICAL_ANALYSIS_PROMPT,
     USER_INFO_PROMPT,
 )
-from political_culture.api.chatbot.schemas import ChatInfo
+from political_culture.api.chatbot.schemas import ChatInfo, Routing
 
 llm_4 = ChatOpenAI(model="gpt-4o-mini", temperature=0.5)
 
@@ -65,3 +67,22 @@ def call_user_info_agent(
     response = chain.invoke({"input": message})
 
     return ChatInfo.model_validate(response)
+
+
+def call_router_agent(
+    message: HumanMessage,
+) -> Routing:
+    instructions_prompt = ChatPromptTemplate.from_messages(
+        [
+            SystemMessagePromptTemplate.from_template(ROUTER_PROMPT),
+            HumanMessagePromptTemplate.from_template("{input}"),
+        ]
+    )
+
+    chain = instructions_prompt | llm_4.with_structured_output(
+        schema=Routing, method="json_schema"
+    )
+
+    response = chain.invoke({"input": message})
+
+    return Routing.model_validate(response)

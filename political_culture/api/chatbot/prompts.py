@@ -27,3 +27,9 @@ USER_INFO_PROMPT = (
     "messages. Add or update any relevant user information while "
     "retaining existing details."
 )
+
+ROUTER_PROMPT = (
+    "You are tasked with determining whether the user's message is "
+    "a general question just wanting to chat or if the user submitted "
+    "a text for analysis."
+)
