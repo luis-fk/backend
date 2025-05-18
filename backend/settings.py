@@ -58,6 +58,7 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "pgvector.django",
     "corsheaders",
     "rest_framework",
     "plants",
@@ -105,7 +106,9 @@ DATABASES = {
     "auth_db": dj_database_url.config(default=env("AUTH_DATABASE_URL")),
     "plants_db": dj_database_url.config(default=env("PLANTS_DATABASE_URL")),
     "political_culture_db": dj_database_url.config(
-        default=env("POLITICAL_CULTURE_DATABASE_URL")
+        default=env(
+            "POLITICAL_CULTURE_DATABASE_URL",
+        )
     ),
 }
 
