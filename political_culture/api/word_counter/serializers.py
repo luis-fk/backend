@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
 
-class TextsSerializer(serializers.Serializer):
+class ContentSerializer(serializers.Serializer):
     user_id = serializers.IntegerField()
-    text = serializers.CharField()
+    content = serializers.FileField()

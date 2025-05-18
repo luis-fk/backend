@@ -11,7 +11,9 @@ from political_culture.models import ChatHistory, Texts, TextWordCount, UserMemo
 
 
 @tool
-def get_all_texts_info() -> list[tuple[int, Optional[str], Optional[str], str]]:
+def get_all_texts_info() -> list[
+    tuple[int, Optional[str], Optional[str], Optional[str]]
+]:
     """
     Return a list of all titles, authors and context summaries from the database.
     The list is a list of tuples, where each tuple contains the id, title,
@@ -108,7 +110,7 @@ def get_user_memory(user_id: int) -> str | None:
 @tool
 def get_user_submitted_texts_info(
     user_id: int,
-) -> list[tuple[int, Optional[str], Optional[str], str]]:
+) -> list[tuple[int, Optional[str], Optional[str], Optional[str]]]:
     """
     Return a list of all titles, authors and context summaries from the database.
     The list is a list of tuples, where each tuple contains the id, title,

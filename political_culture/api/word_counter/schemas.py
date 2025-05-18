@@ -6,8 +6,8 @@ class TitleAndAuthorSchema(BaseModel):
         ...,
         description="The reasoning behind the responses in a clear and concise manner",
     )
-    author: str = Field(..., description="The name of the author of the text")
-    title: str = Field(..., description="The title of the text")
+    author: str | None = Field(..., description="The name of the author of the text")
+    title: str | None = Field(..., description="The title of the text")
     content_description: str = Field(
         ...,
         description="The content description of the text",
@@ -25,3 +25,9 @@ class WordFrequencySquema(BaseModel):
         description="The reasoning behind the responses in a clear and concise manner",
     )
     words_list: list[WordCount] = Field(..., description="A list of word/count objects")
+
+
+class ChunkSchema(BaseModel):
+    id: int
+    text: str
+    score: float
