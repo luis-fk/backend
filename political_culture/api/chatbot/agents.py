@@ -18,6 +18,7 @@ from political_culture.api.chatbot.prompts import (
     USER_INFO_PROMPT,
 )
 from political_culture.api.chatbot.schemas import ChatInfo, Routing
+from political_culture.api.word_counter.tools import query_vectors
 
 llm_4 = ChatOpenAI(model="gpt-4o-mini", temperature=0.5)
 
@@ -34,8 +35,8 @@ def text_analyist_agent(
     )
 
     tools = [
+        query_vectors,
         chatbot_tools.get_all_texts_info,
-        chatbot_tools.get_text_by_id,
         chatbot_tools.get_text_word_count_by_id,
     ]
     agent = create_tool_calling_agent(llm_4, tools, prompt=instructions_prompt)
@@ -101,8 +102,8 @@ def general_chat_agent(
     )
 
     tools = [
+        query_vectors,
         chatbot_tools.get_user_submitted_texts_info,
-        chatbot_tools.get_text_by_id,
         chatbot_tools.get_text_word_count_by_id,
         chatbot_tools.get_recent_chat_history,
         chatbot_tools.get_user_memory,

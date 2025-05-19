@@ -10,7 +10,11 @@ from political_culture.api.chatbot.agents import (
     text_analyist_agent,
 )
 from political_culture.api.chatbot.schemas import Routes, SquadState
-from political_culture.api.chatbot.utils import clean_html
+from political_culture.api.chatbot.utils import (
+    add_text,
+    add_text_word_count,
+    clean_html,
+)
 from political_culture.models import ChatHistory, UserMemory
 
 
@@ -50,25 +54,25 @@ def general_chat(state: SquadState) -> SquadState:
 
 def text_info_extraction(state: SquadState) -> SquadState:
     logging.info("Starting text info extraction")
-    return state
-    # text = state["input"]
-    # user_id = state["user_id"]
 
-    # text_db = add_text(text, user_id, user_submitted_text=True)
+    text = state["input"]
+    user_id = state["user_id"]
 
-    # logging.info("Getting word frequency and total word count")
+    text_db = add_text(text, user_id, user_submitted_text=True)
 
-    # word_count = add_text_word_count(text_db)
+    logging.info("Getting word frequency and total word count")
 
-    # logging.info("Data created successfully")
+    word_count = add_text_word_count(text_db)
 
-    # return {
-    #     **state,
-    #     "word_count": word_count.word_frequencies,
-    #     "content_description": text_db.content_description,
-    #     "title": text_db.title or "unknown",
-    #     "author": text_db.author or "unknown",
-    # }
+    logging.info("Data created successfully")
+
+    return {
+        **state,
+        "word_count": word_count.word_frequencies,
+        "content_description": text_db.content_description or "unknown",
+        "title": text_db.title or "unknown",
+        "author": text_db.author or "unknown",
+    }
 
 
 def text_analysis(state: SquadState) -> SquadState:
