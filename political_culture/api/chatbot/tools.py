@@ -38,7 +38,11 @@ def get_text_word_count_by_id(text_id: int) -> TextWordCount | None:
         A TextWordCount object with the words and their frequencies,
         or None if no object is found.
     """
-    return TextWordCount.objects.filter(text_id=text_id).first()
+    return (
+        TextWordCount.objects.filter(text_id=text_id)
+        .values_list("word_frequencies", flat=True)
+        .first()
+    )
 
 
 @tool

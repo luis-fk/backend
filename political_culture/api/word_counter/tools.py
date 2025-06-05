@@ -23,7 +23,7 @@ def query_vectors(text_id: int, query: str) -> list[ChunkSchema]:
     chunks = (
         TextChunks.objects.filter(text_id=text_id)
         .annotate(score=CosineDistance("vector", query_vector))
-        .order_by("score")[:5]
+        .order_by("score")[:3]
     )
 
     return [

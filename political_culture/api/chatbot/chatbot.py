@@ -39,7 +39,10 @@ class LLM:
                     "input": text,
                     "memory": user_memory,
                     "user_id": user_id,
-                }
+                },
+                config={
+                    "recursion_limit": 50,
+                },
             )
 
             logger.info(f"Message processed for user {user_id}")

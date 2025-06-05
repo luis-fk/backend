@@ -7,16 +7,14 @@ from langchain_core.prompts import (
     HumanMessagePromptTemplate,
     SystemMessagePromptTemplate,
 )
-from langchain_openai import ChatOpenAI
 
+from political_culture.api.utils import llm_4
 from political_culture.api.word_counter.prompts import TEXT_INFO_EXTRACTION_PROMPT
 from political_culture.api.word_counter.schemas import TitleAndAuthorSchema
 from political_culture.api.word_counter.service import count_words, word_picker
 from political_culture.models import Texts, TextWordCount
 
 T = TypeVar("T")
-
-llm_4 = ChatOpenAI(model="gpt-4o-mini", temperature=0.5)
 
 
 def singleton(cls: Type[T]) -> Callable[..., T]:

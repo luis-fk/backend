@@ -8,6 +8,7 @@ from political_culture.api.chatbot.agents import (
     call_user_info_agent,
     general_chat_agent,
     text_analyist_agent,
+    word_analyist_agent,
 )
 from political_culture.api.chatbot.schemas import Routes, SquadState
 from political_culture.api.chatbot.utils import (
@@ -69,10 +70,22 @@ def text_info_extraction(state: SquadState) -> SquadState:
     return {
         **state,
         "word_count": word_count.word_frequencies,
-        "content_description": text_db.content_description or "unknown",
         "title": text_db.title or "unknown",
         "author": text_db.author or "unknown",
     }
+
+
+def word_analysis(state: SquadState) -> SquadState:
+    logging.info("Starting word analysis")
+
+    input = (
+        f"Title: {state['title']} \nAuthor: {state['author']}"
+        f"\n\nText: {state['input']} \n\nWord Count: {state['word_count']}"
+    )
+
+    response = word_analyist_agent(input)
+
+    return {**state, "word_analysis_response": response}
 
 
 def text_analysis(state: SquadState) -> SquadState:
@@ -80,12 +93,12 @@ def text_analysis(state: SquadState) -> SquadState:
 
     input = (
         f"Title: {state['title']} \nAuthor: {state['author']}"
-        f"\n\nSummary: {state['content_description']} \n\nWord Count: {state['word_count']}"
+        f"\n\nText: {state['input']}"
     )
 
     response = text_analyist_agent(input)
 
-    return {**state, "response": response}
+    return {**state, "response": state["word_analysis_response"] + response}
 
 
 def wrap_up(state: SquadState) -> None:
