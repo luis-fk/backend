@@ -25,6 +25,8 @@ tavily-python = "^0.5.0"
 langchain-openai = "^0.3.2"
 psycopg2-binary = "^2.9.10"
 dj-database-url = "^2.3.0"
+pypdf = "^5.5.0"
+pgvector = "^0.4.1"
 
 
 [tool.poetry.group.dev.dependencies]
