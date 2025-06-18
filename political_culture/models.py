@@ -16,13 +16,23 @@ class Users(models.Model):
 class Texts(models.Model):
     title = models.CharField(max_length=500, null=True, blank=True)
     author = models.CharField(max_length=50, null=True, blank=True)
+    ideology = models.CharField(max_length=50, null=True, blank=True, default=None)
     text = models.TextField()
     content_description = models.TextField(null=True, blank=True)
     user_submitted_text = models.BooleanField(default=False)
+
     user = models.ForeignKey(Users, on_delete=models.CASCADE, related_name="texts")
 
     def __str__(self) -> str:
         return f"Text {self.title} by {self.author}"
+
+
+class IdeologiesDefinition(models.Model):
+    ideology = models.TextField()
+    definition = models.TextField()
+
+    def __str__(self) -> str:
+        return f"Text {self.ideology}"
 
 
 class TextChunks(models.Model):
