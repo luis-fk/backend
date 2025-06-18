@@ -1,7 +1,7 @@
 from typing import cast
 
 from langchain.agents import AgentExecutor, create_tool_calling_agent
-from langchain_core.messages import HumanMessage
+from langchain_core.messages import BaseMessage, HumanMessage
 from langchain_core.prompts import (
     AIMessagePromptTemplate,
     ChatPromptTemplate,
@@ -74,11 +74,11 @@ def text_analyist_agent(input: str) -> str:
     return cast(str, response["output"])
 
 
-def call_user_info_agent(message: str) -> ChatInfo:
+def call_user_info_agent(message: str, chat_history: list[BaseMessage]) -> ChatInfo:
     instructions_prompt = ChatPromptTemplate.from_messages(
         [
             SystemMessagePromptTemplate.from_template(USER_INFO_PROMPT),
-            HumanMessagePromptTemplate.from_template("{input}"),
+            HumanMessagePromptTemplate.from_template("{input}, {chat_history}"),
         ]
     )
 
@@ -86,7 +86,7 @@ def call_user_info_agent(message: str) -> ChatInfo:
         schema=ChatInfo, method="json_schema"
     )
 
-    response = chain.invoke({"input": message})
+    response = chain.invoke({"input": message, "chat_history": chat_history})
 
     return ChatInfo.model_validate(response)
 
@@ -108,11 +108,11 @@ def call_router_agent(message: HumanMessage) -> Routing:
     return Routing.model_validate(response)
 
 
-def general_chat_agent(input: str) -> str:
+def general_chat_agent(input: str, chat_history: list[BaseMessage]) -> str:
     instructions_prompt = ChatPromptTemplate.from_messages(
         [
             SystemMessagePromptTemplate.from_template(GENERAL_CHAT_PROMPT),
-            HumanMessagePromptTemplate.from_template("{input}"),
+            HumanMessagePromptTemplate.from_template("{input}, {chat_history}"),
             AIMessagePromptTemplate.from_template("{agent_scratchpad}"),
         ]
     )
@@ -130,6 +130,7 @@ def general_chat_agent(input: str) -> str:
     response = agent_executor.invoke(
         {
             "input": input,
+            "chat_history": chat_history,
             "agent_scratchpad": "",
         }
     )
