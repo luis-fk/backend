@@ -15,9 +15,10 @@ from langchain_core.prompts import (
     HumanMessagePromptTemplate,
     SystemMessagePromptTemplate,
 )
-from langchain_openai import ChatOpenAI, OpenAIEmbeddings
+from langchain_openai import OpenAIEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
+from political_culture.api.utils import llm_4
 from political_culture.api.word_counter.prompts import (
     STRUCTURED_OUTPUT_PROMPT,
     TEXT_INFO_EXTRACTION_PROMPT,
@@ -32,8 +33,6 @@ from political_culture.models import TextChunks, Texts, TextWordCount
 
 env = Env()
 Env.read_env()
-
-llm_4 = ChatOpenAI(model="gpt-4o-mini", temperature=0.5)
 
 
 def text_info_extractor(text_id: int) -> str:

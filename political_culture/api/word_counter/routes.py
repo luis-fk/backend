@@ -23,7 +23,7 @@ class WordCounterApi(APIView):
             content = serializer.validated_data["content"]
             user_id = serializer.validated_data["user_id"]
 
-            text_db = add_text(content, user_id, user_submitted_text=True)
+            text_db = add_text(content, user_id, user_submitted_text=False)
 
             logger.info("Getting word frequency and total word count")
 

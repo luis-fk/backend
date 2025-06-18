@@ -27,20 +27,6 @@ def get_all_texts_info() -> list[
 
 
 @tool
-def get_text_by_id(text_id: int) -> Optional[Texts]:
-    """
-    Return a Texts object for a given text_id.
-
-    Args:
-        text_id: The id of the text to retrieve.
-
-    Returns:
-        A Texts object, or None if no object is found.
-    """
-    return Texts.objects.filter(id=text_id).first()
-
-
-@tool
 def get_text_word_count_by_id(text_id: int) -> TextWordCount | None:
     """
     Return a TextWordCount object for a given text_id.
@@ -52,7 +38,11 @@ def get_text_word_count_by_id(text_id: int) -> TextWordCount | None:
         A TextWordCount object with the words and their frequencies,
         or None if no object is found.
     """
-    return TextWordCount.objects.filter(text_id=text_id).first()
+    return (
+        TextWordCount.objects.filter(text_id=text_id)
+        .values_list("word_frequencies", flat=True)
+        .first()
+    )
 
 
 @tool
