@@ -1,21 +1,16 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import {
-  ChatContainer,
-  MessageList,
-  Message,
-  MessageInput,
-} from "@chatscope/chat-ui-kit-react";
-import "@chatscope/chat-ui-kit-styles/dist/default/styles.min.css";
-import "@/political-culture/css/chat.css";
+import { useEffect, useState, useRef } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import axios from "axios";
 import { useSession } from "@/app/actions/useSession";
 import { useMediaQuery } from "@mui/material";
+import "@/political-culture/css/chat.css";
 
 export interface MessageType {
   message: string;
-  role: string;
+  role: "human" | "ai";
 }
 
 export default function Chat() {
@@ -25,133 +20,114 @@ export default function Chat() {
       role: "ai",
     },
   ]);
-  const [activeSendButton, setActivateSendButton] = useState(false);
-  const [messageInput, setMessageInput] = useState("");
+  const [input, setInput] = useState("");
+  const [sending, setSending] = useState(false);
+  const bottomRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const session = useSession();
   const serverUrl = process.env.NEXT_PUBLIC_SERVER_URL;
 
   const isMobile = useMediaQuery("(max-width: 800px)");
-  const chatWidth = isMobile ? "90vw" : "60vw";
-  const chatHeight = isMobile ? "85vh" : "90vh";
 
   useEffect(() => {
-    if (session?.userId) {
-      async function fetchChatHistory() {
-        const response = await axios.get(
-          `${serverUrl}/api/political-culture/chat-history/${session?.userId}`,
-        );
+    const ta = textareaRef.current;
 
-        if (response.status === 200) {
-          setMessages(response.data);
-        } else if (response.status === 204) {
-          setMessages([
-            {
-              message: "Hello! How can I help you today?",
-              role: "ai",
-            },
-          ]);
-        }
-      }
-      fetchChatHistory();
+    if (!ta) {
+      return;
     }
-  }, [session?.userId, serverUrl]);
 
-  async function handleSendMessage() {
-    if (messages[messages.length - 1]["role"] === "ai") {
-      setActivateSendButton(true);
+    ta.style.height = "auto";
+    ta.style.height = ta.scrollHeight + "px";
+  }, [input]);
 
-      const userMessage = messageInput;
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
 
-      setMessages((prevMessages) => [
-        ...prevMessages,
-        { message: userMessage, role: "human" },
+  useEffect(() => {
+    if (!session?.userId) return;
+    axios
+      .get(`${serverUrl}/api/political-culture/chat-history/${session.userId}`)
+      .then((res) => {
+        if (res.status === 200) setMessages(res.data);
+      })
+      .catch(() => {});
+  }, [session?.userId]);
+
+  async function send() {
+    if (sending || !input.trim()) return;
+    setSending(true);
+    const userMsg = input.trim();
+    setMessages((m) => [...m, { message: userMsg, role: "human" }]);
+    setInput("");
+
+    try {
+      const res = await axios.post(
+        `${serverUrl}/api/political-culture/chatbot/message`,
+        {
+          user_id: session?.userId,
+          text: userMsg,
+        },
+      );
+      setMessages((m) => [...m, { message: res.data.response, role: "ai" }]);
+    } catch {
+      setMessages((m) => [
+        ...m,
+        {
+          message: "Deu um problema, tenta novamente ou fala pro Felipe :)",
+          role: "ai",
+        },
       ]);
-
-      setMessageInput("");
-      try {
-        const response = await axios.post(
-          `${serverUrl}/api/political-culture/chatbot/message`,
-          {
-            user_id: session?.userId,
-            text: userMessage,
-          },
-        );
-
-        setMessages((prevMessages) => [
-          ...prevMessages,
-          { message: response.data.response, role: "ai" },
-        ]);
-      } catch {
-        console.error("Failed to send message to server");
-
-        setMessages((prevMessages) => [
-          ...prevMessages,
-          {
-            message: "Deu um problema, tenta novamente ou fala pro Felipe :)",
-            role: "ai",
-          },
-        ]);
-      } finally {
-        setActivateSendButton(false);
-      }
-    } else {
-      setMessageInput(messageInput);
+    } finally {
+      setSending(false);
     }
   }
 
   return (
-    <ChatContainer
-      suppressHydrationWarning
+    <div
+      className="chat-container"
       style={{
-        paddingTop: "30px",
-        width: chatWidth,
-        height: chatHeight,
-        backgroundColor: "#292929",
+        width: isMobile ? "90vw" : "60vw",
+        height: isMobile ? "85vh" : "95vh",
       }}
     >
-      <MessageList
-        style={{
-          padding: "10px",
-          backgroundColor: "#292929",
-        }}
-      >
-        {messages.map((msg, index) => (
-          <Message
-            style={{
-              marginBottom: "10px",
-              padding: "8px 12px",
-              fontSize: "18px",
-            }}
-            key={index}
-            type="html"
-            model={{
-              message: msg.message,
-              sentTime: "just now",
-              sender: msg.role,
-              direction: msg.role === "human" ? "outgoing" : "incoming",
-              position: "single",
-            }}
-          >
-            {msg.message}
-          </Message>
+      <div className="message-list">
+        {messages.map((msg, i) => (
+          <div key={i} className={`message ${msg.role}`}>
+            <div className="bubble">
+              <ReactMarkdown
+                remarkPlugins={[remarkGfm]}
+                disallowedElements={["pre", "code"]}
+                unwrapDisallowed={true}
+              >
+                {msg.message}
+              </ReactMarkdown>
+            </div>
+          </div>
         ))}
-      </MessageList>
-      <MessageInput
-        style={{
-          padding: "5px 10px",
-          borderRadius: "15px",
-          border: "none",
-          color: "white",
-          backgroundColor: "#3e3e3e",
-        }}
-        value={messageInput}
-        autoFocus={true}
-        sendDisabled={activeSendButton}
-        onChange={(value) => setMessageInput(value)}
-        onSend={handleSendMessage}
-        attachButton={false}
-      />
-    </ChatContainer>
+        <div ref={bottomRef} />
+      </div>
+      <div className="input-area">
+        <textarea
+          ref={textareaRef}
+          className="chat-input"
+          value={input}
+          disabled={sending}
+          placeholder="Type your message…"
+          rows={1}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              send();
+            }
+          }}
+        />
+        <button onClick={send} disabled={sending || !input.trim()}>
+          Send
+        </button>
+      </div>
+    </div>
   );
 }
