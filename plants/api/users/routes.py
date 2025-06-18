@@ -17,7 +17,7 @@ class UserApi(APIView):
         logger.info(f"Fetching user info for {name}")
 
         User = get_user_model()
-        auth_user = User.objects.using("auth_db").get(username=name)
+        auth_user = User.objects.using("default").get(username=name)
 
         if auth_user:
             serializer = UserSerializer(auth_user)

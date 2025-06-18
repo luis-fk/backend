@@ -103,7 +103,6 @@ WSGI_APPLICATION = "backend.wsgi.application"
 
 DATABASES = {
     "default": dj_database_url.config(default=env("AUTH_DATABASE_URL")),
-    "auth_db": dj_database_url.config(default=env("AUTH_DATABASE_URL")),
     "plants_db": dj_database_url.config(default=env("PLANTS_DATABASE_URL")),
     "political_culture_db": dj_database_url.config(
         default=env(
