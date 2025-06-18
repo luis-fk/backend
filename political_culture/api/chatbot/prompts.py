@@ -28,7 +28,6 @@ WORD_COUNT_COMPARISON_PROMPT = (
     "\n   • Optionally, for each common word, include its absolute frequency in the "
     "input text and in the database text."
     "\n\n**IMPORTANT**:"
-    "\n- Respond only in plain text format, with **no HTML or Markdown**."
     "\n- Respond in the same language as the user’s original message."
     "\n- Do not sign off with a closing sentence."
 )
@@ -79,7 +78,6 @@ TEXT_ANALYSIS_PROMPT = (
     "\n      • Any notable clusters of technical terms or proper names that the input"
     "        text shares (or fails to share) with each relevant database text."
     "\n\n**IMPORTANT**:"
-    "\n- Respond only in plain text format, with **no HTML or Markdown**."
     "\n- Respond in the same language as the user’s original message."
     "\n- Your response will be concatenated with another response so start your "
     "response in a way that they fit together."
@@ -127,7 +125,6 @@ GENERAL_CHAT_PROMPT = (
     "\nInvoke these tools only when they directly support the conversation or clarify user queries."
     "Otherwise, respond warmly, succinctly, and stay on topic."
     "\n\n**IMPORTANT**:"
-    "\n- Respond only in plain text format, with **no HTML or Markdown**."
     "\n- Respond in the same language as the user’s original message."
     "\n- Do not sign off with a closing sentence."
 )

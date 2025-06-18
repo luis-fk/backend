@@ -15,6 +15,7 @@ from political_culture.api.chatbot.utils import (
     add_text,
     add_text_word_count,
     clean_html,
+    get_recent_chat_history_db,
 )
 from political_culture.models import ChatHistory, UserMemory
 
@@ -47,8 +48,10 @@ def general_chat(state: SquadState) -> SquadState:
     logging.info("Starting general chat")
 
     input = f"User message: {state['input']}"
-
-    response = general_chat_agent(input)
+    
+    recent_chat_history = get_recent_chat_history_db(int(state["user_id"]))
+    
+    response = general_chat_agent(input, recent_chat_history)
 
     return {**state, "response": response}
 
@@ -92,8 +95,7 @@ def text_analysis(state: SquadState) -> SquadState:
     logging.info("Starting text analysis")
 
     input = (
-        f"Title: {state['title']} \nAuthor: {state['author']}"
-        f"\n\nText: {state['input']}"
+        f"Title: {state['title']} \nAuthor: {state['author']}\n\nText: {state['input']}"
     )
 
     response = text_analyist_agent(input)
@@ -104,7 +106,8 @@ def text_analysis(state: SquadState) -> SquadState:
 def wrap_up(state: SquadState) -> None:
     human_message: str = state["input"]
 
-    updated_user_memory = call_user_info_agent(human_message)
+    chat_history = get_recent_chat_history_db(int(state["user_id"]))
+    updated_user_memory = call_user_info_agent(human_message, chat_history)
 
     user_id = state["user_id"]
 

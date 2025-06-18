@@ -2,6 +2,7 @@ import logging
 import re
 from typing import Any, Callable, Dict, Optional, Type, TypeVar
 
+from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
 from langchain_core.prompts import (
     ChatPromptTemplate,
     HumanMessagePromptTemplate,
@@ -12,7 +13,7 @@ from political_culture.api.utils import llm_4
 from political_culture.api.word_counter.prompts import TEXT_INFO_EXTRACTION_PROMPT
 from political_culture.api.word_counter.schemas import TitleAndAuthorSchema
 from political_culture.api.word_counter.service import count_words, word_picker
-from political_culture.models import Texts, TextWordCount
+from political_culture.models import ChatHistory, Texts, TextWordCount
 
 T = TypeVar("T")
 
@@ -85,3 +86,20 @@ def add_text_word_count(text_db: Texts) -> TextWordCount:
         total_word_count=total_word_count,
         word_frequencies=dict_word_frequencies,
     )
+
+
+def get_recent_chat_history_db(user_id: int) -> list[BaseMessage]:
+    human_messages = ChatHistory.objects.filter(user_id=user_id, role="human").order_by(
+        "id"
+    )[:5]
+    ai_messages = ChatHistory.objects.filter(user_id=user_id, role="ai").order_by("id")[
+        :5
+    ]
+
+    chat_history: list[BaseMessage] = []
+
+    for human, ai in zip(human_messages, ai_messages):
+        chat_history.append(HumanMessage(content=human.message))
+        chat_history.append(AIMessage(content=ai.message))
+
+    return chat_history
