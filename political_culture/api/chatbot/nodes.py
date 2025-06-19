@@ -98,7 +98,7 @@ def text_analysis(state: SquadState) -> SquadState:
 
 
 def text_ideology_analysis(state: SquadState) -> SquadState:
-    logging.info("Starting text analysis")
+    logging.info("Starting ideology analysis")
 
     input = (
         f"Title: {state['title']} \nAuthor: {state['author']}\n\nText: {state['input']}"
@@ -107,6 +107,22 @@ def text_ideology_analysis(state: SquadState) -> SquadState:
     response = agents.text_ideology_analyist_agent(input)
 
     return {**state, "ideology_analysis_response": response}
+
+
+def text_concatenation(state: SquadState) -> SquadState:
+    logging.info("Starting text concatenation")
+
+    input = (
+        state["word_analysis_response"]
+        + "\n\n"
+        + state["text_analysis_response"]
+        + "\n\n"
+        + state["ideology_analysis_response"]
+    )
+
+    response = agents.call_text_concatenation_agent(input)
+
+    return {**state, "response": response}
 
 
 def wrap_up(state: SquadState) -> None:

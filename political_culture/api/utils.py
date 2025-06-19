@@ -1,3 +1,3 @@
 from langchain_openai import ChatOpenAI
 
-llm_4 = ChatOpenAI(model="o4-mini")
+llm_4 = ChatOpenAI(model="gpt-4.1-mini")
