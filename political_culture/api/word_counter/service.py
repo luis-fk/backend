@@ -75,11 +75,13 @@ def structured_text_info_extractor(content_description: str) -> TitleAndAuthorSc
     return TitleAndAuthorSchema.model_validate(response)
 
 
-def word_picker(words: list[tuple[str, int]]) -> WordFrequencySquema:
+def word_picker(
+    words: list[tuple[str, int]], content_description: str | None
+) -> WordFrequencySquema:
     instructions_prompt = ChatPromptTemplate.from_messages(
         [
             SystemMessagePromptTemplate.from_template(WORD_EXTRACTION_PROMPT),
-            AIMessagePromptTemplate.from_template("{input}"),
+            AIMessagePromptTemplate.from_template("{input}, {content_description}"),
         ]
     )
 
@@ -87,7 +89,9 @@ def word_picker(words: list[tuple[str, int]]) -> WordFrequencySquema:
         schema=WordFrequencySquema, method="json_schema"
     )
 
-    response = chain.invoke({"input": words})
+    response = chain.invoke(
+        {"input": words, "content_description": content_description}
+    )
 
     return WordFrequencySquema.model_validate(response)
 
@@ -140,7 +144,7 @@ def add_text(
 def add_text_word_count(text_db: Texts) -> TextWordCount:
     word_frequencies, total_word_count = count_words(text_db.text)
 
-    new_word_frequencies = word_picker(word_frequencies)
+    new_word_frequencies = word_picker(word_frequencies, text_db.content_description)
 
     dict_word_frequencies = dict(
         (word_count.word, word_count.count)

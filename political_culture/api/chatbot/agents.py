@@ -14,6 +14,7 @@ from political_culture.api.chatbot.prompts import (
     GENERAL_CHAT_PROMPT,
     ROUTER_PROMPT,
     TEXT_ANALYSIS_PROMPT,
+    TEXT_IDEOLOGY_ANALYSIS_PROMPT,
     USER_INFO_PROMPT,
     WORD_COUNT_COMPARISON_PROMPT,
 )
@@ -59,6 +60,33 @@ def text_analyist_agent(input: str) -> str:
 
     tools = [
         query_vectors,
+        chatbot_tools.get_all_texts_info,
+    ]
+    agent = create_tool_calling_agent(llm_4, tools, prompt=instructions_prompt)
+    agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=False)
+
+    response = agent_executor.invoke(
+        {
+            "input": input,
+            "agent_scratchpad": "",
+        }
+    )
+
+    return cast(str, response["output"])
+
+
+def text_ideology_analyist_agent(input: str) -> str:
+    instructions_prompt = ChatPromptTemplate.from_messages(
+        [
+            SystemMessagePromptTemplate.from_template(TEXT_IDEOLOGY_ANALYSIS_PROMPT),
+            HumanMessagePromptTemplate.from_template("{input}"),
+            AIMessagePromptTemplate.from_template("{agent_scratchpad}"),
+        ]
+    )
+
+    tools = [
+        chatbot_tools.get_ideologies,
+        chatbot_tools.get_ideology_definition,
         chatbot_tools.get_all_texts_info,
     ]
     agent = create_tool_calling_agent(llm_4, tools, prompt=instructions_prompt)

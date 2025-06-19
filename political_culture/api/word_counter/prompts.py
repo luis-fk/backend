@@ -17,7 +17,7 @@ TEXT_INFO_EXTRACTION_PROMPT = (
     "\n"
     "====================  EXTRACTION TASK  ====================\n"
     "Once you have gathered enough passages:\n"
-    "1. Identify **title** and **author** if present.\n"
+    "1. Identify **title** and **author** if present, without extra info.\n"
     "2. Write a concise yet information-rich summary that lets another LLM understand "
     "   the document without reading it.  Cover:\n"
     "   • Main topic or theme\n"

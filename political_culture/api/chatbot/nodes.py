@@ -3,13 +3,7 @@ from typing import cast
 
 from langchain_core.messages import HumanMessage
 
-from political_culture.api.chatbot.agents import (
-    call_router_agent,
-    call_user_info_agent,
-    general_chat_agent,
-    text_analyist_agent,
-    word_analyist_agent,
-)
+from political_culture.api.chatbot import agents
 from political_culture.api.chatbot.schemas import Routes, SquadState
 from political_culture.api.chatbot.utils import (
     add_text,
@@ -25,7 +19,7 @@ def router(state: SquadState) -> SquadState:
 
     lastest_message: HumanMessage = cast(HumanMessage, state["input"])
 
-    response = call_router_agent(message=lastest_message)
+    response = agents.call_router_agent(message=lastest_message)
 
     return {
         **state,
@@ -48,10 +42,10 @@ def general_chat(state: SquadState) -> SquadState:
     logging.info("Starting general chat")
 
     input = f"User message: {state['input']}"
-    
+
     recent_chat_history = get_recent_chat_history_db(int(state["user_id"]))
-    
-    response = general_chat_agent(input, recent_chat_history)
+
+    response = agents.general_chat_agent(input, recent_chat_history)
 
     return {**state, "response": response}
 
@@ -86,7 +80,7 @@ def word_analysis(state: SquadState) -> SquadState:
         f"\n\nText: {state['input']} \n\nWord Count: {state['word_count']}"
     )
 
-    response = word_analyist_agent(input)
+    response = agents.word_analyist_agent(input)
 
     return {**state, "word_analysis_response": response}
 
@@ -98,16 +92,28 @@ def text_analysis(state: SquadState) -> SquadState:
         f"Title: {state['title']} \nAuthor: {state['author']}\n\nText: {state['input']}"
     )
 
-    response = text_analyist_agent(input)
+    response = agents.text_analyist_agent(input)
 
-    return {**state, "response": state["word_analysis_response"] + response}
+    return {**state, "text_analysis_response": response}
+
+
+def text_ideology_analysis(state: SquadState) -> SquadState:
+    logging.info("Starting text analysis")
+
+    input = (
+        f"Title: {state['title']} \nAuthor: {state['author']}\n\nText: {state['input']}"
+    )
+
+    response = agents.text_ideology_analyist_agent(input)
+
+    return {**state, "ideology_analysis_response": response}
 
 
 def wrap_up(state: SquadState) -> None:
     human_message: str = state["input"]
 
     chat_history = get_recent_chat_history_db(int(state["user_id"]))
-    updated_user_memory = call_user_info_agent(human_message, chat_history)
+    updated_user_memory = agents.call_user_info_agent(human_message, chat_history)
 
     user_id = state["user_id"]
 

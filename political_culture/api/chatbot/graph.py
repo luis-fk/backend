@@ -20,6 +20,7 @@ def build_graph() -> CompiledStateGraph:
     graph_builder.add_node("text_info_extraction", nodes.text_info_extraction)
     graph_builder.add_node("word_analysis", nodes.word_analysis)
     graph_builder.add_node("text_analysis", nodes.text_analysis)
+    graph_builder.add_node("ideology_analysis", nodes.text_ideology_analysis)
     graph_builder.add_node("wrap_up", nodes.wrap_up)
 
     graph_builder.add_conditional_edges(
@@ -33,7 +34,9 @@ def build_graph() -> CompiledStateGraph:
 
     graph_builder.add_edge("text_info_extraction", "word_analysis")
     graph_builder.add_edge("word_analysis", "text_analysis")
-    graph_builder.add_edge("text_analysis", "wrap_up")
+    graph_builder.add_edge("text_analysis", "ideology_analysis")
+    graph_builder.add_edge("ideology_analysis", "wrap_up")
+
     graph_builder.add_edge("general_chat", "wrap_up")
 
     graph_builder.set_finish_point("wrap_up")
