@@ -9,15 +9,8 @@ from langchain_core.prompts import (
     SystemMessagePromptTemplate,
 )
 
+from political_culture.api.chatbot import prompts
 from political_culture.api.chatbot import tools as chatbot_tools
-from political_culture.api.chatbot.prompts import (
-    GENERAL_CHAT_PROMPT,
-    ROUTER_PROMPT,
-    TEXT_ANALYSIS_PROMPT,
-    TEXT_IDEOLOGY_ANALYSIS_PROMPT,
-    USER_INFO_PROMPT,
-    WORD_COUNT_COMPARISON_PROMPT,
-)
 from political_culture.api.chatbot.schemas import ChatInfo, Routing
 from political_culture.api.utils import llm_4
 from political_culture.api.word_counter.tools import query_vectors
@@ -26,7 +19,9 @@ from political_culture.api.word_counter.tools import query_vectors
 def word_analyist_agent(input: str) -> str:
     instructions_prompt = ChatPromptTemplate.from_messages(
         [
-            SystemMessagePromptTemplate.from_template(WORD_COUNT_COMPARISON_PROMPT),
+            SystemMessagePromptTemplate.from_template(
+                prompts.WORD_COUNT_COMPARISON_PROMPT
+            ),
             HumanMessagePromptTemplate.from_template("{input}"),
             AIMessagePromptTemplate.from_template("{agent_scratchpad}"),
         ]
@@ -52,7 +47,7 @@ def word_analyist_agent(input: str) -> str:
 def text_analyist_agent(input: str) -> str:
     instructions_prompt = ChatPromptTemplate.from_messages(
         [
-            SystemMessagePromptTemplate.from_template(TEXT_ANALYSIS_PROMPT),
+            SystemMessagePromptTemplate.from_template(prompts.TEXT_ANALYSIS_PROMPT),
             HumanMessagePromptTemplate.from_template("{input}"),
             AIMessagePromptTemplate.from_template("{agent_scratchpad}"),
         ]
@@ -78,7 +73,9 @@ def text_analyist_agent(input: str) -> str:
 def text_ideology_analyist_agent(input: str) -> str:
     instructions_prompt = ChatPromptTemplate.from_messages(
         [
-            SystemMessagePromptTemplate.from_template(TEXT_IDEOLOGY_ANALYSIS_PROMPT),
+            SystemMessagePromptTemplate.from_template(
+                prompts.TEXT_IDEOLOGY_ANALYSIS_PROMPT
+            ),
             HumanMessagePromptTemplate.from_template("{input}"),
             AIMessagePromptTemplate.from_template("{agent_scratchpad}"),
         ]
@@ -105,8 +102,8 @@ def text_ideology_analyist_agent(input: str) -> str:
 def call_user_info_agent(message: str, chat_history: list[BaseMessage]) -> ChatInfo:
     instructions_prompt = ChatPromptTemplate.from_messages(
         [
-            SystemMessagePromptTemplate.from_template(USER_INFO_PROMPT),
-            HumanMessagePromptTemplate.from_template("{input}, {chat_history}"),
+            SystemMessagePromptTemplate.from_template(prompts.USER_INFO_PROMPT),
+            HumanMessagePromptTemplate.from_template("{input} {chat_history}"),
         ]
     )
 
@@ -122,7 +119,7 @@ def call_user_info_agent(message: str, chat_history: list[BaseMessage]) -> ChatI
 def call_router_agent(message: HumanMessage) -> Routing:
     instructions_prompt = ChatPromptTemplate.from_messages(
         [
-            SystemMessagePromptTemplate.from_template(ROUTER_PROMPT),
+            SystemMessagePromptTemplate.from_template(prompts.ROUTER_PROMPT),
             HumanMessagePromptTemplate.from_template("{input}"),
         ]
     )
@@ -139,8 +136,8 @@ def call_router_agent(message: HumanMessage) -> Routing:
 def general_chat_agent(input: str, chat_history: list[BaseMessage]) -> str:
     instructions_prompt = ChatPromptTemplate.from_messages(
         [
-            SystemMessagePromptTemplate.from_template(GENERAL_CHAT_PROMPT),
-            HumanMessagePromptTemplate.from_template("{input}, {chat_history}"),
+            SystemMessagePromptTemplate.from_template(prompts.GENERAL_CHAT_PROMPT),
+            HumanMessagePromptTemplate.from_template("{input} {chat_history}"),
             AIMessagePromptTemplate.from_template("{agent_scratchpad}"),
         ]
     )
@@ -158,9 +155,24 @@ def general_chat_agent(input: str, chat_history: list[BaseMessage]) -> str:
     response = agent_executor.invoke(
         {
             "input": input,
-            "chat_history": chat_history,
+            "chat_history": chat_history or "",
             "agent_scratchpad": "",
         }
     )
 
     return cast(str, response["output"])
+
+
+def call_text_concatenation_agent(input: str) -> str:
+    instructions_prompt = ChatPromptTemplate.from_messages(
+        [
+            SystemMessagePromptTemplate.from_template(prompts.MERGE_RESPONSES_PROMPT),
+            HumanMessagePromptTemplate.from_template("{input}"),
+        ]
+    )
+
+    chain = instructions_prompt | llm_4
+
+    response = chain.invoke({"input": input})
+
+    return cast(str, response.content)
