@@ -3,15 +3,14 @@ from typing import cast
 
 from langchain_core.messages import HumanMessage
 
-from political_culture.api.chatbot.agents import (
-    call_router_agent,
-    call_user_info_agent,
-    general_chat_agent,
-    text_analyist_agent,
-)
+from political_culture.api.chatbot import agents
 from political_culture.api.chatbot.schemas import Routes, SquadState
-from political_culture.api.chatbot.utils import clean_html
-from political_culture.api.word_counter.service import add_text, add_text_word_count
+from political_culture.api.chatbot.utils import (
+    add_text,
+    add_text_word_count,
+    clean_html,
+    get_recent_chat_history_db,
+)
 from political_culture.models import ChatHistory, UserMemory
 
 
@@ -20,7 +19,7 @@ def router(state: SquadState) -> SquadState:
 
     lastest_message: HumanMessage = cast(HumanMessage, state["input"])
 
-    response = call_router_agent(message=lastest_message)
+    response = agents.call_router_agent(message=lastest_message)
 
     return {
         **state,
@@ -44,7 +43,9 @@ def general_chat(state: SquadState) -> SquadState:
 
     input = f"User message: {state['input']}"
 
-    response = general_chat_agent(input)
+    recent_chat_history = get_recent_chat_history_db(int(state["user_id"]))
+
+    response = agents.general_chat_agent(input, recent_chat_history)
 
     return {**state, "response": response}
 
@@ -66,21 +67,60 @@ def text_info_extraction(state: SquadState) -> SquadState:
     return {
         **state,
         "word_count": word_count.word_frequencies,
-        "content_description": text_db.content_description,
         "title": text_db.title or "unknown",
         "author": text_db.author or "unknown",
     }
+
+
+def word_analysis(state: SquadState) -> SquadState:
+    logging.info("Starting word analysis")
+
+    input = (
+        f"Title: {state['title']} \nAuthor: {state['author']}"
+        f"\n\nText: {state['input']} \n\nWord Count: {state['word_count']}"
+    )
+
+    response = agents.word_analyist_agent(input)
+
+    return {**state, "word_analysis_response": response}
 
 
 def text_analysis(state: SquadState) -> SquadState:
     logging.info("Starting text analysis")
 
     input = (
-        f"Title: {state['title']} \nAuthor: {state['author']}"
-        f"\n\nSummary: {state['content_description']} \n\nWord Count: {state['word_count']}"
+        f"Title: {state['title']} \nAuthor: {state['author']}\n\nText: {state['input']}"
     )
 
-    response = text_analyist_agent(input)
+    response = agents.text_analyist_agent(input)
+
+    return {**state, "text_analysis_response": response}
+
+
+def text_ideology_analysis(state: SquadState) -> SquadState:
+    logging.info("Starting ideology analysis")
+
+    input = (
+        f"Title: {state['title']} \nAuthor: {state['author']}\n\nText: {state['input']}"
+    )
+
+    response = agents.text_ideology_analyist_agent(input)
+
+    return {**state, "ideology_analysis_response": response}
+
+
+def text_concatenation(state: SquadState) -> SquadState:
+    logging.info("Starting text concatenation")
+
+    input = (
+        state["word_analysis_response"]
+        + "\n\n"
+        + state["text_analysis_response"]
+        + "\n\n"
+        + state["ideology_analysis_response"]
+    )
+
+    response = agents.call_text_concatenation_agent(input)
 
     return {**state, "response": response}
 
@@ -88,7 +128,8 @@ def text_analysis(state: SquadState) -> SquadState:
 def wrap_up(state: SquadState) -> None:
     human_message: str = state["input"]
 
-    updated_user_memory = call_user_info_agent(human_message)
+    chat_history = get_recent_chat_history_db(int(state["user_id"]))
+    updated_user_memory = agents.call_user_info_agent(human_message, chat_history)
 
     user_id = state["user_id"]
 

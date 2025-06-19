@@ -58,6 +58,7 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "pgvector.django",
     "corsheaders",
     "rest_framework",
     "plants",
@@ -102,14 +103,15 @@ WSGI_APPLICATION = "backend.wsgi.application"
 
 DATABASES = {
     "default": dj_database_url.config(default=env("AUTH_DATABASE_URL")),
-    "auth_db": dj_database_url.config(default=env("AUTH_DATABASE_URL")),
     "plants_db": dj_database_url.config(default=env("PLANTS_DATABASE_URL")),
     "political_culture_db": dj_database_url.config(
-        default=env("POLITICAL_CULTURE_DATABASE_URL")
+        default=env(
+            "POLITICAL_CULTURE_DATABASE_URL",
+        )
     ),
 }
 
-DATABASE_ROUTERS = ["backend.apps_routers.AppsRouter", "backend.auth_router.AuthRouter"]
+DATABASE_ROUTERS = ["backend.apps_routers.AppsRouter"]
 
 
 # Password validation

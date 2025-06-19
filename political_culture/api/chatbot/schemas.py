@@ -9,7 +9,10 @@ class SquadState(MessagesState):
     user_id: int
     title: str
     author: str
-    content_description: str
+    content: str
+    word_analysis_response: str
+    text_analysis_response: str
+    ideology_analysis_response: str
     word_count: list[tuple[str, int]]
     response: str
     memory: str
