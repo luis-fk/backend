@@ -7,12 +7,18 @@ from langchain_core.messages import (
 )
 from langchain_core.tools import tool
 
-from political_culture.models import ChatHistory, Texts, TextWordCount, UserMemory
+from political_culture.models import (
+    ChatHistory,
+    IdeologiesDefinition,
+    Texts,
+    TextWordCount,
+    UserMemory,
+)
 
 
 @tool
 def get_all_texts_info() -> list[
-    tuple[int, Optional[str], Optional[str], Optional[str]]
+    tuple[int, Optional[str], Optional[str], Optional[str], Optional[str]]
 ]:
     """
     Return a list of all titles, authors and context summaries from the database.
@@ -20,7 +26,7 @@ def get_all_texts_info() -> list[
     author and context summary for each text.
     """
     texts_info = Texts.objects.filter(user_submitted_text=False).values_list(
-        "id", "title", "author", "content_description"
+        "id", "title", "ideology", "author", "content_description"
     )
 
     return list(texts_info)
@@ -100,7 +106,7 @@ def get_user_memory(user_id: int) -> str | None:
 @tool
 def get_user_submitted_texts_info(
     user_id: int,
-) -> list[tuple[int, Optional[str], Optional[str], Optional[str]]]:
+) -> list[tuple[int, Optional[str], Optional[str], Optional[str], Optional[str]]]:
     """
     Return a list of all titles, authors and context summaries from the database.
     The list is a list of tuples, where each tuple contains the id, title,
@@ -108,6 +114,40 @@ def get_user_submitted_texts_info(
     """
     texts_info = Texts.objects.filter(
         user_submitted_text=True, user_id=user_id
-    ).values_list("id", "title", "author", "content_description")
+    ).values_list("id", "title", "ideology", "author", "content_description")
 
     return list(texts_info)
+
+
+@tool
+def get_ideologies() -> list[tuple[int, str]]:
+    """
+    Retrieve all the ideologies from the database.
+
+    Returns:
+        A list of tuples, where each tuple contains the id and name of the ideology.
+        If no ideologies are found, None is returned.
+    """
+    ideologies = IdeologiesDefinition.objects.values_list("id", "ideology")
+
+    return list(ideologies)
+
+
+@tool
+def get_ideology_definition(ideology_id: int) -> str:
+    """
+    Retrieve the definition of a specific ideology from the database.
+
+    Args:
+        ideology_id: The id of the ideology to retrieve the definition for.
+
+    Returns:
+        A string containing the definition of the ideology, or None if no definition is found.
+    """
+    ideologies = (
+        IdeologiesDefinition.objects.filter(id=ideology_id)
+        .values_list("definition")
+        .first()
+    )
+
+    return cast(str, ideologies)

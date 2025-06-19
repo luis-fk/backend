@@ -29,7 +29,6 @@ WORD_COUNT_COMPARISON_PROMPT = (
     "input text and in the database text."
     "\n\n**IMPORTANT**:"
     "\n- Respond in the same language as the user’s original message."
-    "\n- Do not sign off with a closing sentence."
 )
 
 
@@ -79,8 +78,40 @@ TEXT_ANALYSIS_PROMPT = (
     "        text shares (or fails to share) with each relevant database text."
     "\n\n**IMPORTANT**:"
     "\n- Respond in the same language as the user’s original message."
-    "\n- Your response will be concatenated with another response so start your "
-    "response in a way that they fit together."
+)
+
+TEXT_IDEOLOGY_ANALYSIS_PROMPT = (
+    "\nYou are a tool-enabled analytical engine. You will receive one input:"
+    "\n1. Full text to be analysed, along with its title and author."
+    "\n\nYour objective is to compare this text against a set of ideological definitions"
+    " to reveal deeper lexical and rhetorical patterns."
+    "\n\nAvailable tools:"
+    "\n- get_ideologies(): returns [(ideology_id, name), …]"
+    "\n- get_ideologies_definition(ideology_id): returns definition"
+    "\n\nSteps to follow:"
+    "\n\n1. Call get_ideologies() and obtain the list of all ideology IDs and names."
+    "\n\n2. For each ideology in the list:"
+    "\n   a. Call get_ideologies_definition(ideology_id) to retrieve its full definition."
+    "\n   b. Compute a similarity score between the input full text (including title/author) and"
+    "      the ideology’s definition."
+    "\n\n3. Select the top 3 ideologies with the highest similarity scores."
+    "\n\n4. For each selected ideology:"
+    "\n   a. Examine its definition text and identify:"
+    "\n      • Key rhetorical structures (e.g., recurring metaphors, signature frames)."
+    "\n      • Lexical markers (e.g., specialized jargon, hallmark collocations)."
+    "\n   b. Compare those ideological features to the input text’s own rhetorical and"
+    "      lexical profile as inferred from its content, title, and author context."
+    "\n\n5. Once you have gathered and annotated all significant features:"
+    "\n   a. Stop calling any tools."
+    "\n   b. Return a concise, structured analysis that includes:"
+    "\n      • For each relevant ideology, a brief description of its most distinctive"
+    "        rhetorical/lexical features."
+    "\n      • A side-by-side comparison highlighting how those features align with or"
+    "        diverge from the input text’s own patterns."
+    "\n      • Any notable shared or missing clusters of terms or frames between the input"
+    "        text and each ideology definition."
+    "\n\n**IMPORTANT**:"
+    "\n- Respond in the same language as the user’s original message."
 )
 
 

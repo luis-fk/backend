@@ -74,7 +74,7 @@ def add_text(
 def add_text_word_count(text_db: Texts) -> TextWordCount:
     word_frequencies, total_word_count = count_words(text_db.text)
 
-    new_word_frequencies = word_picker(word_frequencies)
+    new_word_frequencies = word_picker(word_frequencies, text_db.content_description)
 
     dict_word_frequencies = dict(
         (word_count.word, word_count.count)
