@@ -1,6 +1,7 @@
 from django.contrib import admin
 from django.urls import path
 
+from cfflch.api.urls import cfflch_urls
 from plants.api.chatbot.urls import chatbot_urls
 from plants.api.esp32.urls import esp32_urls
 from plants.api.messages.urls import messages_urls
@@ -16,4 +17,5 @@ urlpatterns = (
     + messages_urls
     + esp32_urls
     + political_culture_urls
+    + cfflch_urls
 )
