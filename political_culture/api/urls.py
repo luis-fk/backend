@@ -18,7 +18,7 @@ word_counter_urls = [
 
 messages_urls = [
     path(
-        "api/political-culture/chat-history/<str:userId>/",
+        "api/political-culture/chat-history/<str:userId>",
         MessagesApi.as_view(),
         name="message",
     ),
