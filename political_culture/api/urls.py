@@ -1,7 +1,7 @@
 from django.urls import path
 
 from political_culture.api.chatbot.routes import ChatBotApi
-from political_culture.api.messages.routes import MessagesApi, chat_stream
+from political_culture.api.messages.routes import MessagesApi
 from political_culture.api.word_counter.routes import WordCounterApi
 
 chatbot_urls = [
@@ -22,11 +22,11 @@ messages_urls = [
         MessagesApi.as_view(),
         name="message",
     ),
-    path(
-        "api/political-culture/chat-stream/<int:userId>/",
-        chat_stream,
-        name="chat_stream",
-    ),
+    # path(
+    #     "api/political-culture/chat-stream/<int:userId>/",
+    #     chat_stream,
+    #     name="chat_stream",
+    # ),
 ]
 
 political_culture_urls = chatbot_urls + word_counter_urls + messages_urls
