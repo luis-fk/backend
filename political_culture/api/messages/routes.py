@@ -47,20 +47,20 @@ def chat_stream(request: HttpRequest, userId: int) -> StreamingHttpResponse:
         )
 
         while True:
+            yield ": keep-alive\n\n"
+
             new_ai_message = (
                 ChatHistory.objects
                 .filter(user_id=userId, role="ai", id__gt=last_id)
-                .order_by("id")
+                .order_by("id").first()
             )
-            if new_ai_message.exists():
-                message = new_ai_message.last()
+            if new_ai_message:
+                message = new_ai_message
                 payload = {"message": message.message, "role": message.role}
                 yield f"data: {json.dumps(payload)}\n\n"
                 last_id = message.id
 
-            yield ": keep-alive\n\n"
-            
-            time.sleep(10)
+            time.sleep(5)
 
     resp = StreamingHttpResponse(
         event_stream(),
