@@ -28,14 +28,10 @@ class ChatBotApi(APIView):
 
             cleaned_text = clean_html(text)
 
-            response = self.llm.process_text(text=cleaned_text, user_id=int(user_id))
-
-            if not response:
-                logger.error("Error processing user text")
-                return Response({"error": "Error processing user text"}, status=400)
+            self.llm.process_text(text=cleaned_text, user_id=int(user_id))
 
             return Response(
-                {"user_id": user_id, "response": response},
+                {"user_id": user_id, "response": "accepted"},
                 status=status.HTTP_200_OK,
             )
         else:
