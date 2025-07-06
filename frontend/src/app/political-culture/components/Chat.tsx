@@ -16,7 +16,7 @@ export interface MessageType {
 export default function Chat() {
   const [messages, setMessages] = useState<MessageType[]>([
     {
-      message: "Hello! How can I help you today?",
+      message: "Olá! Como posso ajudar você hoje?",
       role: "ai",
     },
   ]);
@@ -55,6 +55,28 @@ export default function Chat() {
       .catch(() => {});
   }, [session?.userId]);
 
+  useEffect(() => {
+    if (!session?.userId) return;
+
+    const eventSource = new EventSource(
+      `${serverUrl}/api/political-culture/chat-stream/${session.userId}/`,
+    );
+
+    eventSource.onmessage = (event) => {
+      const { message, role } = JSON.parse(event.data);
+      setMessages((previous) => [...previous, { message, role }]);
+    };
+
+    eventSource.onerror = () => {
+      console.error("SSE error, closing connection");
+      eventSource.close();
+    };
+
+    return () => {
+      eventSource.close();
+    };
+  }, [session?.userId, serverUrl]);
+
   async function send() {
     if (sending || !input.trim()) return;
     setSending(true);
@@ -63,14 +85,10 @@ export default function Chat() {
     setInput("");
 
     try {
-      const res = await axios.post(
-        `${serverUrl}/api/political-culture/chatbot/message`,
-        {
-          user_id: session?.userId,
-          text: userMsg,
-        },
-      );
-      setMessages((m) => [...m, { message: res.data.response, role: "ai" }]);
+      await axios.post(`${serverUrl}/api/political-culture/chatbot/message`, {
+        user_id: session?.userId,
+        text: userMsg,
+      });
     } catch {
       setMessages((m) => [
         ...m,
@@ -114,18 +132,18 @@ export default function Chat() {
           className="chat-input"
           value={input}
           disabled={sending}
-          placeholder="Type your message…"
+          placeholder="Escreva sua mensagem…"
           rows={1}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault();
+          onChange={(event) => setInput(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" && !event.shiftKey) {
+              event.preventDefault();
               send();
             }
           }}
         />
         <button onClick={send} disabled={sending || !input.trim()}>
-          Send
+          Enviar
         </button>
       </div>
     </div>

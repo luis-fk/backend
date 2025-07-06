@@ -1,5 +1,4 @@
 "use client";
-import MuiDrawer from "@/app/political-culture/components/MuiDrawer";
 import { Box, useMediaQuery } from "@mui/material";
 import "@/political-culture/css/layout.css";
 
@@ -20,7 +19,6 @@ export default function RootLayout({
           overflow: "hidden",
         }}
       >
-        <MuiDrawer></MuiDrawer>
         <Box sx={{ display: "flex", justifyContent: "center", width: "100%" }}>
           {children}
         </Box>
