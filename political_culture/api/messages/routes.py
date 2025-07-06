@@ -58,6 +58,8 @@ def chat_stream(request: HttpRequest, userId: int) -> StreamingHttpResponse:
                 yield f"data: {json.dumps(payload)}\n\n"
                 last_id = message.id
 
+            yield ": keep-alive\n\n"
+            
             time.sleep(10)
 
     resp = StreamingHttpResponse(
