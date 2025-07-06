@@ -55,27 +55,27 @@ export default function Chat() {
       .catch(() => {});
   }, [session?.userId]);
 
-  useEffect(() => {
-    if (!session?.userId) return;
+  // useEffect(() => {
+  //   if (!session?.userId) return;
 
-    const eventSource = new EventSource(
-      `${serverUrl}/api/political-culture/chat-stream/${session.userId}/`,
-    );
+  //   const eventSource = new EventSource(
+  //     `${serverUrl}/api/political-culture/chat-stream/${session.userId}/`,
+  //   );
 
-    eventSource.onmessage = (event) => {
-      const { message, role } = JSON.parse(event.data);
-      setMessages((previous) => [...previous, { message, role }]);
-    };
+  //   eventSource.onmessage = (event) => {
+  //     const { message, role } = JSON.parse(event.data);
+  //     setMessages((previous) => [...previous, { message, role }]);
+  //   };
 
-    eventSource.onerror = () => {
-      console.error("SSE error, closing connection");
-      eventSource.close();
-    };
+  //   eventSource.onerror = () => {
+  //     console.error("SSE error, closing connection");
+  //     eventSource.close();
+  //   };
 
-    return () => {
-      eventSource.close();
-    };
-  }, [session?.userId, serverUrl]);
+  //   return () => {
+  //     eventSource.close();
+  //   };
+  // }, [session?.userId, serverUrl]);
 
   async function send() {
     if (sending || !input.trim()) return;
