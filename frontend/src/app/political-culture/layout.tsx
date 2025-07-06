@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import "@/political-culture/css/layout.css";
 
 export const metadata: Metadata = {
-  title: "Political Culture",
+  title: "Cultura Política",
 };
 
 export default function PoliticalCultureLayout({

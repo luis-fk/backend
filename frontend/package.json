@@ -1,6 +1,6 @@
 {
   "name": "plants-fe",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack",
@@ -11,12 +11,14 @@
   "dependencies": {
     "@chatscope/chat-ui-kit-react": "^2.0.3",
     "@chatscope/chat-ui-kit-styles": "^1.4.0",
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.1",
     "@fontsource/roboto": "^5.1.1",
     "@mui/icons-material": "^6.4.1",
     "@mui/material": "^6.4.1",
     "axios": "^1.7.9",
     "jose": "^5.9.6",
-    "next": "15.1.6",
+    "next": "^15.1.6",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-markdown": "^9.0.3",
@@ -31,7 +33,7 @@
     "@types/react-dom": "^19",
     "@typescript-eslint/parser": "^5.62.0",
     "eslint": "^8.57.1",
-    "eslint-config-next": "15.1.6",
+    "eslint-config-next": "^15.1.6",
     "install": "^0.13.0",
     "postcss": "^8",
     "prettier": "^3.4.2",
