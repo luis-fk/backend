@@ -131,7 +131,7 @@ export default function Chat() {
           ref={textareaRef}
           className="chat-input"
           value={input}
-          disabled={sending}
+          disabled={true}
           placeholder="Escreva sua mensagem…"
           rows={1}
           onChange={(event) => setInput(event.target.value)}
@@ -142,7 +142,7 @@ export default function Chat() {
             }
           }}
         />
-        <button onClick={send} disabled={sending || !input.trim()}>
+        <button onClick={send} disabled={true}>
           Enviar
         </button>
       </div>
