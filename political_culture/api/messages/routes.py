@@ -1,10 +1,6 @@
-import json
 import logging
-import time
 from typing import Any
 
-from django.db import close_old_connections
-from django.http import HttpRequest, StreamingHttpResponse
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -34,47 +30,47 @@ class MessagesApi(APIView):
             return Response({"message": "No messages found for user"}, status=204)
 
 
-def chat_stream(request: HttpRequest, userId: int) -> StreamingHttpResponse:
-    def event_stream():
-        close_old_connections()
+# def chat_stream(request: HttpRequest, userId: int) -> StreamingHttpResponse:
+#     def event_stream():
+#         close_old_connections()
 
-        last_id = (
-            ChatHistory.objects.filter(user_id=userId, role="ai")
-            .order_by("-id")
-            .values_list("id", flat=True)
-            .first()
-            or 0
-        )
+#         last_id = (
+#             ChatHistory.objects.filter(user_id=userId, role="ai")
+#             .order_by("-id")
+#             .values_list("id", flat=True)
+#             .first()
+#             or 0
+#         )
 
-        while True:
-            yield ": keep-alive\n\n"
+#         while True:
+#             yield ": keep-alive\n\n"
 
-            new_ai_message = (
-                ChatHistory.objects
-                .filter(user_id=userId, role="ai", id__gt=last_id)
-                .order_by("id").first()
-            )
-            if new_ai_message:
-                message = new_ai_message
-            yield ": keep-alive\n\n"
+#             new_ai_message = (
+#                 ChatHistory.objects
+#                 .filter(user_id=userId, role="ai", id__gt=last_id)
+#                 .order_by("id").first()
+#             )
+#             if new_ai_message:
+#                 message = new_ai_message
+#             yield ": keep-alive\n\n"
 
-            new_ai_message = ChatHistory.objects.filter(
-                user_id=userId, role="ai", id__gt=last_id
-            ).order_by("id")
-            if new_ai_message.exists():
-                message = new_ai_message.last()
-                payload = {"message": message.message, "role": message.role}
-                yield f"data: {json.dumps(payload)}\n\n"
-                last_id = message.id
+#             new_ai_message = ChatHistory.objects.filter(
+#                 user_id=userId, role="ai", id__gt=last_id
+#             ).order_by("id")
+#             if new_ai_message.exists():
+#                 message = new_ai_message.last()
+#                 payload = {"message": message.message, "role": message.role}
+#                 yield f"data: {json.dumps(payload)}\n\n"
+#                 last_id = message.id
 
-            yield ": keep-alive\n\n"
+#             yield ": keep-alive\n\n"
 
-            time.sleep(1)
+#             time.sleep(1)
 
-    resp = StreamingHttpResponse(
-        event_stream(),
-        content_type="text/event-stream",
-    )
-    resp["Cache-Control"] = "no-cache"
-    resp["X-Accel-Buffering"] = "no"
-    return resp
+#     resp = StreamingHttpResponse(
+#         event_stream(),
+#         content_type="text/event-stream",
+#     )
+#     resp["Cache-Control"] = "no-cache"
+#     resp["X-Accel-Buffering"] = "no"
+#     return resp
