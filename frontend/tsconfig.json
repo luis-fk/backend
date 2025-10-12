@@ -31,7 +31,7 @@
       "@/political-culture/actions/*": [
         "./src/app/political-culture/actions/*"
       ],
-      "@/log/*": ["./src/app/log/*"]
+      "@/log/*": ["./src/app/api/log/*"]
     },
     "forceConsistentCasingInFileNames": true
   },
