@@ -28,7 +28,10 @@
         "./src/app/political-culture/components/*"
       ],
       "@/political-culture/css/*": ["./src/app/political-culture/css/*"],
-      "@/political-culture/actions/*": ["./src/app/political-culture/actions/*"]
+      "@/political-culture/actions/*": [
+        "./src/app/political-culture/actions/*"
+      ],
+      "@/log/*": ["./src/app/log/*"]
     },
     "forceConsistentCasingInFileNames": true
   },
