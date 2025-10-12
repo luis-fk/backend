@@ -5,7 +5,6 @@ import tempfile
 from collections import Counter
 from typing import IO, Optional, cast
 
-from environ import Env
 from langchain.agents import AgentExecutor, create_tool_calling_agent
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_core.documents import Document
@@ -30,9 +29,6 @@ from political_culture.api.word_counter.schemas import (
 )
 from political_culture.api.word_counter.tools import query_vectors
 from political_culture.models import TextChunks, Texts, TextWordCount
-
-env = Env()
-Env.read_env()
 
 
 def text_info_extractor(text_id: int) -> str:

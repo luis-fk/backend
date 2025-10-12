@@ -1,14 +1,14 @@
 import logging
 import threading
 
-from dotenv import load_dotenv
+from asgiref.sync import async_to_sync
+from channels.layers import get_channel_layer
+from django.db import close_old_connections
 from langgraph.graph.state import CompiledStateGraph
 
 from political_culture.api.chatbot.graph import build_graph
-from political_culture.api.chatbot.utils import singleton
+from political_culture.api.chatbot.utils import singleton, wrap_up_get_response
 from political_culture.models import UserMemory
-from django.db import close_old_connections
-load_dotenv()
 
 logger = logging.getLogger(__name__)
 
@@ -55,6 +55,14 @@ class LLM:
                 config={"recursion_limit": 50},
             )
             logger.info(f"Message processed for user {user_id}")
+
+            channel_layer = get_channel_layer()
+            if channel_layer:
+                llm_response = wrap_up_get_response(user_id)
+
+                async_to_sync(channel_layer.group_send)(
+                    f"chat_{user_id}", {"type": "chat.message", "message": llm_response}
+                )
 
         except Exception:
             logger.exception(f"Error in background processing for user {user_id}")

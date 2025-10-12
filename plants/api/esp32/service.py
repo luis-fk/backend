@@ -2,14 +2,11 @@ import logging
 from typing import Optional
 
 import requests
-from environ import Env
+from django.conf import settings
 from pydantic import Field
 
 from plants.api.config.schemas import InfoSchema
 from plants.models import Users
-
-env = Env()
-Env.read_env()
 
 
 class WeatherDataSchema(InfoSchema):
@@ -29,7 +26,7 @@ def fetch_weather_data(user_id: int) -> WeatherDataSchema:
 
         return WeatherDataSchema(error_message="User not found")
 
-    url = f"https://api.openweathermap.org/data/2.5/weather?lat={user.latitude}&lon={user.longitude}&units=metric&appid={env('OPEN_WEATHER_API_KEY')}"
+    url = f"https://api.openweathermap.org/data/2.5/weather?lat={user.latitude}&lon={user.longitude}&units=metric&appid={settings.OPEN_WEATHER_API_KEY}"
 
     response = requests.get(url)
 
