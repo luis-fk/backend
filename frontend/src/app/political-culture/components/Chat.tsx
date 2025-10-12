@@ -6,7 +6,7 @@ import remarkGfm from "remark-gfm";
 import axios from "axios";
 import { useSession } from "@/app/actions/useSession";
 import { useMediaQuery } from "@mui/material";
-import { logger } from "@/log/client-logger";
+import { logger } from "@/app/api/log/client-logger";
 import "@/political-culture/css/chat.css";
 
 export interface MessageType {
