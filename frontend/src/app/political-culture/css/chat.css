@@ -78,6 +78,10 @@
   max-height: 150px;
 }
 
+.chat-input:focus {
+  outline: none;
+}
+
 .input-area button {
   border: none;
   border-radius: 10px;

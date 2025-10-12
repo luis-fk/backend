@@ -24,6 +24,7 @@
       "@/plants/css/*": ["./src/app/plants/css/*"],
       "@/plants/actions/*": ["./src/app/plants/actions/*"],
 
+      "@/political-culture/*": ["./src/app/political-culture/*"],
       "@/political-culture/components/*": [
         "./src/app/political-culture/components/*"
       ],

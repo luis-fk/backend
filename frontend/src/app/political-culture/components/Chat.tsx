@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback, useMemo } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import axios from "axios";
 import { useSession } from "@/app/actions/useSession";
 import { useMediaQuery } from "@mui/material";
+import { useChatSocket } from "@/political-culture/hooks/useChatSocket";
 import { logger } from "@/app/api/log/client-logger";
 import "@/political-culture/css/chat.css";
 
@@ -28,7 +29,7 @@ export default function Chat() {
   const [isClient, setIsClient] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  const session = useSession();
+  const session = useSession() as { userId?: string } | undefined;
   const serverUrl = process.env.NEXT_PUBLIC_SERVER_URL;
 
   const isMobile = useMediaQuery("(max-width: 800px)");
@@ -36,17 +37,6 @@ export default function Chat() {
   useEffect(() => {
     setIsClient(true);
   }, []);
-
-  useEffect(() => {
-    const ta = textareaRef.current;
-
-    if (!ta) {
-      return;
-    }
-
-    ta.style.height = "auto";
-    ta.style.height = ta.scrollHeight + "px";
-  }, [input]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -74,39 +64,29 @@ export default function Chat() {
       .finally(() => {
         setLoadingHistory(false);
       });
-
-    const wsProtocol = serverUrl.startsWith("https://") ? "wss://" : "ws://";
-    const wsUrl = `${wsProtocol}${serverUrl.split("://")[1]}/ws/chat/${
-      session.userId
-    }`;
-    const socket = new WebSocket(wsUrl);
-
-    socket.onopen = () => {
-      logger.log("WebSocket connection established", {
-        userId: session.userId,
-      });
-    };
-
-    socket.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-
-      if (data.message && data.role) {
-        setMessages((previous) => [...previous, data]);
-      }
-      setSending(false);
-    };
-
-    socket.onerror = (error) =>
-      logger.error("WebSocket error", { userId: session.userId, error });
-
-    socket.onclose = () => {
-      logger.log("WebSocket connection closed", { userId: session.userId });
-    };
-
-    return () => socket.close();
   }, [session?.userId, serverUrl]);
 
-  async function send() {
+  const handleNewMessage = useCallback((message: MessageType) => {
+    setMessages((previous) => [...previous, message]);
+  }, []);
+
+  useChatSocket({
+    userId: session?.userId,
+    serverUrl,
+    onMessage: handleNewMessage,
+    setSending,
+  });
+
+  const handleInputChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setInput(event.target.value);
+    const ta = textareaRef.current;
+    if (ta) {
+      ta.style.height = "auto";
+      ta.style.height = `${ta.scrollHeight}px`;
+    }
+  };
+
+  const send = useCallback(async () => {
     if (sending || !input.trim()) return;
     setSending(true);
     const userMsg = input.trim();
@@ -132,16 +112,18 @@ export default function Chat() {
       ]);
       setSending(false);
     }
-  }
+  }, [sending, input, serverUrl, session?.userId]);
+
+  const containerStyle = useMemo(
+    () => ({
+      width: isClient && isMobile ? "90vw" : "60vw",
+      height: isClient && isMobile ? "85vh" : "95vh",
+    }),
+    [isClient, isMobile],
+  );
 
   return (
-    <div
-      className="chat-container"
-      style={{
-        width: isClient && isMobile ? "90vw" : "60vw",
-        height: isClient && isMobile ? "85vh" : "95vh",
-      }}
-    >
+    <div className="chat-container" style={containerStyle}>
       <div className="message-list">
         {loadingHistory ? (
           <div className="loading-history">Loading chat history...</div>
@@ -170,7 +152,7 @@ export default function Chat() {
           disabled={false}
           placeholder="Escreva sua mensagem…"
           rows={1}
-          onChange={(event) => setInput(event.target.value)}
+          onChange={handleInputChange}
           onKeyDown={(event) => {
             if (event.key === "Enter" && !event.shiftKey) {
               event.preventDefault();
