@@ -22,11 +22,6 @@ messages_urls = [
         MessagesApi.as_view(),
         name="message",
     ),
-    # path(
-    #     "api/political-culture/chat-stream/<int:userId>/",
-    #     chat_stream,
-    #     name="chat_stream",
-    # ),
 ]
 
 political_culture_urls = chatbot_urls + word_counter_urls + messages_urls

@@ -1,1 +1,1 @@
-web: gunicorn backend.wsgi
+web: PYTHONUNBUFFERED=1 daphne -b 0.0.0.0 -p $PORT backend.asgi:application

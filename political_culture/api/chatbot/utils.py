@@ -9,6 +9,7 @@ from langchain_core.prompts import (
     SystemMessagePromptTemplate,
 )
 
+from political_culture.api.messages.serializers import ChatHistorySerializer
 from political_culture.api.utils import llm_4
 from political_culture.api.word_counter.prompts import TEXT_INFO_EXTRACTION_PROMPT
 from political_culture.api.word_counter.schemas import TitleAndAuthorSchema
@@ -103,3 +104,10 @@ def get_recent_chat_history_db(user_id: int) -> list[BaseMessage]:
         chat_history.append(AIMessage(content=ai.message))
 
     return chat_history
+
+
+def wrap_up_get_response(user_id: int) -> dict:
+    llm_response = ChatHistory.objects.filter(user_id=user_id, role="ai").last()
+    if llm_response:
+        return ChatHistorySerializer(llm_response).data
+    return {}
