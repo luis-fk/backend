@@ -28,6 +28,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = env("SECRET_KEY")
 OPEN_WEATHER_API_KEY = env("OPEN_WEATHER_API_KEY")
+TAVILY_API_KEY = env("TAVILY_API_KEY", default=None)
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = env("ENVIRONMENT") == "development"

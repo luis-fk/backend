@@ -10,5 +10,4 @@ admission_status_urls = [
     ),
 ]
 
-
 cfflch_urls = admission_status_urls

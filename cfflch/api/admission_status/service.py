@@ -1,124 +1,185 @@
-import datetime
+import asyncio
+import io
+import logging
+import unicodedata
+from typing import Any
+
+import httpx
+from django.conf import settings
+from pypdf import PdfReader
+from tavily import AsyncTavilyClient
+
+logger = logging.getLogger(__name__)
 
 
-def check_admission_status(students_names: list[str]) -> None:
-    previous_years = 5
-    general_search_terms = [
-        termo.strip()
-        for termo in ["aprovado", "classificado", "convocado", "selecionado"]
-    ]
-    results_per_search = 5
-    language_search = "pt-br"
+class AdmissionStatusService:
+    def __init__(self, http_client: httpx.AsyncClient) -> None:
+        self.search_delay = 1
+        self.download_delay = 1
+        self.language_search = "pt"
+        self.http_client = http_client
+        self.number_of_search_results = 3
+        self.tavily_api_key = getattr(settings, "TAVILY_API_KEY", None)
 
-    delay_google = 30
-    delay_download = 5
+    def _normalize_text(self, name: str) -> str:
+        name = name.strip()
 
-    current_year = datetime.datetime.now().year
-    anos_busca = [current_year - i for i in range(previous_years + 1)]
+        normalized_name = unicodedata.normalize("NFKD", name)
 
-    resultados_encontrados_geral = []
-    cabecalho_csv = [
-        "Aluno",
-        "Nome Normalizado Aluno",
-        "Ano Encontrado",
-        "Termo de Busca Usado",
-        "URL da Lista",
-        "Arquivo PDF Local",
-    ]
-
-    for nome_aluno_original in nomes_alunos_originais:
-        nome_aluno_normalizado = normalizar_nome(nome_aluno_original)
-        print(
-            f"\n🎓 Processando aluno: {nome_aluno_original} (Normalizado: {nome_aluno_normalizado})"
+        characters_without_accents = "".join(
+            [
+                character
+                for character in normalized_name
+                if not unicodedata.combining(character)
+            ]
         )
 
-        aluno_encontrado_em_algum_pdf = False
-        for ano in anos_busca:
-            print(f"  🗓️  Ano: {ano}")
+        return characters_without_accents.lower()
 
-            query_usada, urls_pdf = buscar_pdfs_google(
-                nome_aluno_original,
-                nome_aluno_normalizado,
-                ano,
-                termos_busca_gerais,
-                resultados_por_busca,
-                idioma_busca,
-                delay_google,
+    async def _search_for_pdfs(
+        self, student_name: str, year: int
+    ) -> tuple[str, list[dict[str, str]]]:
+        query = f"{student_name} aprovado vestibular {year}"
+
+        logger.info(f"Searching Tavily for PDFs with query: {query}")
+
+        if not self.tavily_api_key:
+            logger.error("Tavily API Key is not configured.")
+            return query, []
+
+        try:
+            tavily_client = AsyncTavilyClient(api_key=self.tavily_api_key)
+
+            response = await tavily_client.search(
+                query,
+                search_depth="advanced",
+                max_results=self.number_of_search_results,
+                include_answer=False,
+                include_raw_content=False,
+                include_images=False,
             )
 
-            if not urls_pdf:
-                print(
-                    f'    ℹ️  Nenhum PDF encontrado para "{nome_aluno_original}" no ano {ano} com a query específica.'
-                )
+            results = response.get("results", [])
+
+            pdf_results = [
+                {"url": item["url"], "title": item.get("title", "No Title Found")}
+                for item in results
+                if "url" in item and item.get("url", "").lower().endswith(".pdf")
+            ]
+
+            return query, pdf_results
+
+        except Exception as e:
+            logger.error(f"Tavily search failed: {e}")
+            return query, []
+
+    async def _download_pdf(
+        self,
+        pdf_url: str,
+    ) -> bytes | None:
+        logger.info(f"Downloading PDF from {pdf_url}")
+
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+        }
+
+        try:
+            response = await self.http_client.get(pdf_url, timeout=30, headers=headers)
+            response.raise_for_status()
+
+            return response.content
+        except httpx.RequestError as error:
+            logger.warning(f"Failed to download PDF {pdf_url}: {error}")
+
+            return None
+        except Exception as error:
+            logger.warning(f"Unexpected error saving PDF {pdf_url}: {error}")
+
+            return None
+
+    async def _search_student_in_pdf(
+        self, pdf_content: bytes, normalized_name: str
+    ) -> bool:
+        logger.info("Searching for student in in-memory PDF content")
+
+        return await asyncio.to_thread(
+            self._search_student_in_pdf_sync, pdf_content, normalized_name
+        )
+
+    def _search_student_in_pdf_sync(
+        self, pdf_content: bytes, normalized_name: str
+    ) -> bool:
+        try:
+            reader = PdfReader(io.BytesIO(pdf_content))
+
+            for page in reader.pages:
+                text = page.extract_text()
+
+                if text and normalized_name in self._normalize_text(text):
+                    return True
+
+            return False
+        except Exception as e:
+            logger.warning(f"Error searching text in PDF content: {e}")
+
+            return False
+
+    async def check_admission_status(
+        self, students_names: list[str], year: int
+    ) -> list[dict[str, Any]]:
+        found_results = []
+
+        for student_name in students_names:
+            normalized_student_name = self._normalize_text(student_name)
+
+            logger.info(f"Processing student: {student_name} for year {year}")
+
+            query_used, pdf_results = await self._search_for_pdfs(student_name, year)
+
+            await asyncio.sleep(self.search_delay)
+
+            if not pdf_results:
+                logger.info(f'No PDFs found for "{student_name}" in {year}.')
                 continue
 
-            for idx, url_pdf in enumerate(urls_pdf):
-                caminho_pdf_local = baixar_pdf(
-                    url_pdf,
-                    pasta_pdfs,
-                    nome_aluno_normalizado,
-                    ano,
-                    idx,
-                    delay_download,
+            student_found_in_year = False
+            for pdf_info in pdf_results:
+                pdf_url = pdf_info["url"]
+                search_title = pdf_info["title"]
+                pdf_content = await self._download_pdf(pdf_url)
+
+                await asyncio.sleep(self.download_delay)
+
+                if not pdf_content:
+                    logger.warning(f"Failed to download PDF from: {pdf_url}")
+                    continue
+
+                is_found = await self._search_student_in_pdf(
+                    pdf_content, normalized_student_name
                 )
 
-                if caminho_pdf_local:
-                    texto_pdf = extrair_texto_de_pdf(caminho_pdf_local)
-                    if texto_pdf:
-                        texto_pdf_normalizado = normalizar_nome(
-                            texto_pdf
-                        )  # Normalizar todo o texto do PDF
-                        if nome_aluno_normalizado in texto_pdf_normalizado:
-                            print(
-                                f'    🎉 SUCESSO! Aluno "{nome_aluno_original}" ENCONTRADO no PDF: {caminho_pdf_local.name} (Origem: {url_pdf})'
-                            )
-                            resultado = [
-                                nome_aluno_original,
-                                nome_aluno_normalizado,
-                                ano,
-                                query_usada,
-                                url_pdf,
-                                str(caminho_pdf_local),
-                            ]
-                            resultados_encontrados_geral.append(resultado)
-                            with open(
-                                arquivo_resultados_nome,
-                                "a",
-                                newline="",
-                                encoding="utf-8",
-                            ) as f_csv:
-                                writer = csv.writer(f_csv)
-                                writer.writerow(resultado)
-                            aluno_encontrado_em_algum_pdf = True
-                        else:
-                            print(
-                                f'    ⚠️  Aluno "{nome_aluno_original}" NÃO encontrado no texto do PDF: {caminho_pdf_local.name}'
-                            )
-                    else:
-                        print(
-                            f"    ⚠️  Não foi possível extrair texto do PDF: {caminho_pdf_local.name}"
-                        )
-                else:
-                    print(
-                        f"    ⚠️  Falha no download ou processamento do PDF da URL: {url_pdf}"
+                if is_found:
+                    logger.info(
+                        f'SUCCESS! Student "{student_name}" FOUND in PDF from {pdf_url}'
                     )
 
-            if not urls_pdf:  # Adiciona uma pausa mesmo se nenhum PDF for encontrado para esta query específica
-                time.sleep(
-                    delay_google / 2
-                )  # Menor pausa se a busca não retornou nada.
+                    result = {
+                        "student_name": student_name,
+                        "normalized_name": normalized_student_name,
+                        "year_found": year,
+                        "search_query": query_used,
+                        "pdf_url": pdf_url,
+                        "search_title": search_title,
+                    }
 
-        if not aluno_encontrado_em_algum_pdf:
-            print(
-                f'  😔 Aluno "{nome_aluno_original}" não encontrado em nenhuma lista nos anos pesquisados.'
-            )
-        print("-" * 40)
+                    found_results.append(result)
 
-    print("\n🏁 Processo de busca finalizado!")
-    if resultados_encontrados_geral:
-        print(
-            f"✅ {len(resultados_encontrados_geral)} ocorrência(s) de aluno(s) encontrada(s) e salvas em '{arquivo_resultados_nome}'."
-        )
-        print(f"📄 PDFs baixados estão na pasta: '{pasta_pdfs.resolve()}'")
-    else:
-        print("ℹ️ Nenhum aluno foi encontrado nas listas de acordo com os critérios.")
+                    student_found_in_year = True
+
+            if not student_found_in_year:
+                logger.info(
+                    f'Student "{student_name}" not found in any list for the year {year}.'
+                )
+
+        logger.info("Search process finished!")
+        return found_results

@@ -2,7 +2,9 @@
 from rest_framework import serializers
 
 
-class NameListSerializer(serializers.Serializer):
+class AdmissionStatusRequestSerializer(serializers.Serializer):
     names = serializers.ListField(
         child=serializers.CharField(),
     )
+    year = serializers.IntegerField()
+    request_id = serializers.CharField()
