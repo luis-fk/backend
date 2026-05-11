@@ -87,7 +87,6 @@ def call_agent(state: SquadState) -> SquadState:
 
 
 def tools_agent(state: SquadState) -> SquadState:
-    pass
     logging.info("Calling web search agent for user")
 
     latest_message: HumanMessage = cast(HumanMessage, state["messages"][-1])
@@ -95,4 +94,4 @@ def tools_agent(state: SquadState) -> SquadState:
 
     response = call_tools_agent(message=latest_message, memory=user_memory)
 
-    return {**state, "messages": [HumanMessage(content=response)]}
+    return {**state, "messages": state["messages"] + [response]}

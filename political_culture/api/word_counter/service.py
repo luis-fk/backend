@@ -3,9 +3,8 @@ import os
 import re
 import tempfile
 from collections import Counter
-from typing import IO, Optional, cast
+from typing import IO, Optional
 
-from langchain.agents import AgentExecutor, create_tool_calling_agent
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_core.documents import Document
 from langchain_core.prompts import (
@@ -41,17 +40,11 @@ def text_info_extractor(text_id: int) -> str:
     )
 
     tools = [query_vectors]
-    agent = create_tool_calling_agent(llm_4, tools, prompt=instructions_prompt)
-    agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=False)
+    llm_with_tools = llm_4.bind_tools(tools)
+    messages = instructions_prompt.invoke({"input": text_id, "agent_scratchpad": ""})
+    response = llm_with_tools.invoke(messages)
 
-    response = agent_executor.invoke(
-        {
-            "input": text_id,
-            "agent_scratchpad": "",
-        }
-    )
-
-    return cast(str, response["output"])
+    return str(response.content)
 
 
 def structured_text_info_extractor(content_description: str) -> TitleAndAuthorSchema:
