@@ -104,62 +104,67 @@ class AdmissionStatusService:
             logger.warning(f"Error searching text in PDF content: {e}")
             return False
 
+    async def _process_student(
+        self, student_name: str, year: int
+    ) -> list[dict[str, Any]]:
+        normalized_student_name = normalize_text(student_name)
+
+        logger.info(f"Processing student: {student_name} for year {year}")
+
+        query_used, pdf_results = await self._search_for_pdfs(student_name, year)
+
+        await asyncio.sleep(self.search_delay)
+
+        if not pdf_results:
+            logger.info(f'No PDFs found for "{student_name}" in {year}.')
+            return []
+
+        found = []
+        for pdf_info in pdf_results:
+            pdf_url = pdf_info["url"]
+            search_title = pdf_info["title"]
+            pdf_content = await self._download_pdf(pdf_url)
+
+            await asyncio.sleep(self.download_delay)
+
+            if not pdf_content:
+                logger.warning(f"Failed to download PDF from: {pdf_url}")
+                continue
+
+            is_found = await self._search_student_in_pdf(
+                pdf_content, normalized_student_name
+            )
+
+            if is_found:
+                logger.info(
+                    f'SUCCESS! Student "{student_name}" FOUND in PDF from {pdf_url}'
+                )
+                found.append(
+                    {
+                        "student_name": student_name,
+                        "normalized_name": normalized_student_name,
+                        "year_found": year,
+                        "search_query": query_used,
+                        "pdf_url": pdf_url,
+                        "search_title": search_title,
+                    }
+                )
+
+        if not found:
+            logger.info(
+                f'Student "{student_name}" not found in any list for the year {year}.'
+            )
+
+        return found
+
     async def check_admission_status(
         self, students_names: list[str], year: int
     ) -> list[dict[str, Any]]:
-        found_results = []
+        results = await asyncio.gather(
+            *[self._process_student(name, year) for name in students_names]
+        )
 
-        for student_name in students_names:
-            normalized_student_name = normalize_text(student_name)
-
-            logger.info(f"Processing student: {student_name} for year {year}")
-
-            query_used, pdf_results = await self._search_for_pdfs(student_name, year)
-
-            await asyncio.sleep(self.search_delay)
-
-            if not pdf_results:
-                logger.info(f'No PDFs found for "{student_name}" in {year}.')
-                continue
-
-            student_found_in_year = False
-            for pdf_info in pdf_results:
-                pdf_url = pdf_info["url"]
-                search_title = pdf_info["title"]
-                pdf_content = await self._download_pdf(pdf_url)
-
-                await asyncio.sleep(self.download_delay)
-
-                if not pdf_content:
-                    logger.warning(f"Failed to download PDF from: {pdf_url}")
-                    continue
-
-                is_found = await self._search_student_in_pdf(
-                    pdf_content, normalized_student_name
-                )
-
-                if is_found:
-                    logger.info(
-                        f'SUCCESS! Student "{student_name}" FOUND in PDF from {pdf_url}'
-                    )
-
-                    found_results.append(
-                        {
-                            "student_name": student_name,
-                            "normalized_name": normalized_student_name,
-                            "year_found": year,
-                            "search_query": query_used,
-                            "pdf_url": pdf_url,
-                            "search_title": search_title,
-                        }
-                    )
-
-                    student_found_in_year = True
-
-            if not student_found_in_year:
-                logger.info(
-                    f'Student "{student_name}" not found in any list for the year {year}.'
-                )
+        found_results = [item for student_results in results for item in student_results]
 
         logger.info("Search process finished!")
         return found_results
