@@ -84,6 +84,7 @@ INSTALLED_APPS = [
     "rest_framework",
     "plants",
     "political_culture",
+    "cfflch",
 ]
 
 MIDDLEWARE = [
