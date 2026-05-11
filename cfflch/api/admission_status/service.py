@@ -1,13 +1,14 @@
 import asyncio
 import io
 import logging
-import unicodedata
 from typing import Any
 
 import httpx
 from django.conf import settings
 from pypdf import PdfReader
 from tavily import AsyncTavilyClient
+
+from cfflch.api.admission_status.utils import normalize_text
 
 logger = logging.getLogger(__name__)
 
@@ -20,21 +21,11 @@ class AdmissionStatusService:
         self.http_client = http_client
         self.number_of_search_results = 3
         self.tavily_api_key = getattr(settings, "TAVILY_API_KEY", None)
-
-    def _normalize_text(self, name: str) -> str:
-        name = name.strip()
-
-        normalized_name = unicodedata.normalize("NFKD", name)
-
-        characters_without_accents = "".join(
-            [
-                character
-                for character in normalized_name
-                if not unicodedata.combining(character)
-            ]
+        self.tavily_client = (
+            AsyncTavilyClient(api_key=self.tavily_api_key)
+            if self.tavily_api_key
+            else None
         )
-
-        return characters_without_accents.lower()
 
     async def _search_for_pdfs(
         self, student_name: str, year: int
@@ -43,14 +34,12 @@ class AdmissionStatusService:
 
         logger.info(f"Searching Tavily for PDFs with query: {query}")
 
-        if not self.tavily_api_key:
+        if not self.tavily_client:
             logger.error("Tavily API Key is not configured.")
             return query, []
 
         try:
-            tavily_client = AsyncTavilyClient(api_key=self.tavily_api_key)
-
-            response = await tavily_client.search(
+            response = await self.tavily_client.search(
                 query,
                 search_depth="advanced",
                 max_results=self.number_of_search_results,
@@ -73,10 +62,7 @@ class AdmissionStatusService:
             logger.error(f"Tavily search failed: {e}")
             return query, []
 
-    async def _download_pdf(
-        self,
-        pdf_url: str,
-    ) -> bytes | None:
+    async def _download_pdf(self, pdf_url: str) -> bytes | None:
         logger.info(f"Downloading PDF from {pdf_url}")
 
         headers = {
@@ -86,22 +72,17 @@ class AdmissionStatusService:
         try:
             response = await self.http_client.get(pdf_url, timeout=30, headers=headers)
             response.raise_for_status()
-
             return response.content
         except httpx.RequestError as error:
             logger.warning(f"Failed to download PDF {pdf_url}: {error}")
-
             return None
         except Exception as error:
-            logger.warning(f"Unexpected error saving PDF {pdf_url}: {error}")
-
+            logger.warning(f"Unexpected error downloading PDF {pdf_url}: {error}")
             return None
 
     async def _search_student_in_pdf(
         self, pdf_content: bytes, normalized_name: str
     ) -> bool:
-        logger.info("Searching for student in in-memory PDF content")
-
         return await asyncio.to_thread(
             self._search_student_in_pdf_sync, pdf_content, normalized_name
         )
@@ -115,13 +96,12 @@ class AdmissionStatusService:
             for page in reader.pages:
                 text = page.extract_text()
 
-                if text and normalized_name in self._normalize_text(text):
+                if text and normalized_name in normalize_text(text):
                     return True
 
             return False
         except Exception as e:
             logger.warning(f"Error searching text in PDF content: {e}")
-
             return False
 
     async def check_admission_status(
@@ -130,7 +110,7 @@ class AdmissionStatusService:
         found_results = []
 
         for student_name in students_names:
-            normalized_student_name = self._normalize_text(student_name)
+            normalized_student_name = normalize_text(student_name)
 
             logger.info(f"Processing student: {student_name} for year {year}")
 
@@ -163,16 +143,16 @@ class AdmissionStatusService:
                         f'SUCCESS! Student "{student_name}" FOUND in PDF from {pdf_url}'
                     )
 
-                    result = {
-                        "student_name": student_name,
-                        "normalized_name": normalized_student_name,
-                        "year_found": year,
-                        "search_query": query_used,
-                        "pdf_url": pdf_url,
-                        "search_title": search_title,
-                    }
-
-                    found_results.append(result)
+                    found_results.append(
+                        {
+                            "student_name": student_name,
+                            "normalized_name": normalized_student_name,
+                            "year_found": year,
+                            "search_query": query_used,
+                            "pdf_url": pdf_url,
+                            "search_title": search_title,
+                        }
+                    )
 
                     student_found_in_year = True
 

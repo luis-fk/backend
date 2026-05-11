@@ -1,5 +1,5 @@
 .PHONY: install install-dev run migrate makemigrations shell \
-        db-up db-down db-reset lint type-check test
+        db-up db-down db-reset lint type-check test prune-branches
 
 # ── Install ──────────────────────────────────────────────────────────────────
 
@@ -20,10 +20,12 @@ migrate:
 	uv run python manage.py migrate
 	uv run python manage.py migrate --database=plants_db
 	uv run python manage.py migrate --database=political_culture_db
+	uv run python manage.py migrate --database=cfflch_db
 
 makemigrations:
 	uv run python manage.py makemigrations plants
 	uv run python manage.py makemigrations political_culture
+	uv run python manage.py makemigrations cfflch
 
 shell:
 	uv run python manage.py shell
@@ -48,3 +50,9 @@ lint:
 
 type-check:
 	uv run mypy .
+
+# ── Git ───────────────────────────────────────────────────────────────────────
+
+prune-branches:
+	git fetch --prune
+	git branch -vv | awk '/: gone]/{print $$1}' | xargs git branch -d
