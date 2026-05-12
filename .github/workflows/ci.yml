@@ -17,6 +17,7 @@ jobs:
       AUTH_DATABASE_URL: sqlite:///dummy.db
       PLANTS_DATABASE_URL: sqlite:///dummy.db
       POLITICAL_CULTURE_DATABASE_URL: sqlite:///dummy.db
+      CFFLCH_DATABASE_URL: sqlite:///dummy.db
     steps:
       - uses: actions/checkout@v4
 
