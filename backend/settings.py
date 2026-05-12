@@ -132,6 +132,7 @@ DATABASES = {
             "POLITICAL_CULTURE_DATABASE_URL",
         )
     ),
+    "cfflch_db": dj_database_url.config(default=env("CFFLCH_DATABASE_URL")),
 }
 
 DATABASE_ROUTERS = ["backend.apps_routers.AppsRouter"]
