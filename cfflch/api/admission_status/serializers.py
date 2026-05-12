@@ -9,3 +9,4 @@ class AdmissionStatusRequestSerializer(serializers.Serializer[Any]):
     )
     year = serializers.IntegerField()
     request_id = serializers.CharField()
+    class_name = serializers.CharField(required=False, allow_null=True, default=None)
