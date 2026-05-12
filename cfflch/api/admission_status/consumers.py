@@ -3,7 +3,7 @@ import json
 from channels.generic.websocket import AsyncWebsocketConsumer
 
 
-class AdmissionStatusConsumer(AsyncWebsocketConsumer):
+class AdmissionStatusConsumer(AsyncWebsocketConsumer):  # type: ignore[misc]
     async def connect(self) -> None:
         self.request_id = self.scope["url_route"]["kwargs"]["requestId"]
         self.group_name = f"admission_status_{self.request_id}"
@@ -17,6 +17,6 @@ class AdmissionStatusConsumer(AsyncWebsocketConsumer):
     async def receive(self, text_data: str) -> None:
         pass
 
-    async def admission_status_message(self, event: dict) -> None:
+    async def admission_status_message(self, event: dict[str, str]) -> None:
         message = event["message"]
         await self.send(text_data=json.dumps(message))

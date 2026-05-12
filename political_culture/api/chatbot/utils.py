@@ -106,7 +106,7 @@ def get_recent_chat_history_db(user_id: int) -> list[BaseMessage]:
     return chat_history
 
 
-def wrap_up_get_response(user_id: int) -> dict:
+def wrap_up_get_response(user_id: int) -> dict[str, Any]:
     llm_response = ChatHistory.objects.filter(user_id=user_id, role="ai").last()
     if llm_response:
         return ChatHistorySerializer(llm_response).data

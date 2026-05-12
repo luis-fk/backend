@@ -102,7 +102,7 @@ def count_words(text: str) -> tuple[list[tuple[str, int]], int]:
 
 
 def add_text(
-    content: IO, user_id: int, *, user_submitted_text: Optional[bool] = False
+    content: IO[bytes], user_id: int, *, user_submitted_text: Optional[bool] = False
 ) -> Texts:
     text, chunk_texts, vectors = extract_pdf_embeddings_and_metadata(content)
 
@@ -148,7 +148,7 @@ def add_text_word_count(text_db: Texts) -> TextWordCount:
 
 
 def extract_pdf_embeddings_and_metadata(
-    content: IO,
+    content: IO[bytes],
 ) -> tuple[str, list[str], list[list[float]]]:
     with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
         tmp.write(content.read())

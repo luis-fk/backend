@@ -6,8 +6,8 @@ from channels.generic.websocket import AsyncWebsocketConsumer
 logger = logging.getLogger(__name__)
 
 
-class ChatConsumer(AsyncWebsocketConsumer):
-    async def connect(self):
+class ChatConsumer(AsyncWebsocketConsumer):  # type: ignore[misc]
+    async def connect(self) -> None:
         self.user_id = self.scope["url_route"]["kwargs"]["userId"]
         self.room_group_name = f"chat_{self.user_id}"
 
@@ -16,13 +16,13 @@ class ChatConsumer(AsyncWebsocketConsumer):
         await self.accept()
         logger.info(f"WebSocket connected for user {self.user_id}")
 
-    async def disconnect(self, close_code):
+    async def disconnect(self, close_code: int) -> None:
         await self.channel_layer.group_discard(self.room_group_name, self.channel_name)
         logger.info(f"WebSocket disconnected for user {self.user_id}")
 
-    async def receive(self, text_data):
+    async def receive(self, text_data: str) -> None:
         pass
 
-    async def chat_message(self, event):
+    async def chat_message(self, event: dict[str, str]) -> None:
         message = event["message"]
         await self.send(text_data=json.dumps(message))

@@ -1,8 +1,9 @@
-# serializers.py
+from typing import Any
+
 from rest_framework import serializers
 
 
-class AdmissionStatusRequestSerializer(serializers.Serializer):
+class AdmissionStatusRequestSerializer(serializers.Serializer[Any]):
     names = serializers.ListField(
         child=serializers.CharField(),
     )

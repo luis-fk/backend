@@ -2,4 +2,6 @@
 *__pycache__
 .env
 .mypy_cache
-api_collection
+api
+.ruff_cache
+_bmad-output/
