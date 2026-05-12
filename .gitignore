@@ -2,4 +2,4 @@
 *__pycache__
 .env
 .mypy_cache
-api_collection
+api

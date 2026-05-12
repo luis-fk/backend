@@ -52,3 +52,15 @@ def call_tools_agent(message: HumanMessage, memory: str) -> BaseMessage:
         }
     )
     return llm_4_with_tools.invoke(prompt)
+
+
+def call_tool_response_agent(messages: list[BaseMessage], memory: str) -> BaseMessage:
+    chain = TOOLS_AGENT_PROMPT | llm_4
+    return chain.invoke(
+        {
+            "input": messages,
+            "date": datetime.now(),
+            "user_memory": memory,
+            "agent_scratchpad": "",
+        }
+    )

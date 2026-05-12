@@ -11,7 +11,7 @@ from plants.models import Users
 
 class WeatherDataSchema(InfoSchema):
     temperature: Optional[float] = Field(
-        None, description="Temperature valeu from the ESP32"
+        None, description="Temperature value from the ESP32"
     )
     humidity: Optional[float] = Field(None, description="Humidity value from the ESP32")
 

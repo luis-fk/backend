@@ -1,3 +1,5 @@
+from typing import Any
+
 from langchain_core.messages import BaseMessage, HumanMessage
 from langchain_core.prompts import (
     AIMessagePromptTemplate,
@@ -24,7 +26,7 @@ def _make_tool_prompt(system_prompt: str) -> ChatPromptTemplate:
 
 
 def _invoke_tool_agent(
-    prompt: ChatPromptTemplate, tools: list, input: str
+    prompt: ChatPromptTemplate, tools: list[Any], input: str
 ) -> str:
     llm_with_tools = llm_4.bind_tools(tools)
     messages = prompt.invoke({"input": input, "agent_scratchpad": ""})

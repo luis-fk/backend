@@ -8,7 +8,7 @@ from political_culture.api.chatbot import nodes
 from political_culture.api.chatbot.schemas import SquadState
 
 
-def build_graph() -> CompiledStateGraph:
+def build_graph() -> CompiledStateGraph[SquadState]:
     logging.info("Building LLM graph")
 
     graph_builder = StateGraph(SquadState)

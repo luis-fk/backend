@@ -47,6 +47,10 @@ strict = true
 warn_return_any = true
 ignore_missing_imports = true
 plugins = ["mypy_django_plugin.main", "pydantic.mypy"]
+exclude = [
+    "_bmad/",
+    "backend/settings.py",
+]
 
 
 [tool.django-stubs]
@@ -55,9 +59,17 @@ django_version = "6.0"
 
 
 [tool.ruff]
-select = ["W", "E", "F", "C", "Q", "I"]
 target-version = "py312"
 fix = true
+exclude = [
+    ".claude",
+    "_bmad",
+    "*/migrations/*",
+    "backend/settings.py",
+]
+
+[tool.ruff.lint]
+select = ["W", "E", "F", "C", "Q", "I"]
 
 
 [tool.pytest.ini_options]
