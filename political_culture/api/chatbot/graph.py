@@ -1,5 +1,6 @@
 # %%
 import logging
+from typing import Any
 
 from langgraph.graph import StateGraph
 from langgraph.graph.state import CompiledStateGraph
@@ -8,7 +9,7 @@ from political_culture.api.chatbot import nodes
 from political_culture.api.chatbot.schemas import SquadState
 
 
-def build_graph() -> CompiledStateGraph[SquadState]:
+def build_graph() -> CompiledStateGraph[SquadState, None, Any, Any]:
     logging.info("Building LLM graph")
 
     graph_builder = StateGraph(SquadState)

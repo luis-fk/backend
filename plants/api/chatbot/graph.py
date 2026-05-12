@@ -1,4 +1,5 @@
 import logging
+from typing import Any
 
 from langgraph.graph import StateGraph
 from langgraph.graph.state import CompiledStateGraph
@@ -17,7 +18,7 @@ from plants.api.chatbot.schemas import SquadState
 from plants.api.chatbot.tools import web_search
 
 
-def build_graph() -> CompiledStateGraph[SquadState]:
+def build_graph() -> CompiledStateGraph[SquadState, None, Any, Any]:
     logging.info("Building LLM graph")
 
     workflow = StateGraph(SquadState)

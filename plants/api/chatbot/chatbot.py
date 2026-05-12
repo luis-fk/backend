@@ -1,6 +1,6 @@
 import logging
 
-from typing import cast
+from typing import Any, cast
 
 from dotenv import load_dotenv
 from langchain_core.messages import (
@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 class LLM:
     def __init__(self) -> None:
-        self.graph: CompiledStateGraph[SquadState] | None = None
+        self.graph: CompiledStateGraph[SquadState, None, Any, Any] | None = None
         self.chat_history: list[BaseMessage] | None = None
 
     def setup(self) -> None:

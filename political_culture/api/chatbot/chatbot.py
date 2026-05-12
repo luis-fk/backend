@@ -1,6 +1,6 @@
 import logging
 import threading
-from typing import cast
+from typing import Any, cast
 
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 @singleton
 class LLM:
     def __init__(self) -> None:
-        self.graph: CompiledStateGraph[SquadState] | None = None
+        self.graph: CompiledStateGraph[SquadState, None, Any, Any] | None = None
 
         logger.info("Building schema")
 
