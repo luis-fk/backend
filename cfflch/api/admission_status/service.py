@@ -66,7 +66,10 @@ class AdmissionStatusService:
         logger.info(f"Downloading PDF from {pdf_url}")
 
         headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+            "User-Agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                "(KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+            )
         }
 
         try:
@@ -164,7 +167,9 @@ class AdmissionStatusService:
             *[self._process_student(name, year) for name in students_names]
         )
 
-        found_results = [item for student_results in results for item in student_results]
+        found_results = [
+            item for student_results in results for item in student_results
+        ]
 
         logger.info("Search process finished!")
         return found_results

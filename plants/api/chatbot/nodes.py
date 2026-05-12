@@ -22,7 +22,7 @@ def route_picker(state: SquadState) -> str:
     else:
         raise ValueError(
             f"Invalid route '{state['route']}'. Supported routes are 'tools_agent' "
-             "and 'continue'"
+            "and 'continue'"
         )
 
 

@@ -25,9 +25,7 @@ def _make_tool_prompt(system_prompt: str) -> ChatPromptTemplate:
     )
 
 
-def _invoke_tool_agent(
-    prompt: ChatPromptTemplate, tools: list[Any], input: str
-) -> str:
+def _invoke_tool_agent(prompt: ChatPromptTemplate, tools: list[Any], input: str) -> str:
     llm_with_tools = llm_4.bind_tools(tools)
     messages = prompt.invoke({"input": input, "agent_scratchpad": ""})
     response = llm_with_tools.invoke(messages)
