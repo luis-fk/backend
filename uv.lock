@@ -273,11 +273,10 @@ dependencies = [
 
 [package.dev-dependencies]
 dev = [
-    { name = "django-stubs" },
+    { name = "django-stubs", extra = ["compatible-mypy"] },
     { name = "djangorestframework-stubs" },
     { name = "hypothesis" },
     { name = "ipykernel" },
-    { name = "mypy" },
     { name = "pytest" },
     { name = "ruff" },
     { name = "types-requests" },
@@ -306,11 +305,10 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "django-stubs", specifier = "==6.0.4" },
+    { name = "django-stubs", extras = ["compatible-mypy"], specifier = "==6.0.4" },
     { name = "djangorestframework-stubs", specifier = "==3.16.9" },
     { name = "hypothesis", specifier = "==6.152.5" },
     { name = "ipykernel", specifier = "==7.2.0" },
-    { name = "mypy", specifier = "==2.0.0" },
     { name = "pytest", specifier = "==9.0.3" },
     { name = "ruff", specifier = "==0.15.12" },
     { name = "types-requests", specifier = "==2.33.0.20260508" },
@@ -726,6 +724,11 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/f9/82/ccf2a2dc9cdb4bd9cbe91f11e887589bf2da7609506db00ccbc73bd8a6da/django_stubs-6.0.4.tar.gz", hash = "sha256:7aee77e8de9c14c0d9cf84988befe826d93cbc15a87e0ade2943f14d553451cf", size = 280019, upload-time = "2026-05-09T21:24:30.436Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/ba/e7/5128914ada94dd6277626ef5a4a5680a4def7d2f9366214d26c1cd86723b/django_stubs-6.0.4-py3-none-any.whl", hash = "sha256:e991c68f77239663577a5f4fc75e99c84f867f378cafc97cbf4acc5aff378279", size = 543791, upload-time = "2026-05-09T21:24:28.218Z" },
+]
+
+[package.optional-dependencies]
+compatible-mypy = [
+    { name = "mypy" },
 ]
 
 [[package]]
