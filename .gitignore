@@ -2,5 +2,5 @@
 *__pycache__
 .env
 .mypy_cache
-api
+bruno
 .ruff_cache
