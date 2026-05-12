@@ -5,9 +5,9 @@ from typing import Any
 import httpx
 from channels.layers import get_channel_layer
 from django.http import JsonResponse
+from django.utils.decorators import method_decorator
 from django.views import View
 from django.views.decorators.csrf import csrf_exempt
-from django.utils.decorators import method_decorator
 from rest_framework import status
 
 from cfflch.api.admission_status.serializers import AdmissionStatusRequestSerializer
@@ -24,7 +24,9 @@ class AdmissionStatusApi(View):
         try:
             body = json.loads(request.body)
         except json.JSONDecodeError:
-            return JsonResponse({"error": "Invalid JSON"}, status=status.HTTP_400_BAD_REQUEST)
+            return JsonResponse(
+                {"error": "Invalid JSON"}, status=status.HTTP_400_BAD_REQUEST
+            )
 
         serializer = AdmissionStatusRequestSerializer(data=body)
         if not serializer.is_valid():
@@ -38,9 +40,11 @@ class AdmissionStatusApi(View):
             self._process_admission_task(student_names, year, request_id)
         )
         task.add_done_callback(
-            lambda t: logger.error(f"Admission task failed: {t.exception()}")
-            if not t.cancelled() and t.exception()
-            else None
+            lambda t: (
+                logger.error(f"Admission task failed: {t.exception()}")
+                if not t.cancelled() and t.exception()
+                else None
+            )
         )
 
         return JsonResponse(

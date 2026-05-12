@@ -135,10 +135,10 @@ def add_text_word_count(text_db: Texts) -> TextWordCount:
 
     new_word_frequencies = word_picker(word_frequencies, text_db.content_description)
 
-    dict_word_frequencies = dict(
-        (word_count.word, word_count.count)
+    dict_word_frequencies = {
+        word_count.word: word_count.count
         for word_count in new_word_frequencies.words_list
-    )
+    }
 
     return TextWordCount.objects.create(
         text=text_db,

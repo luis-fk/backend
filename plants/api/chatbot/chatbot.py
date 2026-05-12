@@ -1,5 +1,4 @@
 import logging
-
 from typing import Any, cast
 
 from dotenv import load_dotenv
@@ -58,11 +57,14 @@ class LLM:
 
         if self.graph:
             self.graph.invoke(
-                input=cast(SquadState, {
-                    "messages": chat_history + [HumanMessage(content=message)],
-                    "memory": user_memory,
-                    "user_id": user_id,
-                })
+                input=cast(
+                    SquadState,
+                    {
+                        "messages": chat_history + [HumanMessage(content=message)],
+                        "memory": user_memory,
+                        "user_id": user_id,
+                    },
+                )
             )
         else:
             return None

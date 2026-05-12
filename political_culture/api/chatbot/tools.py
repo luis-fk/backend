@@ -57,7 +57,7 @@ def get_recent_chat_history(user_id: int) -> list[BaseMessage] | None:
     Return a list of recent chat history messages for a given user_id.
 
     The list contains the 5 most recent human messages and their corresponding AI
-    responses. The list is ordered in reverse chronological order (newest messages first).
+    responses. The list is ordered in reverse chronological order (newest first).
 
     Args:
         user_id: The id of the user to retrieve the chat history for.
@@ -142,7 +142,7 @@ def get_ideology_definition(ideology_id: int) -> str:
         ideology_id: The id of the ideology to retrieve the definition for.
 
     Returns:
-        A string containing the definition of the ideology, or None if no definition is found.
+        A string containing the definition of the ideology, or None if not found.
     """
     ideologies = (
         IdeologiesDefinition.objects.filter(id=ideology_id)
