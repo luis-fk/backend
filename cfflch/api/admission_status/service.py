@@ -29,7 +29,7 @@ class AdmissionStatusService:
         self.download_delay = 1
         self.language_search = "pt"
         self.http_client = http_client
-        self.number_of_search_results = 3
+        self.number_of_search_results = 5
         self.tavily_api_key = getattr(settings, "TAVILY_API_KEY", None)
         self.tavily_client = (
             AsyncTavilyClient(api_key=self.tavily_api_key)
@@ -40,7 +40,10 @@ class AdmissionStatusService:
     async def _search_for_pdfs(
         self, student_name: str, year: int
     ) -> tuple[str, list[dict[str, str]]]:
-        query = f"{student_name} aprovado vestibular {year}"
+        query = (
+            f"{student_name} aprovado classificado"
+            f" convocado selecionado vestibular {year}"
+        )
 
         logger.info(f"Searching Tavily for PDFs with query: {query}")
 
@@ -63,7 +66,7 @@ class AdmissionStatusService:
             pdf_results = [
                 {"url": item["url"], "title": item.get("title", "No Title Found")}
                 for item in results
-                if "url" in item and item.get("url", "").lower().endswith(".pdf")
+                if "url" in item and ".pdf" in item.get("url", "").lower()
             ]
 
             return query, pdf_results
@@ -122,7 +125,7 @@ class AdmissionStatusService:
     ) -> list[StudentResult]:
         normalized_student_name = normalize_text(student_name)
 
-        logger.info(f"Processing student: {student_name} for year {year}")
+        logger.info(f"Processing student for year {year}")
 
         query_used, pdf_results = await self._search_for_pdfs(student_name, year)
 
@@ -131,39 +134,39 @@ class AdmissionStatusService:
         not_found = StudentNotFoundResult(student_name=student_name)
 
         if not pdf_results:
-            logger.info(f'No PDFs found for "{student_name}" in {year}.')
+            logger.info(f"No PDFs found for student in {year}.")
             return [not_found]
 
-        found: list[StudentResult] = []
-        for pdf_info in pdf_results:
+        async def process_pdf(pdf_info: dict[str, str]) -> StudentResult | None:
             pdf_url = pdf_info["url"]
             search_title = pdf_info["title"]
             pdf_content = await self._download_pdf(pdf_url)
 
-            await asyncio.sleep(self.download_delay)
-
             if not pdf_content:
                 logger.warning(f"Failed to download PDF from: {pdf_url}")
-                continue
+                return None
 
             is_found = await self._search_student_in_pdf(
                 pdf_content, normalized_student_name
             )
 
-            if is_found:
-                logger.info(
-                    f'SUCCESS! Student "{student_name}" FOUND in PDF from {pdf_url}'
-                )
-                found.append(
-                    StudentFoundResult(
-                        student_name=student_name,
-                        normalized_name=normalized_student_name,
-                        year_found=year,
-                        search_query=query_used,
-                        pdf_url=pdf_url,
-                        search_title=search_title,
-                    )
-                )
+            if not is_found:
+                return None
+
+            logger.info(
+                f'SUCCESS! Student "{student_name}" FOUND in PDF from {pdf_url}'
+            )
+            return StudentFoundResult(
+                student_name=student_name,
+                normalized_name=normalized_student_name,
+                year_found=year,
+                search_query=query_used,
+                pdf_url=pdf_url,
+                search_title=search_title,
+            )
+
+        pdf_matches = await asyncio.gather(*[process_pdf(p) for p in pdf_results])
+        found: list[StudentResult] = [r for r in pdf_matches if r is not None]
 
         if not found:
             logger.info(
@@ -180,49 +183,105 @@ class AdmissionStatusService:
         class_name: str | None = None,
         on_student_done: OnStudentDone | None = None,
     ) -> None:
-        async def process_and_notify(name: str) -> list[StudentResult]:
+        normalized_names = {normalize_text(n): n for n in students_names}
+
+        get_existing = sync_to_async(
+            lambda: list(
+                AdmissionResult.objects.filter(
+                    student_name_normalized__in=list(normalized_names.keys()), year=year
+                ).prefetch_related("pdfs")
+            )
+        )
+        existing_records: list[AdmissionResult] = await get_existing()
+        existing_by_normalized = {
+            r.student_name_normalized: r for r in existing_records
+        }
+
+        classroom = await self._resolve_classroom(class_name)
+
+        for record in existing_records:
+            await self._update_classroom_if_changed(record, classroom)
+
+        async def results_for_existing(record: AdmissionResult) -> list[StudentResult]:
+            pdfs = list(record.pdfs.all())
+            if pdfs:
+                entries: list[StudentResult] = [
+                    StudentFoundResult(
+                        student_name=record.student_name,
+                        normalized_name=record.student_name_normalized,
+                        year_found=record.year,
+                        search_query="",
+                        pdf_url=pdf.url,
+                        search_title=pdf.search_title,
+                    )
+                    for pdf in pdfs
+                ]
+            else:
+                entries = [StudentNotFoundResult(student_name=record.student_name)]
+            if on_student_done:
+                await on_student_done(entries)
+            return entries
+
+        new_names = [
+            original
+            for normalized, original in normalized_names.items()
+            if normalized not in existing_by_normalized
+        ]
+
+        async def search_and_notify(name: str) -> list[StudentResult]:
             entries = await self._process_student(name, year)
             if on_student_done:
                 await on_student_done(entries)
             return entries
 
-        results = await asyncio.gather(
-            *[process_and_notify(name) for name in students_names]
+        searched_results = await asyncio.gather(
+            *[search_and_notify(name) for name in new_names]
         )
+        await asyncio.gather(*[results_for_existing(r) for r in existing_records])
 
-        all_results = [
-            entry for student_results in results for entry in student_results
-        ]
-
-        found_results = [r for r in all_results if isinstance(r, StudentFoundResult)]
-        if found_results:
-            await self._persist_results(found_results, year, class_name)
+        all_new = [e for batch in searched_results for e in batch]
+        await self._persist_results(all_new, year, classroom)
 
         logger.info("Search process finished!")
 
+    async def _resolve_classroom(self, class_name: str | None) -> ClassRoom | None:
+        if not class_name:
+            return None
+        normalized_class = normalize_text(class_name)
+        get_or_create_classroom = sync_to_async(ClassRoom.objects.get_or_create)
+        try:
+            classroom, _ = await get_or_create_classroom(
+                name_normalized=normalized_class,
+                defaults={"name": class_name},
+            )
+            return classroom
+        except Exception as e:
+            logger.error(f"Failed to get or create classroom: {e}")
+            return None
+
+    async def _update_classroom_if_changed(
+        self, record: AdmissionResult, classroom: ClassRoom | None
+    ) -> None:
+        if record.class_room_id != (classroom.pk if classroom else None):
+            update_record = sync_to_async(record.save)
+            record.class_room = classroom
+            try:
+                await update_record(update_fields=["class_room"])
+            except Exception as e:
+                logger.error(f"Failed to update classroom on admission result: {e}")
+
     async def _persist_results(
         self,
-        found_results: list[StudentFoundResult],
+        all_results: list[StudentResult],
         year: int,
-        class_name: str | None,
+        classroom: ClassRoom | None,
     ) -> None:
-        classroom: ClassRoom | None = None
-        if class_name:
-            normalized_class = normalize_text(class_name)
-            get_or_create_classroom = sync_to_async(ClassRoom.objects.get_or_create)
-            try:
-                classroom, _ = await get_or_create_classroom(
-                    name_normalized=normalized_class,
-                    defaults={"name": class_name},
-                )
-            except Exception as e:
-                logger.error(f"Failed to get or create classroom: {e}")
-
-        for item in found_results:
+        for item in all_results:
+            normalized_name = normalize_text(item.student_name)
             get_or_create_result = sync_to_async(AdmissionResult.objects.get_or_create)
             try:
                 result, _ = await get_or_create_result(
-                    student_name_normalized=item.normalized_name,
+                    student_name_normalized=normalized_name,
                     year=year,
                     defaults={
                         "student_name": item.student_name,
@@ -231,6 +290,11 @@ class AdmissionStatusService:
                 )
             except Exception as e:
                 logger.error(f"Failed to get or create admission result: {e}")
+                continue
+
+            await self._update_classroom_if_changed(result, classroom)
+
+            if not isinstance(item, StudentFoundResult):
                 continue
 
             pdf_exists = sync_to_async(
