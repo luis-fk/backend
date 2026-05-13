@@ -31,8 +31,19 @@ class AdmissionResultsListApi(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        results = AdmissionResult.objects.filter(year=year).prefetch_related("pdfs")
-        serializer = AdmissionResultSerializer(results, many=True)
+        queryset = AdmissionResult.objects.filter(year=year).prefetch_related("pdfs")
+
+        class_room_id_param = request.query_params.get("class_room_id")
+        if class_room_id_param is not None:
+            try:
+                queryset = queryset.filter(class_room_id=int(class_room_id_param))
+            except ValueError:
+                return JsonResponse(
+                    {"error": "class_room_id must be an integer"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+        serializer = AdmissionResultSerializer(queryset, many=True)
         return JsonResponse(serializer.data, safe=False)
 
 
