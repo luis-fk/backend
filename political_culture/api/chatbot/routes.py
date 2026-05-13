@@ -37,4 +37,4 @@ class ChatBotApi(APIView):
         else:
             logger.error("Error processing user text")
 
-            return Response(serializer.errors, status=400)
+            return Response({"error": "Invalid request data"}, status=400)
