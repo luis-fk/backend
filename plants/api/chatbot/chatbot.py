@@ -74,7 +74,7 @@ class LLM:
         serialized_response = ChatHistorySerializer(llm_response)
 
         logger.info(
-            f"Sending LLM response for user {user_id}: {serialized_response.data}"
+            f"Sending LLM response for user {user_id}"
         )
 
         return serialized_response
