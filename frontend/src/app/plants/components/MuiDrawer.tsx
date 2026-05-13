@@ -1,15 +1,10 @@
 "use client";
-import { Drawer, Box, Typography, useMediaQuery } from "@mui/material";
-import DrawerIcon from "./DrawerIcon";
+import { Drawer, Box, MenuItem, IconButton } from "@mui/material";
 import MenuIcon from "@mui/icons-material/Menu";
 import { useState } from "react";
 
 export default function MuiDrawer() {
   const [open, setOpen] = useState(false);
-
-  const isMobile = useMediaQuery("(max-width: 800px)");
-  const boxIconPaddingTop = isMobile ? "0px" : "10px";
-  const iconFontSize = isMobile ? 20 : 40;
 
   return (
     <>
@@ -19,15 +14,20 @@ export default function MuiDrawer() {
         textAlign="left"
         sx={{
           backgroundColor: "#292929",
-          padding: boxIconPaddingTop,
+          padding: { xs: "0px", "@media (min-width: 800px)": "10px" },
           paddingLeft: "10px",
         }}
       >
-        <DrawerIcon
-          open={open}
-          element={<MenuIcon sx={{ fontSize: iconFontSize }} />}
+        <IconButton
+          size="large"
+          edge="start"
+          color="inherit"
           onClick={() => setOpen(true)}
-        />
+        >
+          <MenuIcon
+            sx={{ fontSize: { xs: 35, "@media (min-width: 800px)": 35 } }}
+          />
+        </IconButton>
       </Box>
 
       <Drawer anchor="left" open={open} onClose={() => setOpen(false)}>
@@ -38,27 +38,24 @@ export default function MuiDrawer() {
           textAlign="left"
           sx={{ backgroundColor: "#0f0f0f" }}
         >
-          <DrawerIcon
-            open={!open}
-            element={<MenuIcon sx={{ fontSize: 40, color: "white" }} />}
+          <IconButton
+            color="inherit"
             onClick={() => setOpen(false)}
-          />
-
-          <Typography
-            variant="h6"
-            component="div"
-            sx={{ paddingTop: "10px", color: "white" }}
+            sx={{ color: "white" }}
           >
-            Chat
-          </Typography>
+            <MenuIcon sx={{ fontSize: 35 }} />
+          </IconButton>
 
-          <Typography
-            variant="h6"
-            component="div"
-            sx={{ paddingTop: "10px", color: "white" }}
+          <MenuItem sx={{ color: "white" }}>Chat</MenuItem>
+          <MenuItem
+            sx={{
+              color: "rgba(255,255,255,0.4)",
+              cursor: "default",
+              pointerEvents: "none",
+            }}
           >
             Statistics
-          </Typography>
+          </MenuItem>
         </Box>
       </Drawer>
     </>

@@ -1,6 +1,6 @@
 "use client";
 import MuiDrawer from "@/app/plants/components/MuiDrawer";
-import { Box, useMediaQuery } from "@mui/material";
+import { Box } from "@mui/material";
 import "@/plants/css/layout.css";
 
 export default function RootLayout({
@@ -8,15 +8,12 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const isMobile = useMediaQuery("(max-width: 800px)");
-  const flexDirection = isMobile ? "column" : "row";
-
   return (
     <>
       <Box
         sx={{
           display: "flex",
-          flexDirection: flexDirection,
+          flexDirection: { xs: "column", "@media (min-width: 800px)": "row" },
           overflow: "hidden",
         }}
       >
