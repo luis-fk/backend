@@ -1,2 +1,0 @@
-release: python manage.py collectstatic --noinput && python manage.py migrate && python manage.py migrate --database=plants_db && python manage.py migrate --database=political_culture_db && python manage.py migrate --database=cfflch_db
-web: PYTHONUNBUFFERED=1 daphne -b 0.0.0.0 -p $PORT backend.asgi:application
