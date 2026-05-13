@@ -1,8 +1,8 @@
 ---
 project_name: 'backend'
 user_name: 'Felipe'
-date: '2026-05-12'
-sections_completed: ['technology_stack', 'language_rules', 'framework_rules', 'testing_rules', 'quality_rules', 'anti_patterns']
+date: '2026-05-13'
+sections_completed: ['technology_stack', 'language_rules', 'framework_rules', 'testing_rules', 'quality_rules', 'anti_patterns', 'deployment']
 status: 'complete'
 optimized_for_llm: true
 ---
@@ -15,7 +15,7 @@ _This file contains critical rules and patterns that AI agents must follow when 
 
 ## Technology Stack & Versions
 
-- Python 3.12.1
+- Python 3.13
 - Django 6.0.5 + Django REST Framework 3.17.1
 - Django Channels 4.3.2 + Daphne 4.2.1 (ASGI server) + channels-redis 4.3.0
 - PostgreSQL — psycopg2-binary 2.9.12 (not psycopg3 — do not suggest migrating)
@@ -27,7 +27,7 @@ _This file contains critical rules and patterns that AI agents must follow when 
 - pypdf 6.11.0
 - dj-database-url 3.1.2 + django-environ 0.13.0
 - Ruff 0.15.12 (lint + format, target py312)
-- django-stubs 6.0.4 + djangorestframework-stubs 3.16.9 (use `django-stubs[compatible-mypy]` to install — manages mypy version automatically)
+- mypy 1.15.0 (strict mode) + django-stubs 6.0.4 + djangorestframework-stubs 3.16.9
 - pytest 9.0.3
 - Package manager: uv only
 
@@ -49,6 +49,7 @@ _This file contains critical rules and patterns that AI agents must follow when 
 ### Django
 
 - Never use `using=` in ORM queries — `AppsRouter` handles all DB routing automatically
+- Databases: `default` (auth), `plants_db`, `political_culture_db`, `cfflch_db` — each app has its own dedicated DB
 - Adding a new app requires: a `<app>_db` entry in `DATABASES` (settings.py) and a corresponding entry in the Makefile migrate targets
 - API endpoints use kebab-case (e.g. `/admission-status/`)
 - Each app's URLs are defined in `<app>/api/urls.py` and merged in `backend/urls.py`
@@ -78,6 +79,7 @@ _This file contains critical rules and patterns that AI agents must follow when 
 - LangGraph `StateGraph` requires an explicit `TypedDict` state schema — no implicit dict merging
 - Structured output: `llm.with_structured_output(schema=MySchema, method="json_schema")`
 - Tools are defined with the `@tool` decorator from `langchain_core.tools`
+- After a tool-calling node in a LangGraph graph, always add a follow-up LLM node that reads the tool result and formulates the response — tool output is not automatically surfaced to the user
 
 ## Code Quality & Style Rules
 
@@ -124,8 +126,18 @@ _This file contains critical rules and patterns that AI agents must follow when 
 
 - Never use `using=` in ORM queries — `AppsRouter` routes automatically
 - Never cross-query models from different apps — each app owns its own DB
-- `cfflch` currently uses the `default` DB (no dedicated DB yet) — do not assume it has its own until explicitly added
+- `cfflch` uses `cfflch_db` — all four apps now have dedicated databases
 - `migrations/` folders are excluded from Ruff and should not be manually edited
+
+### cfflch-specific
+
+- `AdmissionPDF.search_title` max length is 512 — always truncate with `[:512]` before saving
+- `pdf_urls` serializer field returns `list[dict]` with `url` and `search_title` keys — not `list[str]`
+- Use `obj.pdfs.all()` (not `.values()`) in the serializer to hit the prefetch cache and avoid N+1
+- Name matching uses normalized substring: `normalized_name in normalize_text(text)` — do not use fuzzy or per-line matching
+- PDF URL detection: check `.pdf` anywhere in the URL with `".pdf" in url.lower()` — not `.endswith(".pdf")`
+- Deduplication is keyed on `student_name_normalized + year` — same name + different year = new record
+- Re-searching a known student skips Tavily entirely and fires the WebSocket with existing DB data
 
 ### LangChain / LangGraph
 
@@ -153,6 +165,10 @@ _This file contains critical rules and patterns that AI agents must follow when 
 
 - Project runs on Railway — avoid hardcoded paths, localhost assumptions, or dev-only env vars without production equivalents
 - ASGI server is Daphne — not gunicorn (gunicorn is installed but unused; Daphne handles both HTTP and WebSocket)
+- `requirements.txt` must be kept in sync: `uv export --no-dev --no-hashes --no-emit-project -o requirements.txt` — this causes Railway to use pip instead of auto-detecting Poetry
+- Never include `-e .` in `requirements.txt` — always use `--no-emit-project` flag
+- Railway Start Command (set in dashboard, not Procfile) runs migrations for all 4 databases then starts Daphne
+- After bumping version in `pyproject.toml`, run `uv lock` to regenerate `uv.lock`
 
 ---
 
@@ -162,4 +178,4 @@ _This file contains critical rules and patterns that AI agents must follow when 
 
 **For Humans:** Keep this file lean. Update when the technology stack changes. Remove rules that become obvious over time.
 
-_Last updated: 2026-05-12_
+_Last updated: 2026-05-13_
