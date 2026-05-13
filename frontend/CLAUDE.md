@@ -33,6 +33,8 @@ src/
 │   │   ├── login.ts             # Login logic (calls backend /api/user/{name})
 │   │   ├── session.ts           # JWT encrypt/decrypt/create/delete
 │   │   └── useSession.ts        # Client-side session hook
+│   ├── components/              # Shared infrastructure components
+│   │   └── Toast.tsx            # MUI Snackbar/Alert toast (top-right, 5s, severity prop)
 │   ├── api/log/                 # Server-side log endpoint
 │   │   ├── route.ts
 │   │   └── client-logger.ts
@@ -48,8 +50,8 @@ src/
 ```
 
 ### Shared vs app-specific
-- **Shared:** auth actions (`session.ts`, `login.ts`, `useSession.ts`), the logger, middleware. These live in `src/app/actions/` and `src/app/api/`.
-- **App-specific:** all components, CSS, and hooks. Do not create shared UI components across apps — duplication is preferred over coupling, matching the backend's Parnas decomposition philosophy.
+- **Shared:** auth actions (`session.ts`, `login.ts`, `useSession.ts`), the logger, middleware, and infrastructure UI components (`src/app/components/`). These live in `src/app/actions/`, `src/app/api/`, and `src/app/components/`.
+- **App-specific:** all feature components, CSS, and hooks. Do not create shared feature UI across apps — duplication is preferred over coupling. Exception: pure infrastructure components with no app-specific logic (e.g. `ErrorToast`) may live in `src/app/components/`.
 
 ### Middleware
 `src/middleware.tsx` handles auth routing for all apps. The `PROJECTS` map must be updated when a new app is added — add the app name, its `publicPaths`, `protectedPaths`, and `defaultProtectedPath`.
