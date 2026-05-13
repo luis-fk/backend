@@ -149,7 +149,7 @@ export default function Chat() {
           ref={textareaRef}
           className="chat-input"
           value={input}
-          disabled={false}
+          disabled={sending}
           placeholder="Escreva sua mensagem…"
           rows={1}
           onChange={handleInputChange}
