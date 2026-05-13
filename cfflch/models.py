@@ -28,3 +28,4 @@ class AdmissionPDF(models.Model):
         AdmissionResult, related_name="pdfs", on_delete=models.CASCADE
     )
     url = models.CharField(max_length=2048)
+    search_title = models.CharField(max_length=512, blank=True, default="")
