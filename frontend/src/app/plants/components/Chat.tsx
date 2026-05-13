@@ -12,6 +12,8 @@ import "@/plants/css/chat.css";
 import axios from "axios";
 import { useSession } from "@/app/actions/useSession";
 import { useMediaQuery } from "@mui/material";
+import { logger } from "@/app/api/log/client-logger";
+import Toast from "@/app/components/Toast";
 
 export interface MessageType {
   message: string;
@@ -27,6 +29,7 @@ export default function Chat() {
   ]);
   const [activeSendButton, setActivateSendButton] = useState(false);
   const [messageInput, setMessageInput] = useState("");
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const session = useSession();
   const serverUrl = process.env.NEXT_PUBLIC_SERVER_URL;
@@ -38,19 +41,27 @@ export default function Chat() {
   useEffect(() => {
     if (session?.userId) {
       async function fetchChatHistory() {
-        const response = await axios.get(
-          `${serverUrl}/api/chat-history/${session?.userId}`,
-        );
+        try {
+          const response = await axios.get(
+            `${serverUrl}/api/chat-history/${session?.userId}`,
+          );
 
-        if (response.status === 200) {
-          setMessages(response.data);
-        } else if (response.status === 204) {
-          setMessages([
-            {
-              message: "Hello! How can I help you today?",
-              role: "ai",
-            },
-          ]);
+          if (response.status === 200) {
+            setMessages(response.data);
+          } else if (response.status === 204) {
+            setMessages([
+              {
+                message: "Hello! How can I help you today?",
+                role: "ai",
+              },
+            ]);
+          }
+        } catch (error) {
+          logger.error("Failed to fetch chat history", {
+            userId: session?.userId,
+            error,
+          });
+          setErrorMessage("Não foi possível carregar o histórico de mensagens.");
         }
       }
       fetchChatHistory();
@@ -79,16 +90,12 @@ export default function Chat() {
           ...prevMessages,
           { message: response.data.response.message, role: "ai" },
         ]);
-      } catch {
-        console.error("Failed to send message to server");
-
-        setMessages((prevMessages) => [
-          ...prevMessages,
-          {
-            message: "Deu um problema, tenta novamente ou fala pro Felipe :)",
-            role: "ai",
-          },
-        ]);
+      } catch (error) {
+        logger.error("Failed to send chat message", {
+          userId: session?.userId,
+          error,
+        });
+        setErrorMessage("Falha ao enviar a mensagem. Tente novamente.");
       } finally {
         setActivateSendButton(false);
       }
@@ -98,57 +105,61 @@ export default function Chat() {
   }
 
   return (
-    <ChatContainer
-      suppressHydrationWarning
-      style={{
-        paddingTop: "30px",
-        width: chatWidth,
-        height: chatHeight,
-        backgroundColor: "#292929",
-      }}
-    >
-      <MessageList
+    <>
+      <ChatContainer
+        suppressHydrationWarning
         style={{
-          padding: "10px",
+          paddingTop: "30px",
+          width: chatWidth,
+          height: chatHeight,
           backgroundColor: "#292929",
         }}
       >
-        {messages.map((msg, index) => (
-          <Message
-            style={{
-              marginBottom: "10px",
-              padding: "8px 12px",
-              fontSize: "18px",
-            }}
-            key={index}
-            type="html"
-            model={{
-              message: msg.message,
-              sentTime: "just now",
-              sender: msg.role,
-              direction: msg.role === "human" ? "outgoing" : "incoming",
-              position: "single",
-            }}
-          >
-            {msg.message}
-          </Message>
-        ))}
-      </MessageList>
-      <MessageInput
-        style={{
-          padding: "5px 10px",
-          borderRadius: "15px",
-          border: "none",
-          color: "white",
-          backgroundColor: "#3e3e3e",
-        }}
-        value={messageInput}
-        autoFocus={true}
-        sendDisabled={activeSendButton}
-        onChange={(value) => setMessageInput(value)}
-        onSend={handleSendMessage}
-        attachButton={false}
-      />
-    </ChatContainer>
+        <MessageList
+          style={{
+            padding: "10px",
+            backgroundColor: "#292929",
+          }}
+        >
+          {messages.map((msg, index) => (
+            <Message
+              style={{
+                marginBottom: "10px",
+                padding: "8px 12px",
+                fontSize: "18px",
+              }}
+              key={index}
+              type="html"
+              model={{
+                message: msg.message,
+                sentTime: "just now",
+                sender: msg.role,
+                direction: msg.role === "human" ? "outgoing" : "incoming",
+                position: "single",
+              }}
+            >
+              {msg.message}
+            </Message>
+          ))}
+        </MessageList>
+        <MessageInput
+          style={{
+            padding: "5px 10px",
+            borderRadius: "15px",
+            border: "none",
+            color: "white",
+            backgroundColor: "#3e3e3e",
+          }}
+          value={messageInput}
+          autoFocus={true}
+          sendDisabled={activeSendButton}
+          onChange={(value) => setMessageInput(value)}
+          onSend={handleSendMessage}
+          attachButton={false}
+        />
+      </ChatContainer>
+
+      <Toast message={errorMessage} onClose={() => setErrorMessage(null)} />
+    </>
   );
 }
