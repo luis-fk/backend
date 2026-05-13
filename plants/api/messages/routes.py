@@ -18,13 +18,8 @@ class MessagesApi(APIView):
 
         messages = ChatHistory.objects.filter(user_id=user_id).order_by("id").all()
 
-        if messages:
-            serializer = ChatHistorySerializer(messages, many=True)
+        serializer = ChatHistorySerializer(messages, many=True)
 
-            logger.info(f"Chat history fetched successfully for user {user_id}")
+        logger.info(f"Chat history fetched successfully for user {user_id}")
 
-            return Response(serializer.data, status=200)
-        else:
-            logger.info("No messages found for user")
-
-            return Response({"message": "No messages found for user"}, status=204)
+        return Response(serializer.data, status=200)
