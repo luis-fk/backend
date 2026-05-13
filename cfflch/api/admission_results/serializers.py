@@ -12,8 +12,8 @@ class AdmissionResultSerializer(serializers.Serializer[Any]):
     created_at = serializers.DateTimeField()
     pdf_urls = serializers.SerializerMethodField()
 
-    def get_pdf_urls(self, obj: Any) -> list[str]:
-        return list(obj.pdfs.values_list("url", flat=True))
+    def get_pdf_urls(self, obj: Any) -> list[dict[str, str]]:
+        return [{"url": p.url, "search_title": p.search_title} for p in obj.pdfs.all()]
 
 
 class AdmissionResultPatchSerializer(serializers.Serializer[Any]):

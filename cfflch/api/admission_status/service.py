@@ -239,6 +239,10 @@ class AdmissionStatusService:
             try:
                 if not await pdf_exists():
                     create_pdf = sync_to_async(AdmissionPDF.objects.create)
-                    await create_pdf(result=result, url=item.pdf_url)
+                    await create_pdf(
+                        result=result,
+                        url=item.pdf_url,
+                        search_title=item.search_title[:512],
+                    )
             except Exception as e:
                 logger.error(f"Failed to create admission PDF: {e}")

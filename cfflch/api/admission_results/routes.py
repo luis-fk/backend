@@ -39,7 +39,7 @@ class AdmissionResultsListApi(APIView):
 class AdmissionResultDetailApi(APIView):
     def _get_object(self, pk: int) -> AdmissionResult | JsonResponse:
         try:
-            return AdmissionResult.objects.get(pk=pk)
+            return AdmissionResult.objects.prefetch_related("pdfs").get(pk=pk)
         except AdmissionResult.DoesNotExist:
             return JsonResponse(
                 {"error": "Not found"}, status=status.HTTP_404_NOT_FOUND
