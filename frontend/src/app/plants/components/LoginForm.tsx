@@ -1,38 +1,32 @@
 "use client";
 import { login } from "@/app/actions/login";
-import { useState, useEffect } from "react";
-import ErrorMessage from "./ErrorMessage";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { logger } from "@/app/api/log/client-logger";
+import Toast from "@/app/components/Toast";
 import "@/plants/css/login.css";
 
 export function LoginForm() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
   const router = useRouter();
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    setSubmitting(true);
 
     const formData = new FormData(event.currentTarget);
     const result = await login(formData);
 
     if (result?.message) {
-      console.error(`An error occurred when trying to loggin the user`);
-
+      logger.error("Login failed", { message: result.message });
       setErrorMessage(result.message);
+      setSubmitting(false);
+      return;
     }
 
     router.push("/plants/chat");
   }
-
-  useEffect(() => {
-    if (errorMessage) {
-      const timeout = setTimeout(() => {
-        setErrorMessage(null);
-      }, 3000);
-
-      return () => clearTimeout(timeout);
-    }
-  }, [errorMessage]);
 
   return (
     <div className="login-container">
@@ -43,19 +37,13 @@ export function LoginForm() {
           <input id="name" name="name" placeholder="Name" />
         </div>
         <div className="submitButton-container">
-          <button type="submit">Authenticate</button>
+          <button type="submit" disabled={submitting}>
+            {submitting ? "Authenticating..." : "Authenticate"}
+          </button>
         </div>
       </form>
 
-      <ErrorMessage
-        message={errorMessage}
-        style={{
-          fontSize: "20px",
-          textAlign: "center",
-          marginBottom: "15px",
-          fontWeight: "bold",
-        }}
-      />
+      <Toast message={errorMessage} onClose={() => setErrorMessage(null)} />
     </div>
   );
 }
