@@ -35,4 +35,4 @@ class WordCounterApi(APIView):
         else:
             logger.error("Invalid data received from ESP32", serializer.errors)
 
-            return Response(serializer.errors, status=400)
+            return Response({"error": "Invalid request data"}, status=400)

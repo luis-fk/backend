@@ -30,7 +30,9 @@ class AdmissionStatusApi(View):
 
         serializer = AdmissionStatusRequestSerializer(data=body)
         if not serializer.is_valid():
-            return JsonResponse(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            return JsonResponse(
+                {"error": "Invalid request data"}, status=status.HTTP_400_BAD_REQUEST
+            )
 
         student_names = serializer.validated_data["names"]
         year = serializer.validated_data["year"]
