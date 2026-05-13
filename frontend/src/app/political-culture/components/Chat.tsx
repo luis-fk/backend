@@ -4,10 +4,11 @@ import { useEffect, useState, useRef, useCallback, useMemo } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import axios from "axios";
-import { useSession } from "@/app/actions/useSession";
 import { useMediaQuery } from "@mui/material";
+import { useSession } from "@/app/actions/useSession";
 import { useChatSocket } from "@/political-culture/hooks/useChatSocket";
 import { logger } from "@/app/api/log/client-logger";
+import Toast from "@/app/components/Toast";
 import "@/political-culture/css/chat.css";
 
 export interface MessageType {
@@ -25,6 +26,7 @@ export default function Chat() {
   const [loadingHistory, setLoadingHistory] = useState(true);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const [isClient, setIsClient] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -60,6 +62,7 @@ export default function Chat() {
           userId: session.userId,
           error: err,
         });
+        setErrorMessage("Não foi possível carregar o histórico de mensagens.");
       })
       .finally(() => {
         setLoadingHistory(false);
@@ -70,11 +73,16 @@ export default function Chat() {
     setMessages((previous) => [...previous, message]);
   }, []);
 
+  const handleSocketError = useCallback(() => {
+    setErrorMessage("Conexão perdida. Tente recarregar a página.");
+  }, []);
+
   useChatSocket({
     userId: session?.userId,
     serverUrl,
     onMessage: handleNewMessage,
     setSending,
+    onError: handleSocketError,
   });
 
   const handleInputChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -103,13 +111,7 @@ export default function Chat() {
         userId: session?.userId,
         error,
       });
-      setMessages((m) => [
-        ...m,
-        {
-          message: "Deu um problema, tenta novamente ou fala pro Felipe :)",
-          role: "ai",
-        },
-      ]);
+      setErrorMessage("Falha ao enviar a mensagem. Tente novamente.");
       setSending(false);
     }
   }, [sending, input, serverUrl, session?.userId]);
@@ -160,10 +162,12 @@ export default function Chat() {
             }
           }}
         />
-        <button onClick={send} disabled={false}>
+        <button onClick={send} disabled={sending}>
           Enviar
         </button>
       </div>
+
+      <Toast message={errorMessage} onClose={() => setErrorMessage(null)} />
     </div>
   );
 }
