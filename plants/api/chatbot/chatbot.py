@@ -1,4 +1,5 @@
 import logging
+from typing import Any, cast
 
 from dotenv import load_dotenv
 from langchain_core.messages import (
@@ -9,6 +10,7 @@ from langchain_core.messages import (
 from langgraph.graph.state import CompiledStateGraph
 
 from plants.api.chatbot.graph import build_graph
+from plants.api.chatbot.schemas import SquadState
 from plants.api.messages.serializers import ChatHistorySerializer
 from plants.models import ChatHistory, UserMemory
 
@@ -19,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 class LLM:
     def __init__(self) -> None:
-        self.graph: CompiledStateGraph | None = None
+        self.graph: CompiledStateGraph[SquadState, None, Any, Any] | None = None
         self.chat_history: list[BaseMessage] | None = None
 
     def setup(self) -> None:
@@ -55,11 +57,14 @@ class LLM:
 
         if self.graph:
             self.graph.invoke(
-                input={
-                    "messages": chat_history + [HumanMessage(content=message)],
-                    "memory": user_memory,
-                    "user_id": user_id,
-                }
+                input=cast(
+                    SquadState,
+                    {
+                        "messages": chat_history + [HumanMessage(content=message)],
+                        "memory": user_memory,
+                        "user_id": user_id,
+                    },
+                )
             )
         else:
             return None

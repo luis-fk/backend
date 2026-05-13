@@ -1,6 +1,5 @@
-from typing import cast
+from typing import Any
 
-from langchain.agents import AgentExecutor, create_tool_calling_agent
 from langchain_core.messages import BaseMessage, HumanMessage
 from langchain_core.prompts import (
     AIMessagePromptTemplate,
@@ -16,87 +15,52 @@ from political_culture.api.utils import llm_4
 from political_culture.api.word_counter.tools import query_vectors
 
 
-def word_analyist_agent(input: str) -> str:
-    instructions_prompt = ChatPromptTemplate.from_messages(
+def _make_tool_prompt(system_prompt: str) -> ChatPromptTemplate:
+    return ChatPromptTemplate.from_messages(
         [
-            SystemMessagePromptTemplate.from_template(
-                prompts.WORD_COUNT_COMPARISON_PROMPT
-            ),
+            SystemMessagePromptTemplate.from_template(system_prompt),
             HumanMessagePromptTemplate.from_template("{input}"),
             AIMessagePromptTemplate.from_template("{agent_scratchpad}"),
         ]
     )
 
+
+def _invoke_tool_agent(prompt: ChatPromptTemplate, tools: list[Any], input: str) -> str:
+    llm_with_tools = llm_4.bind_tools(tools)
+    messages = prompt.invoke({"input": input, "agent_scratchpad": ""})
+    response = llm_with_tools.invoke(messages)
+    return str(response.content)
+
+
+def word_analyist_agent(input: str) -> str:
     tools = [
         chatbot_tools.get_all_texts_info,
         chatbot_tools.get_text_word_count_by_id,
     ]
-    agent = create_tool_calling_agent(llm_4, tools, prompt=instructions_prompt)
-    agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=False)
-
-    response = agent_executor.invoke(
-        {
-            "input": input,
-            "agent_scratchpad": "",
-        }
+    return _invoke_tool_agent(
+        _make_tool_prompt(prompts.WORD_COUNT_COMPARISON_PROMPT), tools, input
     )
-
-    return cast(str, response["output"])
 
 
 def text_analyist_agent(input: str) -> str:
-    instructions_prompt = ChatPromptTemplate.from_messages(
-        [
-            SystemMessagePromptTemplate.from_template(prompts.TEXT_ANALYSIS_PROMPT),
-            HumanMessagePromptTemplate.from_template("{input}"),
-            AIMessagePromptTemplate.from_template("{agent_scratchpad}"),
-        ]
-    )
-
     tools = [
         query_vectors,
         chatbot_tools.get_all_texts_info,
     ]
-    agent = create_tool_calling_agent(llm_4, tools, prompt=instructions_prompt)
-    agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=False)
-
-    response = agent_executor.invoke(
-        {
-            "input": input,
-            "agent_scratchpad": "",
-        }
+    return _invoke_tool_agent(
+        _make_tool_prompt(prompts.TEXT_ANALYSIS_PROMPT), tools, input
     )
-
-    return cast(str, response["output"])
 
 
 def text_ideology_analyist_agent(input: str) -> str:
-    instructions_prompt = ChatPromptTemplate.from_messages(
-        [
-            SystemMessagePromptTemplate.from_template(
-                prompts.TEXT_IDEOLOGY_ANALYSIS_PROMPT
-            ),
-            HumanMessagePromptTemplate.from_template("{input}"),
-            AIMessagePromptTemplate.from_template("{agent_scratchpad}"),
-        ]
-    )
-
     tools = [
         chatbot_tools.get_ideologies,
         chatbot_tools.get_ideology_definition,
         chatbot_tools.get_all_texts_info,
     ]
-    agent = create_tool_calling_agent(llm_4, tools, prompt=instructions_prompt)
-    agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=False)
-
-    response = agent_executor.invoke(
-        {
-            "input": input,
-            "agent_scratchpad": "",
-        }
+    return _invoke_tool_agent(
+        _make_tool_prompt(prompts.TEXT_IDEOLOGY_ANALYSIS_PROMPT), tools, input
     )
-
-    return cast(str, response["output"])
 
 
 def call_user_info_agent(message: str, chat_history: list[BaseMessage]) -> ChatInfo:
@@ -106,13 +70,10 @@ def call_user_info_agent(message: str, chat_history: list[BaseMessage]) -> ChatI
             HumanMessagePromptTemplate.from_template("{input} {chat_history}"),
         ]
     )
-
     chain = instructions_prompt | llm_4.with_structured_output(
         schema=ChatInfo, method="json_schema"
     )
-
     response = chain.invoke({"input": message, "chat_history": chat_history})
-
     return ChatInfo.model_validate(response)
 
 
@@ -123,25 +84,14 @@ def call_router_agent(message: HumanMessage) -> Routing:
             HumanMessagePromptTemplate.from_template("{input}"),
         ]
     )
-
     chain = instructions_prompt | llm_4.with_structured_output(
         schema=Routing, method="json_schema"
     )
-
     response = chain.invoke({"input": message})
-
     return Routing.model_validate(response)
 
 
 def general_chat_agent(input: str, chat_history: list[BaseMessage]) -> str:
-    instructions_prompt = ChatPromptTemplate.from_messages(
-        [
-            SystemMessagePromptTemplate.from_template(prompts.GENERAL_CHAT_PROMPT),
-            HumanMessagePromptTemplate.from_template("{input} {chat_history}"),
-            AIMessagePromptTemplate.from_template("{agent_scratchpad}"),
-        ]
-    )
-
     tools = [
         query_vectors,
         chatbot_tools.get_user_submitted_texts_info,
@@ -149,18 +99,19 @@ def general_chat_agent(input: str, chat_history: list[BaseMessage]) -> str:
         chatbot_tools.get_recent_chat_history,
         chatbot_tools.get_user_memory,
     ]
-    agent = create_tool_calling_agent(llm_4, tools, prompt=instructions_prompt)
-    agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=False)
-
-    response = agent_executor.invoke(
-        {
-            "input": input,
-            "chat_history": chat_history or "",
-            "agent_scratchpad": "",
-        }
+    instructions_prompt = ChatPromptTemplate.from_messages(
+        [
+            SystemMessagePromptTemplate.from_template(prompts.GENERAL_CHAT_PROMPT),
+            HumanMessagePromptTemplate.from_template("{input} {chat_history}"),
+            AIMessagePromptTemplate.from_template("{agent_scratchpad}"),
+        ]
     )
-
-    return cast(str, response["output"])
+    llm_with_tools = llm_4.bind_tools(tools)
+    messages = instructions_prompt.invoke(
+        {"input": input, "chat_history": chat_history or "", "agent_scratchpad": ""}
+    )
+    response = llm_with_tools.invoke(messages)
+    return str(response.content)
 
 
 def call_text_concatenation_agent(input: str) -> str:
@@ -170,9 +121,6 @@ def call_text_concatenation_agent(input: str) -> str:
             HumanMessagePromptTemplate.from_template("{input}"),
         ]
     )
-
     chain = instructions_prompt | llm_4
-
     response = chain.invoke({"input": input})
-
-    return cast(str, response.content)
+    return str(response.content)

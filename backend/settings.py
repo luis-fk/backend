@@ -28,6 +28,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = env("SECRET_KEY")
 OPEN_WEATHER_API_KEY = env("OPEN_WEATHER_API_KEY")
+TAVILY_API_KEY = env("TAVILY_API_KEY", default=None)
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = env("ENVIRONMENT") == "development"
@@ -84,6 +85,7 @@ INSTALLED_APPS = [
     "rest_framework",
     "plants",
     "political_culture",
+    "cfflch",
 ]
 
 MIDDLEWARE = [
@@ -130,6 +132,7 @@ DATABASES = {
             "POLITICAL_CULTURE_DATABASE_URL",
         )
     ),
+    "cfflch_db": dj_database_url.config(default=env("CFFLCH_DATABASE_URL")),
 }
 
 DATABASE_ROUTERS = ["backend.apps_routers.AppsRouter"]
@@ -170,6 +173,7 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/5.1/howto/static-files/
 
 STATIC_URL = "static/"
+STATIC_ROOT = BASE_DIR / "staticfiles"
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field

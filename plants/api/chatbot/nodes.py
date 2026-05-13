@@ -6,6 +6,7 @@ from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
 from plants.api.chatbot.agents import (
     call_chatbot_agent,
     call_router_agent,
+    call_tool_response_agent,
     call_tools_agent,
     call_user_info_agent,
 )
@@ -20,7 +21,8 @@ def route_picker(state: SquadState) -> str:
         return state["route"]
     else:
         raise ValueError(
-            f"Invalid route '{state['route']}'. Supported routes are 'tools_agent' and 'continue'."
+            f"Invalid route '{state['route']}'. Supported routes are 'tools_agent' "
+            "and 'continue'"
         )
 
 
@@ -87,12 +89,25 @@ def call_agent(state: SquadState) -> SquadState:
 
 
 def tools_agent(state: SquadState) -> SquadState:
-    pass
     logging.info("Calling web search agent for user")
 
     latest_message: HumanMessage = cast(HumanMessage, state["messages"][-1])
     user_memory: str = state["memory"]
+    response = cast(
+        AIMessage, call_tools_agent(message=latest_message, memory=user_memory)
+    )
 
-    response = call_tools_agent(message=latest_message, memory=user_memory)
+    return {**state, "messages": state["messages"] + [response]}
 
-    return {**state, "messages": [HumanMessage(content=response)]}
+
+def tool_response(state: SquadState) -> SquadState:
+    logging.info("Formatting tool results for user")
+
+    messages: list[BaseMessage] = cast(list[BaseMessage], state["messages"])
+    user_memory: str = state["memory"]
+
+    response = cast(
+        AIMessage, call_tool_response_agent(messages=messages, memory=user_memory)
+    )
+
+    return {**state, "messages": state["messages"] + [response]}

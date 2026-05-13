@@ -77,10 +77,10 @@ def add_text_word_count(text_db: Texts) -> TextWordCount:
 
     new_word_frequencies = word_picker(word_frequencies, text_db.content_description)
 
-    dict_word_frequencies = dict(
-        (word_count.word, word_count.count)
+    dict_word_frequencies = {
+        word_count.word: word_count.count
         for word_count in new_word_frequencies.words_list
-    )
+    }
 
     return TextWordCount.objects.create(
         text=text_db,
@@ -106,7 +106,7 @@ def get_recent_chat_history_db(user_id: int) -> list[BaseMessage]:
     return chat_history
 
 
-def wrap_up_get_response(user_id: int) -> dict:
+def wrap_up_get_response(user_id: int) -> dict[str, Any]:
     llm_response = ChatHistory.objects.filter(user_id=user_id, role="ai").last()
     if llm_response:
         return ChatHistorySerializer(llm_response).data

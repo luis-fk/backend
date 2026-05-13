@@ -1,5 +1,6 @@
 from django.contrib import admin
-from plants.models import Esp32Data, ChatHistory, UserMemory, Users
+
+from plants.models import ChatHistory, Esp32Data, UserMemory, Users
 
 admin.site.register(Esp32Data)
 admin.site.register(ChatHistory)

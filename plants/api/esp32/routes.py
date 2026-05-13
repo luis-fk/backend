@@ -1,8 +1,11 @@
+import json
 import logging
 from typing import Any
 
-from rest_framework.response import Response
-from rest_framework.views import APIView
+from django.http import JsonResponse
+from django.utils.decorators import method_decorator
+from django.views import View
+from django.views.decorators.csrf import csrf_exempt
 
 from plants.api.esp32.serializers import HumidityDataSerializer
 from plants.api.esp32.service import fetch_weather_data
@@ -11,53 +14,54 @@ from plants.models import Esp32Data
 logger = logging.getLogger(__name__)
 
 
-class Esp32Api(APIView):
-    def post(self, request: Any, *args: Any, **kwargs: Any) -> Response:
+@method_decorator(csrf_exempt, name="dispatch")
+class Esp32Api(View):
+    async def post(self, request: Any, *args: Any, **kwargs: Any) -> JsonResponse:
         logger.info("Receiving data from ESP32, starting data treatment")
 
-        serializer = HumidityDataSerializer(data=request.data)
+        try:
+            body = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({"error": "Invalid JSON"}, status=400)
 
-        if serializer.is_valid():
-            analog_value = serializer.validated_data["analogValue"]
-            digital_value = serializer.validated_data["digitalValue"]
-            user_id = serializer.validated_data["userId"]
+        serializer = HumidityDataSerializer(data=body)
 
-            logger.info("Fechting weather data")
-            weather_data = fetch_weather_data(user_id=user_id)
+        if not serializer.is_valid():
+            logger.error("Invalid data received from ESP32: %s", serializer.errors)
+            return JsonResponse(serializer.errors, status=400)
 
-            if weather_data.error_message:
-                logger.error("Error fetching weather data1")
-                return Response(status=400)
+        analog_value = serializer.validated_data["analogValue"]
+        digital_value = serializer.validated_data["digitalValue"]
+        user_id = serializer.validated_data["userId"]
 
-            temperature = weather_data.temperature
-            humidity = weather_data.humidity
+        logger.info("Fetching weather data")
+        weather_data = await fetch_weather_data(user_id=user_id)
 
-            logger.info("Creating data on the database")
+        if weather_data.error_message:
+            logger.error("Error fetching weather data")
+            return JsonResponse({"error": weather_data.error_message}, status=400)
 
-            Esp32Data.objects.create(
-                analog_value=analog_value,
-                digital_value=digital_value,
-                temperature=temperature,
-                humidity=humidity,
-                user_id=user_id,
-            )
+        logger.info("Creating data on the database")
 
-            logger.info("Data created successfully")
+        await Esp32Data.objects.acreate(
+            analog_value=analog_value,
+            digital_value=digital_value,
+            temperature=weather_data.temperature,
+            humidity=weather_data.humidity,
+            user_id=user_id,
+        )
 
-            return Response(status=200)
-        else:
-            logger.error("Invalid data received from ESP32", serializer.errors)
+        logger.info("Data created successfully")
+        return JsonResponse({}, status=200)
 
-            return Response(serializer.errors, status=400)
-
-    def get(self, request: Any, *args: Any, **kwargs: Any) -> Response:
+    async def get(self, request: Any, *args: Any, **kwargs: Any) -> JsonResponse:
         logger.info("Fetching humidity data from ESP32")
 
-        data = Esp32Data.objects.all()
+        data = [entry async for entry in Esp32Data.objects.all()]
 
         if not data:
             logger.info("No humidity data found in database")
-            return Response({"error": "No data found"}, status=404)
+            return JsonResponse({"error": "No data found"}, status=404)
 
         serializer = HumidityDataSerializer(data, many=True)
-        return Response(serializer.data, status=200)
+        return JsonResponse(serializer.data, safe=False, status=200)

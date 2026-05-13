@@ -16,7 +16,7 @@ class WordCounterApi(APIView):
 
     def post(self, request: Any, *args: Any, **kwargs: Any) -> Response:
         logger.info("Receiving text, starting word counting")
-        
+
         serializer = ContentSerializer(data=request.data)
 
         if serializer.is_valid():

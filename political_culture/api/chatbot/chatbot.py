@@ -1,5 +1,6 @@
 import logging
 import threading
+from typing import Any, cast
 
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
@@ -7,6 +8,7 @@ from django.db import close_old_connections
 from langgraph.graph.state import CompiledStateGraph
 
 from political_culture.api.chatbot.graph import build_graph
+from political_culture.api.chatbot.schemas import SquadState
 from political_culture.api.chatbot.utils import singleton, wrap_up_get_response
 from political_culture.models import UserMemory
 
@@ -16,7 +18,7 @@ logger = logging.getLogger(__name__)
 @singleton
 class LLM:
     def __init__(self) -> None:
-        self.graph: CompiledStateGraph | None = None
+        self.graph: CompiledStateGraph[SquadState, None, Any, Any] | None = None
 
         logger.info("Building schema")
 
@@ -51,7 +53,10 @@ class LLM:
 
         try:
             self.graph.invoke(
-                input={"input": text, "memory": user_memory, "user_id": user_id},
+                input=cast(
+                    SquadState,
+                    {"input": text, "memory": user_memory, "user_id": user_id},
+                ),
                 config={"recursion_limit": 50},
             )
             logger.info(f"Message processed for user {user_id}")

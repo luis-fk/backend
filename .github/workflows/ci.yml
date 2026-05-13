@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  pull_request:
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    env:
+      SECRET_KEY: ci-dummy-secret-key
+      OPEN_WEATHER_API_KEY: dummy
+      ENVIRONMENT: development
+      NGROK_URL: http://localhost
+      SERVER_URL: http://localhost
+      FRONT_END_URL: http://localhost:3000
+      REDIS_URL: redis://localhost:6379
+      AUTH_DATABASE_URL: sqlite:///dummy.db
+      PLANTS_DATABASE_URL: sqlite:///dummy.db
+      POLITICAL_CULTURE_DATABASE_URL: sqlite:///dummy.db
+      CFFLCH_DATABASE_URL: sqlite:///dummy.db
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Ruff lint
+        run: uv run ruff check .
+
+      - name: Ruff format check
+        run: uv run ruff format --check .
+
+      - name: Mypy
+        run: uv run mypy .

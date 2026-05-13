@@ -34,7 +34,8 @@ def route_picker(state: SquadState) -> str:
         return state["route"]
     else:
         raise ValueError(
-            f"Invalid route '{state['route']}'. Supported routes are {Routes.CHAT} and {Routes.ANALYSIS}."
+            f"Invalid route '{state['route']}'. "
+            f"Supported routes are {Routes.CHAT} and {Routes.ANALYSIS}."
         )
 
 

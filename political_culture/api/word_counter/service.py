@@ -3,9 +3,8 @@ import os
 import re
 import tempfile
 from collections import Counter
-from typing import IO, Optional, cast
+from typing import IO, Optional
 
-from langchain.agents import AgentExecutor, create_tool_calling_agent
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_core.documents import Document
 from langchain_core.prompts import (
@@ -41,17 +40,11 @@ def text_info_extractor(text_id: int) -> str:
     )
 
     tools = [query_vectors]
-    agent = create_tool_calling_agent(llm_4, tools, prompt=instructions_prompt)
-    agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=False)
+    llm_with_tools = llm_4.bind_tools(tools)
+    messages = instructions_prompt.invoke({"input": text_id, "agent_scratchpad": ""})
+    response = llm_with_tools.invoke(messages)
 
-    response = agent_executor.invoke(
-        {
-            "input": text_id,
-            "agent_scratchpad": "",
-        }
-    )
-
-    return cast(str, response["output"])
+    return str(response.content)
 
 
 def structured_text_info_extractor(content_description: str) -> TitleAndAuthorSchema:
@@ -109,7 +102,7 @@ def count_words(text: str) -> tuple[list[tuple[str, int]], int]:
 
 
 def add_text(
-    content: IO, user_id: int, *, user_submitted_text: Optional[bool] = False
+    content: IO[bytes], user_id: int, *, user_submitted_text: Optional[bool] = False
 ) -> Texts:
     text, chunk_texts, vectors = extract_pdf_embeddings_and_metadata(content)
 
@@ -142,10 +135,10 @@ def add_text_word_count(text_db: Texts) -> TextWordCount:
 
     new_word_frequencies = word_picker(word_frequencies, text_db.content_description)
 
-    dict_word_frequencies = dict(
-        (word_count.word, word_count.count)
+    dict_word_frequencies = {
+        word_count.word: word_count.count
         for word_count in new_word_frequencies.words_list
-    )
+    }
 
     return TextWordCount.objects.create(
         text=text_db,
@@ -155,7 +148,7 @@ def add_text_word_count(text_db: Texts) -> TextWordCount:
 
 
 def extract_pdf_embeddings_and_metadata(
-    content: IO,
+    content: IO[bytes],
 ) -> tuple[str, list[str], list[list[float]]]:
     with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
         tmp.write(content.read())
