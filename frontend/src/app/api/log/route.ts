@@ -11,6 +11,12 @@ export async function POST(request: Request) {
       case "error":
         console.error(logMessage, ...optionalParams);
         break;
+      case "warn":
+        console.warn(logMessage, ...optionalParams);
+        break;
+      case "info":
+        console.info(logMessage, ...optionalParams);
+        break;
       default:
         console.log(logMessage, ...optionalParams);
     }

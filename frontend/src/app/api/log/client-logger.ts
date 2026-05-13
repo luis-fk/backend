@@ -4,8 +4,8 @@ type LogLevel = "log" | "info" | "warn" | "error";
 
 const sendLogToServer = (
   level: LogLevel,
-  message: any,
-  optionalParams: any[],
+  message: unknown,
+  optionalParams: unknown[],
 ) => {
   if (typeof window === "undefined" || typeof fetch === "undefined") {
     return;
@@ -33,7 +33,7 @@ const sendLogToServer = (
 
 const createLogger =
   (level: LogLevel) =>
-  (message: any, ...optionalParams: any[]) => {
+  (message: unknown, ...optionalParams: unknown[]) => {
     if (process.env.NODE_ENV === "development") {
       console[level](message, ...optionalParams);
     }

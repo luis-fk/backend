@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { decrypt } from "@/app/actions/session";
 
+// Excludes _next internals, API routes, and any path with a file extension
 export const config = {
-  matcher: ["/:project/:path*", "/:project"],
+  matcher: ["/((?!_next/|api/|.*\\..*).*)",],
 };
 
 type ProjectConfig = {
@@ -26,14 +27,6 @@ const PROJECTS: Record<string, ProjectConfig> = {
 
 export default async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
-
-  if (
-    pathname.startsWith("/api") ||
-    pathname.startsWith("/_next/") ||
-    /\.(?:png|jpg|svg|css|js)$/.test(pathname)
-  ) {
-    return NextResponse.next();
-  }
 
   const segments = pathname.split("/").filter(Boolean);
   const project = segments[0];
