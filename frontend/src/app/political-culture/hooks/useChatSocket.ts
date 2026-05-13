@@ -7,6 +7,7 @@ interface UseChatSocketProps {
   serverUrl: string | undefined;
   onMessage: (message: MessageType) => void;
   setSending: (sending: boolean) => void;
+  onError: () => void;
 }
 
 export function useChatSocket({
@@ -14,6 +15,7 @@ export function useChatSocket({
   serverUrl,
   onMessage,
   setSending,
+  onError,
 }: UseChatSocketProps) {
   const handleOpen = useCallback(() => {
     logger.log("WebSocket connection established", { userId });
@@ -39,8 +41,12 @@ export function useChatSocket({
   );
 
   const handleError = useCallback(
-    (error: Event) => logger.error("WebSocket error", { userId, error }),
-    [userId],
+    (error: Event) => {
+      logger.error("WebSocket error", { userId, error });
+      setSending(false);
+      onError();
+    },
+    [userId, setSending, onError],
   );
 
   const handleClose = useCallback(() => {

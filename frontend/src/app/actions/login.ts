@@ -23,15 +23,15 @@ export async function login(formData: FormData) {
         return { message: error.response.data.error };
       }
       console.error(
-        `An error ocurred when making the API call for user ${name}`,
+        `An error occurred when making the API call for user ${name}`,
       );
 
-      return { message: error.response?.data || "An error occurred" };
+      return { message: error.response?.data.error };
     }
     console.error(
       `An unknown error occurred when making the API call for user ${name}`,
     );
 
-    return { message: "An unknown error occurred" };
+    return { message: "An unknown error occurred." };
   }
 }
