@@ -17,15 +17,14 @@ class UserApi(APIView):
         logger.info(f"Fetching user info for {name}")
 
         User = get_user_model()
-        auth_user = User.objects.using("default").get(username=name)
-
-        if auth_user:
-            serializer = UserSerializer(auth_user)
-
-            logger.info(f"User info fetched successfully for {name}")
-
-            return Response(serializer.data)
-        else:
+        try:
+            auth_user = User.objects.using("default").get(username=name)
+        except User.DoesNotExist:
             logger.info(f"User {name} not found")
+            return Response({"error": "User not found."}, status=404)
 
-            return Response({"error": "User not found"}, status=404)
+        serializer = UserSerializer(auth_user)
+
+        logger.info(f"User info fetched successfully for {name}")
+
+        return Response(serializer.data)

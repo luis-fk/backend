@@ -38,15 +38,22 @@ The React frontend is a separate app.
 ## Current state
 **Complete (stable):**
 - `political_culture`: word counter with LLM extraction, political chatbot with tools. pgvector is used to semantically search long reference texts that would otherwise exceed context limits. No near-term work planned.
-- `cfflch`: admission status checker — searches Tavily for PDFs, downloads and parses them, streams results over WebSocket. Needs a dedicated database added eventually.
-- `plants`: ESP32 data ingestion, OpenWeather integration for weather data, AI chatbot.
+- `cfflch`: admission status checker — searches Tavily for PDFs, downloads and parses them, streams results over WebSocket. Has its own dedicated database (`cfflch_db`).
+- `plants`: ESP32 data ingestion, OpenWeather integration for weather data, AI chatbot. The chatbot now has an extra `respond` node after tool execution so tool output is surfaced to the user correctly.
 
-**In progress:**
-- Improving the `plants` chatbot to be more plant-specific
-- Minor adjustments to `cfflch`
+**Recent cfflch changes (v2.0.0):**
+- `AdmissionPDF` has a `search_title` field (max 512 chars) — populated from Tavily search result title
+- `pdf_urls` in the admission results serializer now returns `list[dict]` with `url` and `search_title` keys (was `list[str]`) — **frontend must read `item.url` instead of the element directly**
+- Admission results endpoint accepts optional `class_room_id` query param filter
+- All searched students are saved to DB regardless of found/not-found (no PDFs = not found)
+- Re-searching a known student (same name + year) skips Tavily and returns existing data immediately
+- If a known student is re-searched with a different classroom, the classroom is updated
+- PDF URL detection uses `.pdf` anywhere in the URL (not just `.endswith`)
+- Tavily query includes keywords: `aprovado classificado convocado selecionado vestibular`
+- PDF downloads are concurrent via `asyncio.gather`
+- Name matching uses substring match on normalized text (not fuzzy/per-line matching)
 
 **Planned (no timeline):**
-- Add a dedicated database for `cfflch`
 - Write unit tests (pytest, top-level `tests/` folder)
 - Add API documentation
 - Add project-level docs
@@ -65,11 +72,11 @@ The React frontend is a separate app.
 - **Multi-DB setup is fixed.** The `AppsRouter` is the source of truth for routing. Adding a new app requires adding a `<app>_db` entry to `DATABASES` and updating the Makefile — but don't do this until explicitly asked.
 - **LangChain APIs change frequently.** Avoid deprecated patterns: `AgentExecutor` is gone, `hub.pull` is not used — prompts live locally in `prompts.py` files. Prefer `llm.bind_tools([...]).invoke(...)`.
 - **WebSocket timing in `cfflch`:** the client must connect via WebSocket *before* the POST request is made, otherwise the result message is missed. This is a known limitation — do not try to fix it with polling or re-delivery unless explicitly asked.
-- **Railway deployment:** the project runs on Railway. Any solution that works locally must also work in a Railway environment. Avoid local-only workarounds (e.g. hardcoded paths, localhost assumptions, dev-only env vars without production equivalents).
+- **Railway deployment:** the project runs on Railway. Start Command (set in Railway dashboard) runs migrations and starts Daphne. `requirements.txt` is kept in sync (generated with `uv export --no-dev --no-hashes --no-emit-project -o requirements.txt`) so Railway uses pip instead of auto-detecting Poetry.
 - **Package manager:** uv only. Do not suggest pip or poetry commands.
 
 ## BMAD notes
-- BMAD is not installed yet — setup is pending.
+- BMAD v6.6.0 is installed (installed 2026-05-11).
 - Most relevant agents for this project: **architect** and **developer**. PM, analyst, and other agents are likely overkill for a solo sandbox project.
 - This is an **existing project** — skip all greenfield scaffolding workflows. There is no PRD phase for features that are already defined conversationally.
 - When suggesting new features or refactors, always check what already exists before proposing a design — the codebase is the source of truth, not assumptions.
