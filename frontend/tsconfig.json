@@ -32,7 +32,12 @@
       "@/political-culture/actions/*": [
         "./src/app/political-culture/actions/*"
       ],
-      "@/log/*": ["./src/app/api/log/*"]
+      "@/log/*": ["./src/app/api/log/*"],
+
+      "@/cfflch/*": ["./src/app/cfflch/*"],
+      "@/cfflch/components/*": ["./src/app/cfflch/components/*"],
+      "@/cfflch/css/*": ["./src/app/cfflch/css/*"],
+      "@/cfflch/hooks/*": ["./src/app/cfflch/hooks/*"]
     },
     "forceConsistentCasingInFileNames": true
   },

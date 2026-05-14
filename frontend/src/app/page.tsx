@@ -10,6 +10,9 @@ export default function Page() {
       <Link href="/plants" className="button">
         Plants
       </Link>
+      <Link href="/cfflch" className="button">
+        CFFLCH
+      </Link>
     </div>
   );
 }

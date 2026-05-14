@@ -23,6 +23,11 @@ const PROJECTS: Record<string, ProjectConfig> = {
     protectedPaths: ["chat"],
     defaultProtectedPath: "chat",
   },
+  cfflch: {
+    publicPaths: [""],
+    protectedPaths: ["search", "results"],
+    defaultProtectedPath: "search",
+  },
 };
 
 export default async function middleware(req: NextRequest) {
@@ -38,7 +43,8 @@ export default async function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
-  const cookie = req.cookies.get("session")?.value;
+  const cookieName = `session-${project}`;
+  const cookie = req.cookies.get(cookieName)?.value;
   const session = await decrypt(cookie);
 
   const isPublic = cfg.publicPaths.some((p) => p === subPath);
