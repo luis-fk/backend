@@ -6,6 +6,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from plants.api.users.serializers import UserSerializer
+from plants.models import Users
 
 logger = logging.getLogger(__name__)
 
@@ -16,14 +17,20 @@ class UserApi(APIView):
 
         logger.info(f"Fetching user info for {name}")
 
-        User = get_user_model()
+        AuthUser = get_user_model()
         try:
-            auth_user = User.objects.using("default").get(username=name)
-        except User.DoesNotExist:
-            logger.info(f"User {name} not found")
+            auth_user = AuthUser.objects.using("default").get(username=name)
+        except AuthUser.DoesNotExist:
+            logger.info(f"User {name} not found in auth DB")
             return Response({"error": "User not found."}, status=404)
 
-        serializer = UserSerializer(auth_user)
+        try:
+            app_user = Users.objects.get(auth_user_id=auth_user.id)
+        except Users.DoesNotExist:
+            logger.info(f"User {name} not found in plants DB")
+            return Response({"error": "User not found."}, status=404)
+
+        serializer = UserSerializer(app_user)
 
         logger.info(f"User info fetched successfully for {name}")
 

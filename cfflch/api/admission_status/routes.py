@@ -82,3 +82,9 @@ class AdmissionStatusApi(View):
                 )
         except Exception as e:
             logger.error(f"Error processing admission status: {e}")
+
+        if channel_layer:
+            await channel_layer.group_send(
+                f"admission_status_{request_id}",
+                {"type": "admission_status.done"},
+            )

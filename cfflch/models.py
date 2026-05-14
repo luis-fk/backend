@@ -1,6 +1,13 @@
 from django.db import models
 
 
+class Users(models.Model):
+    auth_user_id = models.IntegerField(unique=True)
+
+    def __str__(self) -> str:
+        return str(self.auth_user_id)
+
+
 class ClassRoom(models.Model):
     name = models.CharField(max_length=255)
     name_normalized = models.CharField(max_length=255, unique=True)

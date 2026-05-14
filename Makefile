@@ -1,5 +1,5 @@
 .PHONY: install install-dev run migrate makemigrations shell \
-        db-up db-down db-reset lint type-check test prune-branches
+        db-up db-down db-reset lint type-check test prune-branches requirements
 
 # ── Install ──────────────────────────────────────────────────────────────────
 
@@ -8,6 +8,9 @@ install:
 
 install-dev:
 	uv sync
+
+requirements:
+	uv export --no-dev --no-hashes --no-emit-project -o requirements.txt
 
 # ── Dev server ───────────────────────────────────────────────────────────────
 
