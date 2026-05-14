@@ -199,8 +199,9 @@ class AdmissionStatusService:
 
         classroom = await self._resolve_classroom(class_name)
 
-        for record in existing_records:
-            await self._update_classroom_if_changed(record, classroom)
+        if classroom is not None:
+            for record in existing_records:
+                await self._update_classroom_if_changed(record, classroom)
 
         async def results_for_existing(record: AdmissionResult) -> list[StudentResult]:
             pdfs = list(record.pdfs.all())

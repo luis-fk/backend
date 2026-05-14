@@ -4,7 +4,7 @@ from cfflch.api.admission_status import consumers
 
 websocket_urlpatterns = [
     path(
-        "ws/cfflch/admission_status/<str:requestId>",
+        "ws/cfflch/admission-status/<str:requestId>",
         consumers.AdmissionStatusConsumer.as_asgi(),
     ),
 ]
