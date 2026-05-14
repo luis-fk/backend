@@ -20,3 +20,6 @@ class AdmissionStatusConsumer(AsyncWebsocketConsumer):  # type: ignore[misc]
     async def admission_status_message(self, event: dict[str, str]) -> None:
         message = event["message"]
         await self.send(text_data=json.dumps(message))
+
+    async def admission_status_done(self, event: dict[str, str]) -> None:
+        await self.send(text_data=json.dumps({"done": True}))
