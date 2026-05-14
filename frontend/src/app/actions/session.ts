@@ -18,11 +18,11 @@ export async function encrypt(userId: number) {
     .sign(encodedKey);
 }
 
-export async function getSession() {
-  console.log("Getting session from cookies");
+export async function getSession(cookieName: string) {
+  console.log(`Getting session from cookies (${cookieName})`);
 
   const cookieStore = await cookies();
-  const session = cookieStore.get("session")?.value;
+  const session = cookieStore.get(cookieName)?.value;
   const payload = await decrypt(session);
 
   return payload;
@@ -41,14 +41,14 @@ export async function decrypt(session: string | undefined = "") {
   }
 }
 
-export async function createSession(userId: number) {
-  console.log(`Creating session for user ${userId}`);
+export async function createSession(userId: number, cookieName: string) {
+  console.log(`Creating session for user ${userId} (${cookieName})`);
 
   const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
   const session = await encrypt(userId);
   const cookieStore = await cookies();
 
-  cookieStore.set("session", session, {
+  cookieStore.set(cookieName, session, {
     httpOnly: true,
     secure: true,
     expires: expiresAt,
@@ -57,10 +57,10 @@ export async function createSession(userId: number) {
   });
 }
 
-export async function updateSession() {
-  console.log("Updating session");
+export async function updateSession(cookieName: string) {
+  console.log(`Updating session (${cookieName})`);
 
-  const session = (await cookies()).get("session")?.value;
+  const session = (await cookies()).get(cookieName)?.value;
   const payload = await decrypt(session);
 
   if (!session || !payload) {
@@ -70,7 +70,7 @@ export async function updateSession() {
   const expires = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
 
   const cookieStore = await cookies();
-  cookieStore.set("session", session, {
+  cookieStore.set(cookieName, session, {
     httpOnly: true,
     secure: true,
     expires: expires,
@@ -79,22 +79,24 @@ export async function updateSession() {
   });
 }
 
-export const verifySession = cache(async () => {
-  console.log("Verifying session");
+export const verifySession = cache(
+  async (cookieName: string, appName: string) => {
+    console.log(`Verifying session (${cookieName})`);
 
-  const cookie = (await cookies()).get("session")?.value;
-  const session = await decrypt(cookie);
+    const cookie = (await cookies()).get(cookieName)?.value;
+    const session = await decrypt(cookie);
 
-  if (!session?.userId) {
-    redirect("/");
-  }
+    if (!session?.userId) {
+      redirect(`/${appName}`);
+    }
 
-  return { isAuth: true, userId: session.userId };
-});
+    return { isAuth: true, userId: session.userId };
+  },
+);
 
-export async function deleteSession() {
-  console.log("Deleting session");
+export async function deleteSession(cookieName: string) {
+  console.log(`Deleting session (${cookieName})`);
 
   const cookieStore = await cookies();
-  cookieStore.delete("session");
+  cookieStore.delete(cookieName);
 }

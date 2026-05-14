@@ -17,7 +17,7 @@ export async function login(
     const result = await axios.get(
       `${serverUrl}/api/political-culture/users/${name}`,
     );
-    await createSession(result.data.id as number);
+    await createSession(result.data.id as number, "session-political-culture");
     return;
   } catch (error) {
     if (axios.isAxiosError(error)) {

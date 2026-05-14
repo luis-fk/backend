@@ -15,7 +15,7 @@ export async function login(
   try {
     console.log(`[plants] Logging in as ${name}`);
     const result = await axios.get(`${serverUrl}/api/plants/users/${name}`);
-    await createSession(result.data.id as number);
+    await createSession(result.data.id as number, "session-plants");
     return;
   } catch (error) {
     if (axios.isAxiosError(error)) {

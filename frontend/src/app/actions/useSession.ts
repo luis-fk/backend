@@ -1,19 +1,21 @@
-// useSession.ts
 import { getSession } from "@/app/actions/session";
-import { JWTPayload } from "jose";
 import { useState, useEffect } from "react";
 
-export function useSession() {
-  const [session, setSession] = useState<JWTPayload | undefined>(undefined);
+type Session = { userId: number };
+
+export function useSession(appName: string) {
+  const [session, setSession] = useState<Session | undefined>(undefined);
 
   useEffect(() => {
     async function fetchSession() {
-      const sessionData = await getSession();
-      setSession(sessionData);
+      const sessionData = await getSession(`session-${appName}`);
+      if (sessionData && typeof sessionData.userId === "number") {
+        setSession({ userId: sessionData.userId });
+      }
     }
 
     fetchSession();
-  }, []);
+  }, [appName]);
 
   return session;
 }
