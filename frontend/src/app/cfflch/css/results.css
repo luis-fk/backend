@@ -1,0 +1,186 @@
+.results-container {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 900px;
+  padding: 2rem;
+  box-sizing: border-box;
+}
+
+.results-container h1 {
+  font-size: 1.8rem;
+  margin-bottom: 1.5rem;
+}
+
+.year-selector {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.25rem;
+  margin-bottom: 1.5rem;
+}
+
+.year-selector label {
+  font-size: 0.9rem;
+  color: #aaa;
+}
+
+.year-selector select {
+  background: #3e3e3e;
+  border: 1px solid #555;
+  border-radius: 6px;
+  color: #ededed;
+  padding: 0.4rem 0.6rem;
+  font-size: 1rem;
+  width: auto;
+  appearance: none;
+}
+
+.year-selector select:focus {
+  outline: none;
+  border-color: #0078d4;
+}
+
+.filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.25rem;
+  margin-bottom: 1.5rem;
+}
+
+.filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.filter-group label {
+  font-size: 0.9rem;
+  color: #aaa;
+}
+
+.filter-group select {
+  background: #3e3e3e;
+  border: 1px solid #555;
+  border-radius: 6px;
+  color: #ededed;
+  padding: 0.4rem 0.6rem;
+  font-size: 1rem;
+  width: auto;
+  appearance: none;
+}
+
+.filter-group select:focus {
+  outline: none;
+  border-color: #0078d4;
+}
+
+.class-select {
+  background: #3e3e3e;
+  border: 1px solid #555;
+  border-radius: 6px;
+  color: #ededed;
+  padding: 0.2rem 0.5rem;
+  font-size: 0.85rem;
+  appearance: none;
+  cursor: pointer;
+}
+
+.class-select:focus {
+  outline: none;
+  border-color: #0078d4;
+}
+
+.results-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.result-card {
+  background: #3e3e3e;
+  border-radius: 8px;
+  padding: 1rem 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.result-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.result-card-name {
+  font-size: 1.05rem;
+  font-weight: bold;
+}
+
+.result-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.approved-label {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.approved-label input[type="checkbox"] {
+  cursor: pointer;
+  width: 1rem;
+  height: 1rem;
+}
+
+.delete-button {
+  background: transparent;
+  border: 1px solid #c0392b;
+  color: #c0392b;
+  border-radius: 4px;
+  padding: 0.2rem 0.6rem;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.delete-button:hover {
+  background: #c0392b;
+  color: white;
+}
+
+.pdf-links {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.pdf-links a {
+  color: #4fc3f7;
+  font-size: 0.9rem;
+  text-decoration: none;
+}
+
+.pdf-links a:hover {
+  text-decoration: underline;
+}
+
+.not-found {
+  color: #888;
+  font-size: 0.9rem;
+  font-style: italic;
+}
+
+.empty-state {
+  color: #888;
+  font-style: italic;
+}
+
+.loading-state {
+  color: #aaa;
+  font-style: italic;
+}
