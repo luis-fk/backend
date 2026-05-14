@@ -5,8 +5,8 @@ from django.contrib.auth import get_user_model
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from plants.api.users.serializers import UserSerializer
-from plants.models import Users
+from political_culture.api.users.serializers import UserSerializer
+from political_culture.models import Users
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +27,7 @@ class UserApi(APIView):
         try:
             app_user = Users.objects.get(auth_user_id=auth_user.id)
         except Users.DoesNotExist:
-            logger.info(f"User {name} not found in plants DB")
+            logger.info(f"User {name} not found in political_culture DB")
             return Response({"error": "User not found."}, status=404)
 
         serializer = UserSerializer(app_user)
