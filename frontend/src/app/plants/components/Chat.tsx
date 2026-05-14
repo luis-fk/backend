@@ -31,7 +31,7 @@ export default function Chat() {
   const [messageInput, setMessageInput] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const session = useSession();
+  const session = useSession("plants");
   const serverUrl = process.env.NEXT_PUBLIC_SERVER_URL;
 
   const isMobile = useMediaQuery("(max-width: 800px)");

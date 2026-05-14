@@ -31,7 +31,7 @@ export default function Chat() {
   const [isClient, setIsClient] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  const session = useSession() as { userId?: string } | undefined;
+  const session = useSession("political-culture");
   const serverUrl = process.env.NEXT_PUBLIC_SERVER_URL;
 
   const isMobile = useMediaQuery("(max-width: 800px)");
@@ -78,7 +78,7 @@ export default function Chat() {
   }, []);
 
   useChatSocket({
-    userId: session?.userId,
+    userId: session?.userId?.toString(),
     serverUrl,
     onMessage: handleNewMessage,
     setSending,
