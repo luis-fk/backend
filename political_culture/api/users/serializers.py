@@ -2,7 +2,7 @@ from typing import Any
 
 from rest_framework import serializers
 
-from plants.models import Users
+from political_culture.models import Users
 
 
 class UserSerializer(serializers.ModelSerializer[Any]):
