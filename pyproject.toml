@@ -51,6 +51,7 @@ plugins = ["mypy_django_plugin.main", "pydantic.mypy"]
 exclude = [
     "_bmad/",
     "backend/settings.py",
+    ".*/admin\\.py",
 ]
 
 
