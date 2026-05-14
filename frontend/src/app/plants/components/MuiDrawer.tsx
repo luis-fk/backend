@@ -14,7 +14,7 @@ export default function MuiDrawer() {
         textAlign="left"
         sx={{
           backgroundColor: "#292929",
-          padding: { xs: "0px", "@media (min-width: 800px)": "10px" },
+          padding: { xs: "0px", sm: "10px" },
           paddingLeft: "10px",
         }}
       >
@@ -25,7 +25,7 @@ export default function MuiDrawer() {
           onClick={() => setOpen(true)}
         >
           <MenuIcon
-            sx={{ fontSize: { xs: 35, "@media (min-width: 800px)": 35 } }}
+            sx={{ fontSize: 35 }}
           />
         </IconButton>
       </Box>

@@ -13,7 +13,7 @@ export default function RootLayout({
       <Box
         sx={{
           display: "flex",
-          flexDirection: { xs: "column", "@media (min-width: 800px)": "row" },
+          flexDirection: { xs: "column", sm: "row" },
           overflow: "hidden",
         }}
       >
