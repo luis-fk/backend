@@ -23,6 +23,11 @@ const PROJECTS: Record<string, ProjectConfig> = {
     protectedPaths: ["chat"],
     defaultProtectedPath: "chat",
   },
+  cfflch: {
+    publicPaths: [""],
+    protectedPaths: ["search", "results"],
+    defaultProtectedPath: "search",
+  },
 };
 
 export default async function middleware(req: NextRequest) {
