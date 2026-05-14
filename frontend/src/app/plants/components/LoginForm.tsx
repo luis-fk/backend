@@ -1,5 +1,5 @@
 "use client";
-import { login } from "@/app/actions/login";
+import { login } from "@/plants/actions/login";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { logger } from "@/app/api/log/client-logger";
@@ -25,6 +25,7 @@ export function LoginForm() {
       return;
     }
 
+    setSubmitting(false);
     router.push("/plants/chat");
   }
 

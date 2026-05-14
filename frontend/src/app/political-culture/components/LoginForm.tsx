@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { login } from "@/app/actions/login";
+import { login } from "@/political-culture/actions/login";
 import { logger } from "@/app/api/log/client-logger";
 import { useRouter } from "next/navigation";
 import Toast from "@/app/components/Toast";
@@ -26,6 +26,7 @@ export function LoginForm() {
       return;
     }
 
+    setSubmitting(false);
     router.push("/political-culture/chat");
   }
 
