@@ -23,6 +23,7 @@ dependencies = [
     "channels==4.3.2",
     "daphne==4.2.1",
     "channels-redis==4.3.0",
+    "whitenoise>=6.12.0",
 ]
 
 [dependency-groups]
