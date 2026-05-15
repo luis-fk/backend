@@ -190,7 +190,8 @@ class AdmissionStatusService:
                 AdmissionResult.objects.filter(
                     student_name_normalized__in=list(normalized_names.keys()), year=year
                 ).prefetch_related("pdfs")
-            )
+            ),
+            thread_sensitive=False,
         )
         existing_records: list[AdmissionResult] = await get_existing()
         existing_by_normalized = {
@@ -249,7 +250,9 @@ class AdmissionStatusService:
         if not class_name:
             return None
         normalized_class = normalize_text(class_name)
-        get_or_create_classroom = sync_to_async(ClassRoom.objects.get_or_create)
+        get_or_create_classroom = sync_to_async(
+            ClassRoom.objects.get_or_create, thread_sensitive=False
+        )
         try:
             classroom, _ = await get_or_create_classroom(
                 name_normalized=normalized_class,
@@ -264,7 +267,7 @@ class AdmissionStatusService:
         self, record: AdmissionResult, classroom: ClassRoom | None
     ) -> None:
         if record.class_room_id != (classroom.pk if classroom else None):
-            update_record = sync_to_async(record.save)
+            update_record = sync_to_async(record.save, thread_sensitive=False)
             record.class_room = classroom
             try:
                 await update_record(update_fields=["class_room"])
@@ -279,7 +282,9 @@ class AdmissionStatusService:
     ) -> None:
         for item in all_results:
             normalized_name = normalize_text(item.student_name)
-            get_or_create_result = sync_to_async(AdmissionResult.objects.get_or_create)
+            get_or_create_result = sync_to_async(
+                AdmissionResult.objects.get_or_create, thread_sensitive=False
+            )
             try:
                 result, _ = await get_or_create_result(
                     student_name_normalized=normalized_name,
@@ -293,17 +298,21 @@ class AdmissionStatusService:
                 logger.error(f"Failed to get or create admission result: {e}")
                 continue
 
-            await self._update_classroom_if_changed(result, classroom)
+            if classroom is not None:
+                await self._update_classroom_if_changed(result, classroom)
 
             if not isinstance(item, StudentFoundResult):
                 continue
 
             pdf_exists = sync_to_async(
-                AdmissionPDF.objects.filter(result=result, url=item.pdf_url).exists
+                AdmissionPDF.objects.filter(result=result, url=item.pdf_url).exists,
+                thread_sensitive=False,
             )
             try:
                 if not await pdf_exists():
-                    create_pdf = sync_to_async(AdmissionPDF.objects.create)
+                    create_pdf = sync_to_async(
+                        AdmissionPDF.objects.create, thread_sensitive=False
+                    )
                     await create_pdf(
                         result=result,
                         url=item.pdf_url,
