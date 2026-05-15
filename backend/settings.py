@@ -50,7 +50,7 @@ CORS_ALLOWED_ORIGINS = [
 CSRF_TRUSTED_ORIGINS = [
     "http://localhost:3000",
     env("FRONT_END_URL"),
-    env("SERVER_URL"),
+    f"https://{env('SERVER_URL')}",
 ]
 # Application definition
 
