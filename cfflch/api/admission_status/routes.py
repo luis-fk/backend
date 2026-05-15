@@ -66,13 +66,16 @@ class AdmissionStatusApi(View):
 
         async def on_student_done(entries: list[StudentResult]) -> None:
             if channel_layer:
-                await channel_layer.group_send(
-                    f"admission_status_{request_id}",
-                    {
-                        "type": "admission_status.message",
-                        "message": [e.model_dump() for e in entries],
-                    },
-                )
+                try:
+                    await channel_layer.group_send(
+                        f"admission_status_{request_id}",
+                        {
+                            "type": "admission_status.message",
+                            "message": [e.model_dump() for e in entries],
+                        },
+                    )
+                except Exception as e:
+                    logger.warning(f"Failed to send WebSocket message: {e}")
 
         try:
             async with httpx.AsyncClient() as client:
@@ -84,7 +87,10 @@ class AdmissionStatusApi(View):
             logger.error(f"Error processing admission status: {e}")
 
         if channel_layer:
-            await channel_layer.group_send(
-                f"admission_status_{request_id}",
-                {"type": "admission_status.done"},
-            )
+            try:
+                await channel_layer.group_send(
+                    f"admission_status_{request_id}",
+                    {"type": "admission_status.done"},
+                )
+            except Exception as e:
+                logger.warning(f"Failed to send WebSocket done signal: {e}")
