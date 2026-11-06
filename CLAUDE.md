@@ -57,15 +57,15 @@ The React frontend is a separate app.
 - Name matching uses substring match on normalized text (not fuzzy/per-line matching)
 
 **Planned (no timeline):**
-- Write unit tests (pytest, top-level `tests/` folder)
+- Write unit tests for `plants`, `political_culture` and `cfflch` (pytest, top-level `tests/` folder)
 - Add API documentation
 - Add project-level docs
 
 ## Testing
-- No tests exist yet. Pytest is installed and ready.
+- Unit tests run in CI (`uv run pytest` in `.github/workflows/ci.yml`) on every pull request.
 - **Target:** unit tests only, written cleanly and with full understanding — not just for coverage
 - **Location:** top-level `tests/` folder mirroring the app structure
-- **Coverage:** none currently — do not assume any test coverage exists
+- **Coverage:** only `news_podcast` has tests (`tests/news_podcast/`, no network); `plants`, `political_culture` and `cfflch` have none — do not assume coverage there
 
 ## Non-negotiables
 - **Learning-first approach.** This project exists to learn. Prefer solutions that are correct and well-understood over quick hacks. Always explain the why behind suggestions, not just the what.
