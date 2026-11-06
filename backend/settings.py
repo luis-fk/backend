@@ -29,6 +29,11 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = env("SECRET_KEY")
 OPEN_WEATHER_API_KEY = env("OPEN_WEATHER_API_KEY")
 TAVILY_API_KEY = env("TAVILY_API_KEY", default=None)
+GEMINI_API_KEY = env("GEMINI_API_KEY", default=None)
+TELEGRAM_BOT_TOKEN = env("TELEGRAM_BOT_TOKEN", default=None)
+TELEGRAM_CHAT_ID = env("TELEGRAM_CHAT_ID", default=None)
+NEWS_PODCAST_VOICE = env("NEWS_PODCAST_VOICE", default=None)
+NEWS_PODCAST_GEMINI_PLAN = env("NEWS_PODCAST_GEMINI_PLAN", default=None)
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = env("ENVIRONMENT") == "development"
@@ -88,6 +93,7 @@ INSTALLED_APPS = [
     "plants",
     "political_culture",
     "cfflch",
+    "news_podcast",
 ]
 
 MIDDLEWARE = [
