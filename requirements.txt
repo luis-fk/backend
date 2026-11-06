@@ -3,7 +3,9 @@
 aiohappyeyeballs==2.6.1
     # via aiohttp
 aiohttp==3.13.5
-    # via langchain-community
+    # via
+    #   edge-tts
+    #   langchain-community
 aiosignal==1.4.0
     # via aiohttp
 annotated-types==0.7.0
@@ -28,13 +30,17 @@ autobahn==25.12.2
     # via daphne
 automat==25.4.16
     # via twisted
+babel==2.18.0
+    # via courlan
 cbor2==6.0.1
     # via autobahn
 certifi==2026.4.22
     # via
+    #   edge-tts
     #   httpcore
     #   httpx
     #   requests
+    #   trafilatura
 cffi==2.0.0
     # via
     #   autobahn
@@ -45,12 +51,17 @@ channels==4.3.2
     #   channels-redis
 channels-redis==4.3.0
     # via backend
-charset-normalizer==3.4.7
-    # via requests
+charset-normalizer==3.5.2
+    # via
+    #   htmldate
+    #   requests
+    #   trafilatura
 colorama==0.4.6 ; sys_platform == 'win32'
     # via tqdm
 constantly==23.10.4
     # via twisted
+courlan==1.4.0
+    # via trafilatura
 cryptography==48.0.0
     # via
     #   autobahn
@@ -60,6 +71,8 @@ daphne==4.2.1
     # via backend
 dataclasses-json==0.6.7
     # via langchain-community
+dateparser==1.5.0
+    # via htmldate
 distro==1.9.0
     # via openai
 dj-database-url==3.1.2
@@ -77,26 +90,44 @@ django-environ==0.13.0
     # via backend
 djangorestframework==3.17.1
     # via backend
+edge-tts==7.3.1
+    # via backend
+feedparser==6.0.14
+    # via backend
+feedparser-sgmllib==2.1.0
+    # via feedparser
 frozenlist==1.8.0
     # via
     #   aiohttp
     #   aiosignal
+googlenewsdecoder==0.2.2
+    # via backend
 greenlet==3.5.0 ; platform_machine == 'AMD64' or platform_machine == 'WIN32' or platform_machine == 'aarch64' or platform_machine == 'amd64' or platform_machine == 'ppc64le' or platform_machine == 'win32' or platform_machine == 'x86_64'
     # via sqlalchemy
 gunicorn==26.0.0
     # via backend
 h11==0.16.0
     # via httpcore
+h2==4.4.1
+    # via httpx
+hpack==4.2.0
+    # via h2
+htmldate==1.11.0
+    # via trafilatura
 httpcore==1.0.9
     # via httpx
 httpx==0.28.1
     # via
+    #   backend
+    #   googlenewsdecoder
     #   langgraph-sdk
     #   langsmith
     #   openai
     #   tavily-python
 httpx-sse==0.4.3
     # via langchain-community
+hyperframe==6.1.0
+    # via h2
 hyperlink==21.0.0
     # via
     #   autobahn
@@ -117,6 +148,8 @@ jsonpatch==1.33
     # via langchain-core
 jsonpointer==3.1.1
     # via jsonpatch
+justext==3.0.2
+    # via trafilatura
 langchain==1.2.18
     # via backend
 langchain-classic==1.0.7
@@ -156,6 +189,14 @@ langsmith==0.8.3
     #   langchain-classic
     #   langchain-community
     #   langchain-core
+lxml==6.1.3
+    # via
+    #   htmldate
+    #   justext
+    #   lxml-html-clean
+    #   trafilatura
+lxml-html-clean==0.4.6
+    # via lxml
 marshmallow==3.26.2
     # via dataclasses-json
 msgpack==1.1.2
@@ -222,8 +263,14 @@ pyopenssl==26.2.0
     # via twisted
 pypdf==6.11.0
     # via backend
+python-dateutil==2.9.0.post0
+    # via
+    #   dateparser
+    #   htmldate
 python-dotenv==1.2.2
     # via pydantic-settings
+pytz==2026.6
+    # via dateparser
 pyyaml==6.0.3
     # via
     #   langchain-classic
@@ -232,7 +279,9 @@ pyyaml==6.0.3
 redis==7.4.0
     # via channels-redis
 regex==2026.5.9
-    # via tiktoken
+    # via
+    #   dateparser
+    #   tiktoken
 requests==2.33.1
     # via
     #   langchain-classic
@@ -243,16 +292,24 @@ requests==2.33.1
     #   tiktoken
 requests-toolbelt==1.0.0
     # via langsmith
+selectolax==1.0.2
+    # via googlenewsdecoder
 service-identity==24.2.0
     # via twisted
+six==1.17.0
+    # via python-dateutil
 sniffio==1.3.1
     # via openai
+socksio==1.0.0
+    # via httpx
 sqlalchemy==2.0.49
     # via
     #   langchain-classic
     #   langchain-community
 sqlparse==0.5.5
     # via django
+tabulate==0.10.0
+    # via edge-tts
 tavily-python==0.7.24
     # via backend
 tenacity==9.1.4
@@ -263,8 +320,12 @@ tiktoken==0.12.0
     # via
     #   langchain-openai
     #   tavily-python
+tld==0.13.2
+    # via courlan
 tqdm==4.67.3
     # via openai
+trafilatura==2.3.1
+    # via backend
 twisted==26.4.0
     # via daphne
 txaio==25.12.2
@@ -273,6 +334,7 @@ typing-extensions==4.15.0
     # via
     #   aiosignal
     #   anyio
+    #   edge-tts
     #   langchain-core
     #   langchain-protocol
     #   openai
@@ -290,13 +352,21 @@ typing-inspection==0.4.2
     #   pydantic
     #   pydantic-settings
 tzdata==2026.2 ; sys_platform == 'win32'
-    # via django
+    # via
+    #   django
+    #   tzlocal
+tzlocal==5.4.5
+    # via dateparser
 u-msgpack-python==2.8.0 ; platform_python_implementation != 'CPython'
     # via autobahn
 ujson==5.12.1
     # via autobahn
-urllib3==2.7.0
-    # via requests
+urllib3==2.8.0
+    # via
+    #   courlan
+    #   htmldate
+    #   requests
+    #   trafilatura
 uuid-utils==0.15.0
     # via
     #   langchain-core

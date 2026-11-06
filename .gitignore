@@ -4,3 +4,4 @@
 .mypy_cache
 bruno
 .ruff_cache
+news_podcast_output
