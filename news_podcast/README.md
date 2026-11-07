@@ -1,8 +1,8 @@
 # news_podcast · Resumo das 7
 
 Todo dia chega no Telegram uma mensagem de voz com dois apresentadores (Bia e Léo)
-contando o que aconteceu nas 24 horas anteriores, a partir dos feeds do `feeds.opml`. No
-padrão, ela chega às 7h e tem de 12 a 18 minutos (de 8 a 12 em 1,5x). Horário, duração e
+contando o que aconteceu nas 24 horas anteriores, a partir dos feeds do `feeds.opml`. Ela
+chega às 7h e, no padrão, tem de 12 a 18 minutos (de 8 a 12 em 1,5x). Duração e
 velocidade mudam por variáveis no GitHub (veja *Variáveis*). Logo depois do áudio chega
 uma mensagem curta com as fontes usadas e o custo do dia.
 
@@ -13,21 +13,20 @@ O app não tem models nem banco de dados, então não precisa de um `news_podcas
 
 | Etapa | Arquivo | O que acontece |
 |---|---|---|
-| Feeds | `api/episode/feeds.py` | Lê o OPML exportado do Feeder, baixa os 9 feeds em paralelo e mantém só as 24 horas que terminam na hora cheia anterior ao envio (no padrão, das 6h de ontem às 6h de hoje). |
+| Feeds | `api/episode/feeds.py` | Lê o OPML exportado do Feeder, baixa os 9 feeds em paralelo e mantém só o que saiu entre 6h de ontem e 6h de hoje. |
 | Seleção | `service.py` + `prompts.py` | O Gemini 3.8 Flash recebe todas as manchetes, junta as que falam do mesmo fato, aplica as regras editoriais e escolhe uma história para cada minuto e meio de episódio (de 8 a 12 no padrão), com o tempo de cada uma. |
 | Leitura | `api/episode/articles.py` | Para cada história, lê o texto completo de até 3 veículos (o ICL vem primeiro). Os demais veículos que deram a notícia entram como manchete. Todos os feeds são de sites sem paywall. |
 | Roteiro | `service.py` + `prompts.py` | O Gemini escreve o diálogo com 170 palavras por minuto de episódio, vezes a velocidade (de 2.040 a 3.060 palavras no padrão), abrindo com uma escalada de 3 a 5 manchetes curtas, como nos telejornais. Se vier curto demais, pede uma versão mais longa uma vez. |
 | Voz | `api/episode/gemini.py` | O Gemini 3.8 Flash-Lite TTS gera o diálogo com as duas vozes, em blocos de cerca de 650 palavras. Se o Gemini estiver fora do ar, o código espera e tenta de novo (veja *Bom saber*). |
 | Áudio | `api/episode/audio.py` | O ffmpeg junta os trechos, normaliza o volume e gera um OGG/Opus de 32 kbps (cerca de 4 MB para 15 minutos), o formato das mensagens de voz do Telegram. |
-| Envio | `api/episode/telegram.py` | `sendVoice` só com o título (por ser mensagem de voz, o Telegram mostra o botão de velocidade 1x, 1,5x, 2x) e, logo depois, uma mensagem de texto com fontes e custos, que fica mais larga que uma legenda. Na execução agendada, espera o horário de envio. Se algo falhar, chega uma mensagem dizendo em qual etapa. |
+| Envio | `api/episode/telegram.py` | `sendVoice` só com o título (por ser mensagem de voz, o Telegram mostra o botão de velocidade 1x, 1,5x, 2x) e, logo depois, uma mensagem de texto com fontes e custos, que fica mais larga que uma legenda. Na execução agendada, espera dar 7h para enviar. Se algo falhar, chega uma mensagem dizendo em qual etapa. |
 
 Por que GitHub Actions e não Railway: o repositório é público, então os minutos do
 Actions são de graça; o runner já tem um botão para rodar na hora e mostra o log de cada
 execução; e o job roda isolado, sem mexer no deploy nem na imagem do serviço web. Se um
 dia preferir o Railway, basta criar um serviço Cron no mesmo repositório com o Start
-Command `python manage.py news_podcast episode --scheduled`, o ffmpeg no build e as
-mesmas variáveis. Lá o início fica fixo no cron do serviço (`10 9 * * *` é 6h10 em
-Brasília), porque o job `check-time` só existe no GitHub.
+Command `python manage.py news_podcast episode --scheduled`, o cron `10 9 * * *`, o
+ffmpeg no build e as mesmas variáveis.
 
 ## Configuração (uma vez só)
 
@@ -44,8 +43,8 @@ Brasília), porque o job `check-time` só existe no GitHub.
    trecho, cada uma com o custo mensal estimado.
 6. **Escolher (opcional):** na aba *Variables* da mesma tela, crie só as variáveis que
    quiser mudar (veja *Variáveis*), como a voz em `NEWS_PODCAST_VOICE`.
-7. **Testar:** rode com a ação `episode`. Daí em diante ele roda sozinho: começa aos 10
-   minutos da hora anterior ao envio (6h10 no padrão) e envia no horário.
+7. **Testar:** rode com a ação `episode`. Daí em diante ele roda sozinho: começa às
+   6h10 e envia às 7h.
 
 ## Variáveis
 
@@ -55,19 +54,19 @@ em silêncio: o episódio falha e chega no Telegram uma mensagem dizendo o que c
 
 | Variável | Padrão | Exemplo | O que muda |
 |---|---|---|---|
-| `NEWS_PODCAST_SEND_AT` | `07:00` | `21:00` | Horário de envio, no horário de Brasília (HH:MM). |
 | `NEWS_PODCAST_MINUTES` | `12-18` | `8-12` | Duração do áudio que chega no Telegram, em minutos (mínimo-máximo, a partir de 5). |
 | `NEWS_PODCAST_SPEECH_SPEED` | `1` | `1.25` | Velocidade do arquivo, de 0.5 a 2 (também aceita `1,25` e `1.25x`). |
 | `NEWS_PODCAST_VOICE` | `gemini-flash-lite` | `gemini-flash` | Voz: `gemini-flash`, `gemini-flash-lite` ou `microsoft`. |
 | `NEWS_PODCAST_GEMINI_PLAN` | `free` | `paid` | Com `paid`, a mensagem mostra o custo como cobrado. Use se ativar o pagamento no Google. |
 
-- **Horário:** o agendamento do GitHub não lê variáveis, então o workflow acorda toda
-  hora, aos 10 minutos. O job `check-time` lê `NEWS_PODCAST_SEND_AT` e só deixa o
-  episódio rodar aos 10 minutos da hora anterior ao envio (20h10 para `21:00`). Nas
-  outras 23 execuções do dia, o job do episódio aparece como pulado (*skipped*) em
-  poucos segundos e sem custo, porque o repositório é público. O nome do podcast
-  acompanha a hora (Resumo das 7, Resumo das 21, Resumo do meio-dia), e o bom dia vira
-  boa tarde ou boa noite.
+- **Horário (fixo por enquanto):** o agendamento do GitHub não lê variáveis. A v2.3.0
+  tentou acordar o workflow toda hora e decidir a hora certa num job à parte, mas o
+  GitHub disparou só 1 das cerca de 10 execuções da primeira noite e o episódio não saiu.
+  Por isso o horário voltou a ser fixo: o cron `10 9 * * *` (6h10 em Brasília) e o
+  `NEWS_PODCAST_SEND_AT: "07:00"` ficam no próprio `.github/workflows/news_podcast.yml`.
+  Uma variável `NEWS_PODCAST_SEND_AT` criada no GitHub é ignorada. Para mudar o horário,
+  edite os dois juntos. O código já aceita outros horários (o nome do podcast e o bom
+  dia acompanham), para quando o agendamento for para o Railway.
 - **Duração e velocidade:** a duração vale para o arquivo, já na velocidade escolhida.
   Com `1.25`, o roteiro fica 25% maior para caber no mesmo tempo, e a voz custa 25% a
   mais. O número de histórias acompanha a duração (uma a cada minuto e meio).
@@ -110,8 +109,9 @@ O áudio e os JSON de cada etapa ficam em `news_podcast_output/`, que está no `
 - `NEWS_PODCAST_SPEECH_SPEED` acelera o próprio arquivo com o filtro `atempo` do
   ffmpeg. O botão de velocidade do player do Telegram (1x, 1,5x, 2x) continua valendo, e
   as duas velocidades se multiplicam.
-- Se o GitHub atrasar uma execução agendada em uma hora ou mais (raro, em dias de muita
-  carga), o `check-time` já não reconhece a hora certa e o episódio daquele dia não sai.
+- O GitHub não garante o horário dos agendamentos: em momentos de carga ele atrasa ou até
+  descarta execuções. Se a das 6h10 atrasar, o episódio sai assim que ficar pronto; se
+  for descartada, o dia fica sem episódio (dá para rodar na mão em *Run workflow*).
 - Se o Gemini 3.8 Flash estiver sobrecarregado, o texto é feito com o Gemini 3.6 Flash,
   e o resto da execução já vai direto para ele.
 - A voz não tem reserva: se o Gemini estiver fora do ar, o código espera 10 minutos e
