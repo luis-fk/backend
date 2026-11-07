@@ -1,8 +1,7 @@
 import re
 import unicodedata
 from collections.abc import Sequence
-from datetime import UTC, datetime, time, timedelta
-from zoneinfo import ZoneInfo
+from datetime import datetime, timedelta
 
 from news_podcast.api.episode.schemas import (
     Host,
@@ -21,17 +20,17 @@ SENTENCE_END_PATTERN = re.compile(r"(?<=[.!?…])\s+")
 
 
 def news_window(
-    now: datetime, scheduled: bool, hours: int, cutoff: time, local_tz: ZoneInfo
+    now: datetime,
+    scheduled_for: datetime | None,
+    hours: int,
+    hours_before_send: int,
 ) -> tuple[datetime, datetime]:
-    if not scheduled:
+    if scheduled_for is None:
         return now - timedelta(hours=hours), now
 
-    local_now = now.astimezone(local_tz)
-    end = datetime.combine(local_now.date(), cutoff, tzinfo=local_tz)
-    if end > local_now:
-        end -= timedelta(days=1)
-    end_utc = end.astimezone(UTC)
-    return end_utc - timedelta(hours=hours), end_utc
+    top_of_send_hour = scheduled_for.replace(minute=0, second=0, microsecond=0)
+    end = top_of_send_hour - timedelta(hours=hours_before_send)
+    return end - timedelta(hours=hours), end
 
 
 def ascii_fold(text: str) -> str:

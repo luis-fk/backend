@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, time
 from pathlib import Path
 from typing import Literal, NamedTuple
 
@@ -6,6 +6,13 @@ from pydantic import BaseModel, ConfigDict, Field
 
 VoiceOption = Literal["gemini-flash", "gemini-flash-lite", "microsoft"]
 GeminiPlan = Literal["free", "paid"]
+
+
+class EpisodeOptions(NamedTuple):
+    min_minutes: int
+    max_minutes: int
+    send_at: time
+    speech_speed: float
 
 
 class Host(NamedTuple):
