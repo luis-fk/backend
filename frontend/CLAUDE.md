@@ -17,6 +17,7 @@ It lives in `frontend/` of the monorepo, next to the Django backend in `../backe
 - **Chat UI:** `@chatscope/chat-ui-kit-react` (used in `plants` only)
 - **Linting:** ESLint 9 flat config (`eslint.config.mjs` with `eslint-config-next`, run by `npm run lint` = `eslint .`; `next lint` no longer exists) + Prettier 3 with `@trivago/prettier-plugin-sort-imports`. `react-hooks/set-state-in-effect`, new in `eslint-plugin-react-hooks` 7, is a warning until the existing effects that set state on mount are refactored.
 - **Package manager:** npm. Exact versions live in `package.json`.
+- **Node.js:** 22, pinned in `engines.node` in `package.json`. Railway's Nixpacks builder and the CI (`node-version-file`) both read it; without it Nixpacks falls back to Node 18, which Next 16 refuses (it needs 20.9 or newer).
 - **Security overrides:** Railway's build scanner blocks lockfiles with vulnerable dependencies (confirmed for Next.js advisories rated high or critical; the full rule is not documented), so keep `npm audit --audit-level=high` clean. `overrides` in `package.json` forces a patched `minimatch` inside `prettier-eslint` → `@typescript-eslint/typescript-estree@6`, which pins 9.0.3. Drop it when `prettier-eslint` moves to 17, which is ESM-only and not yet supported by the VS Code extension `rvest.vs-code-prettier-eslint` (it expects ^16).
 
 ## Architecture
