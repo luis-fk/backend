@@ -8,6 +8,7 @@
   },
   "python.defaultInterpreterPath": "${workspaceFolder}/backend/.venv/bin/python",
   "mypy-type-checker.path": ["${workspaceFolder}/backend/.venv/bin/mypy"],
+  "mypy-type-checker.importStrategy": "fromEnvironment", // useBundled puts the extension's old typing_extensions first on PYTHONPATH, which breaks the pydantic.mypy plugin
   "mypy-type-checker.cwd": "${workspaceFolder}/backend",
   "mypy-type-checker.args": [
     "--config-file=pyproject.toml"
