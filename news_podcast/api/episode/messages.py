@@ -3,7 +3,7 @@ from collections import Counter
 from collections.abc import Sequence
 from datetime import date
 
-from news_podcast.api.episode.config import BRL_PER_USD, PODCAST_NAME
+from news_podcast.api.episode.config import BRL_PER_USD
 from news_podcast.api.episode.costs import (
     format_brl,
     format_brl_rounded,
@@ -57,8 +57,8 @@ def sources_line(counts: Counter[str]) -> str:
     return ", ".join(f"{outlet} ({count})" for outlet, count in ranked)
 
 
-def episode_caption(day: date) -> str:
-    return f"🎙️ <b>{PODCAST_NAME} · {long_date(day)}</b>"
+def episode_caption(podcast_name: str, day: date) -> str:
+    return f"🎙️ <b>{podcast_name} · {long_date(day)}</b>"
 
 
 def episode_details(
@@ -100,7 +100,7 @@ def brl(usd: float) -> str:
 
 def failure_message(step: str, error: Exception) -> str:
     return (
-        f"⚠️ Não consegui gerar o {PODCAST_NAME} de hoje.\n"
+        "⚠️ Não consegui gerar o episódio de hoje.\n"
         f"<b>Etapa:</b> {html.escape(step)}\n"
         f"<b>Erro:</b> {html.escape(str(error)[:600])}\n"
         "O log completo fica no GitHub Actions."

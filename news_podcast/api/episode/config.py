@@ -10,17 +10,22 @@ OUTPUT_DIR = APP_DIR.parent / "news_podcast_output"
 LOCAL_TZ = ZoneInfo("America/Sao_Paulo")
 
 NEWS_WINDOW_HOURS = 24
-NEWS_CUTOFF = time(6, 0)
-SEND_AT = time(7, 0)
+# The workflow starts at :10 of the hour before the send time, so the scheduled
+# news window closes at :00 of that hour.
+NEWS_CUTOFF_HOURS_BEFORE_SEND = 1
 MAX_WAIT_SECONDS = 3 * 60 * 60
 
-MIN_MINUTES = 12
-MAX_MINUTES = 18
-SPEECH_SPEED = 1.0
+DEFAULT_SEND_AT = time(7, 0)
+DEFAULT_MIN_MINUTES = 12
+DEFAULT_MAX_MINUTES = 18
+DEFAULT_SPEECH_SPEED = 1.0
+SHORTEST_EPISODE_MINUTES = 5
+# Each voice request covers about 4 minutes of speech and the free tier allows 10
+# requests a day, so 30 minutes (about 8 requests) leaves room for a retry.
+MAX_SPEECH_MINUTES = 30
+SPEECH_SPEED_LIMITS = (0.5, 2.0)
 NATURAL_WORDS_PER_MINUTE = 170
-WORDS_PER_MINUTE = round(NATURAL_WORDS_PER_MINUTE * SPEECH_SPEED)
-MIN_STORIES = 8
-MAX_STORIES = 12
+MINUTES_PER_STORY = 1.5
 SHORT_SCRIPT_RATIO = 0.85
 
 HOSTS = (
@@ -41,7 +46,6 @@ ALTERNATIVE_HOSTS = (
     HOSTS[0]._replace(gemini_voice="Aoede"),
     HOSTS[1]._replace(gemini_voice="Puck"),
 )
-PODCAST_NAME = "Resumo das 7"
 SAMPLE_DIALOGUE = (
     "Bom dia! Este é um teste rápido pra você comparar as vozes do seu resumo de "
     "notícias.",
