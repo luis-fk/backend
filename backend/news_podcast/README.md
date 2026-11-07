@@ -108,13 +108,15 @@ em silêncio: o episódio falha e chega no Telegram uma mensagem dizendo o que c
 - **Regras editoriais (o que entra e o que não entra):** `api/episode/prompts.py`.
 - **Dólar usado para mostrar os custos em reais:** `BRL_PER_USD` (fixo) no `config.py`.
 
-Para rodar localmente sem enviar, com ffmpeg instalado e as chaves no `.env`:
+Para rodar localmente sem enviar, a partir da pasta `backend/`, com ffmpeg instalado e as
+chaves no `.env`:
 
 ```
 uv run python manage.py news_podcast episode --no-send
 ```
 
-O áudio e os JSON de cada etapa ficam em `news_podcast_output/`, que está no `.gitignore`.
+O áudio e os JSON de cada etapa ficam em `backend/news_podcast_output/`, que está no
+`.gitignore`.
 
 ## Bom saber
 

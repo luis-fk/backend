@@ -1,7 +1,14 @@
-name: CI
+name: Backend CI
 
 on:
   pull_request:
+    paths:
+      - "backend/**"
+      - ".github/workflows/backend-ci.yml"
+
+defaults:
+  run:
+    working-directory: backend
 
 jobs:
   ci:
