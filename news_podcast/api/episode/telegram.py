@@ -4,12 +4,16 @@ from typing import Any
 
 import httpx
 
+from news_podcast.api.episode.schemas import TelegramChat
+
 logger = logging.getLogger(__name__)
 
 API_ROOT = "https://api.telegram.org"
 MESSAGE_LIMIT = 4096
 UPLOAD_TIMEOUT_SECONDS = 300.0
 DEFAULT_TIMEOUT_SECONDS = 60.0
+CHAT_TYPES = frozenset({"private", "group", "supergroup"})
+GONE_STATUSES = frozenset({"left", "kicked"})
 
 
 class TelegramError(Exception):
@@ -48,16 +52,27 @@ class TelegramClient:
             },
         )
 
-    async def recent_private_chat_ids(self) -> list[str]:
+    async def recent_chats(self) -> list[TelegramChat]:
         updates = await self._call("getUpdates", data={"timeout": "0"})
-        chat_ids: list[str] = []
+        chats: dict[str, TelegramChat] = {}
         for update in updates if isinstance(updates, list) else []:
-            message = update.get("message") or update.get("my_chat_member") or {}
-            chat = message.get("chat") or {}
+            membership = update.get("my_chat_member") or {}
+            event = update.get("message") or membership
+            chat = event.get("chat") or {}
             chat_id = str(chat.get("id", ""))
-            if chat.get("type") == "private" and chat_id and chat_id not in chat_ids:
-                chat_ids.append(chat_id)
-        return chat_ids
+            if not chat_id or chat.get("type") not in CHAT_TYPES:
+                continue
+
+            status = (membership.get("new_chat_member") or {}).get("status")
+            if status in GONE_STATUSES or event.get("migrate_to_chat_id"):
+                chats.pop(chat_id, None)
+            else:
+                chats[chat_id] = TelegramChat(
+                    id=chat_id,
+                    name=chat_name(chat),
+                    is_group=chat["type"] != "private",
+                )
+        return list(chats.values())
 
     async def _call(
         self,
@@ -90,3 +105,12 @@ class TelegramClient:
 
     def _redact(self, text: str) -> str:
         return text.replace(self.token, "***") if self.token else text
+
+
+def chat_name(chat: dict[str, Any]) -> str:
+    if chat.get("type") != "private":
+        return str(chat.get("title") or "Grupo sem nome")
+    full_name = " ".join(
+        str(part) for part in (chat.get("first_name"), chat.get("last_name")) if part
+    )
+    return full_name or str(chat.get("username") or "Conversa sem nome")

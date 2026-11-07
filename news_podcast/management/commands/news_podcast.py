@@ -95,7 +95,7 @@ async def run_action(options: dict[str, Any]) -> None:
             await service.send_voice_samples()
         elif action == "chat-id":
             found = await service.send_chat_ids()
-            logging.getLogger(__name__).info(f"Sent the chat id to {found} chat(s)")
+            logging.getLogger(__name__).info(f"Reported the ids of {found} chat(s)")
         else:
             await service.generate_episode(
                 scheduled=options["scheduled"], send=not options["no_send"]
