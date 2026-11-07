@@ -3,7 +3,7 @@ import json
 import logging
 import tempfile
 from collections.abc import Callable, Sequence
-from datetime import UTC, date, datetime, time
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any, NamedTuple, TypeVar
 
@@ -40,12 +40,23 @@ from news_podcast.api.episode.microsoft_voice import (
     MicrosoftVoiceError,
     synthesize_turns,
 )
+from news_podcast.api.episode.options import (
+    greeting,
+    nearest_send,
+    podcast_name,
+    spoken_time,
+    story_range,
+    target_minutes,
+    word_range,
+    words_per_minute,
+)
 from news_podcast.api.episode.prompts import (
     EXPAND_PROMPT,
     SCRIPT_PROMPT,
     SELECTION_PROMPT,
 )
 from news_podcast.api.episode.schemas import (
+    EpisodeOptions,
     EpisodeReport,
     GeminiPlan,
     Host,
@@ -73,8 +84,6 @@ logger = logging.getLogger(__name__)
 
 T = TypeVar("T")
 MIN_SCRIPT_TURNS = 10
-EPISODE_MINUTES = (config.MIN_MINUTES + config.MAX_MINUTES) / 2
-GENERATED_AUDIO_SECONDS_PER_DAY = EPISODE_MINUTES * 60 * config.SPEECH_SPEED
 
 
 class SampleVariant(NamedTuple):
@@ -103,6 +112,7 @@ class NewsPodcastService:
         chat_id: str | None,
         voice: VoiceOption,
         plan: GeminiPlan,
+        options: EpisodeOptions,
     ) -> None:
         self.http_client = http_client
         self.gemini = gemini
@@ -110,22 +120,29 @@ class NewsPodcastService:
         self.chat_id = chat_id
         self.voice = voice
         self.plan = plan
+        self.options = options
         self.step = "início"
         self.unavailable_models: set[str] = set()
         self.voice_retry_minutes = list(config.VOICE_RETRY_MINUTES)
 
     async def generate_episode(self, *, scheduled: bool, send: bool) -> EpisodeReport:
+        now = datetime.now(UTC)
+        scheduled_for = (
+            nearest_send(now, self.options.send_at, config.LOCAL_TZ)
+            if scheduled
+            else None
+        )
         try:
-            report = await self._generate(scheduled=scheduled)
+            report = await self._generate(now, scheduled_for)
         except Exception as error:
             logger.exception(f"Episode failed during '{self.step}'")
             if send:
-                await self._notify_failure(error)
+                await notify_failure(self.telegram, self.chat_id, self.step, error)
             raise
 
         if send:
-            if scheduled:
-                await wait_until(config.SEND_AT)
+            if scheduled_for:
+                await wait_until(scheduled_for)
             await self._deliver(report)
         return report
 
@@ -136,7 +153,7 @@ class NewsPodcastService:
             for index, variant in enumerate(SAMPLE_VARIANTS, start=1):
                 workdir = Path(tmp) / f"sample_{index}"
                 workdir.mkdir()
-                caption = sample_caption(index, variant)
+                caption = sample_caption(index, variant, self.options)
                 try:
                     path, seconds = await self._sample_audio(variant, workdir)
                 except (
@@ -177,15 +194,19 @@ class NewsPodcastService:
             )
         return len(chat_ids)
 
-    async def _generate(self, *, scheduled: bool) -> EpisodeReport:
-        now = datetime.now(UTC)
-        today = now.astimezone(config.LOCAL_TZ).date()
+    async def _generate(
+        self, now: datetime, scheduled_for: datetime | None
+    ) -> EpisodeReport:
+        day = (scheduled_for or now).astimezone(config.LOCAL_TZ).date()
         start, end = news_window(
             now,
-            scheduled,
+            scheduled_for,
             config.NEWS_WINDOW_HOURS,
-            config.NEWS_CUTOFF,
-            config.LOCAL_TZ,
+            config.NEWS_CUTOFF_HOURS_BEFORE_SEND,
+        )
+        logger.info(
+            f"Episode of {self.options.min_minutes}-{self.options.max_minutes} min "
+            f"at {self.options.speech_speed:g}x, sent at {self.options.send_at:%H:%M}"
         )
         config.OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -206,7 +227,7 @@ class NewsPodcastService:
         save_debug("briefs.json", [brief.model_dump() for brief in briefs])
 
         self.step = "roteiro"
-        script, script_usages = await self._write_script(briefs, start, end, today)
+        script, script_usages = await self._write_script(briefs, start, end, day)
         usages.extend(script_usages)
         save_debug("script.json", script.model_dump())
 
@@ -217,18 +238,18 @@ class NewsPodcastService:
             usages.extend(narration.usages)
 
             self.step = "montagem do áudio"
-            audio_path = config.OUTPUT_DIR / f"resumo-{today:%Y-%m-%d}.ogg"
+            audio_path = config.OUTPUT_DIR / f"resumo-{day:%Y-%m-%d}.ogg"
             duration = await build_voice_note(
                 narration.parts,
                 audio_path,
                 narration.gap_seconds,
-                config.SPEECH_SPEED,
+                self.options.speech_speed,
                 workdir,
             )
 
-        caption = episode_caption(today)
+        caption = episode_caption(podcast_name(self.options.send_at), day)
         details = episode_details(
-            day=today,
+            day=day,
             briefs=briefs,
             usages=usages,
             plan=self.plan,
@@ -239,26 +260,19 @@ class NewsPodcastService:
             duration_seconds=duration,
             caption=caption,
             details=details,
-            total_usd=total_cost_usd(usages, today),
+            total_usd=total_cost_usd(usages, day),
         )
 
     async def _select_stories(
         self, items: list[NewsItem], start: datetime, end: datetime
     ) -> tuple[list[SelectedStory], list[Usage]]:
         items_by_id = {item.id: item for item in items}
-        system_prompt = SELECTION_PROMPT.format(
-            min_minutes=config.MIN_MINUTES,
-            max_minutes=config.MAX_MINUTES,
-            target_minutes=round((config.MIN_MINUTES + config.MAX_MINUTES) / 2),
-            min_stories=config.MIN_STORIES,
-            max_stories=config.MAX_STORIES,
-            window_start=local_label(start),
-            window_end=local_label(end),
-        )
+        system_prompt = selection_prompt(self.options, start, end)
+        _, max_stories = story_range(self.options)
 
         def parse(data: Any) -> list[SelectedStory]:
             selection = StorySelection.model_validate(data)
-            stories = valid_stories(selection, items_by_id, config.MAX_STORIES)
+            stories = valid_stories(selection, items_by_id, max_stories)
             if not stories:
                 raise GeminiError("a seleção veio sem notícias válidas")
             return stories
@@ -274,21 +288,11 @@ class NewsPodcastService:
         return stories, usages
 
     async def _write_script(
-        self, briefs: list[StoryBrief], start: datetime, end: datetime, today: date
+        self, briefs: list[StoryBrief], start: datetime, end: datetime, day: date
     ) -> tuple[Script, list[Usage]]:
-        min_words = config.MIN_MINUTES * config.WORDS_PER_MINUTE
-        max_words = config.MAX_MINUTES * config.WORDS_PER_MINUTE
-        system_prompt = SCRIPT_PROMPT.format(
-            podcast_name=config.PODCAST_NAME,
-            host_a=config.HOSTS[0].name,
-            host_b=config.HOSTS[1].name,
-            today=long_date(today),
-            window_start=local_label(start),
-            window_end=local_label(end),
-            min_words=min_words,
-            max_words=max_words,
-        )
-        user_prompt = format_briefs(briefs, config.WORDS_PER_MINUTE)
+        min_words, max_words = word_range(self.options)
+        system_prompt = script_prompt(self.options, day, start, end)
+        user_prompt = format_briefs(briefs, words_per_minute(self.options))
         script, usages = await self._ask_json(
             system_prompt, user_prompt, "script", parse_script
         )
@@ -430,7 +434,7 @@ class NewsPodcastService:
 
         output = workdir / "amostra.ogg"
         seconds = await build_voice_note(
-            parts, output, gap, config.SPEECH_SPEED, workdir
+            parts, output, gap, self.options.speech_speed, workdir
         )
         return output, seconds
 
@@ -441,16 +445,6 @@ class NewsPodcastService:
         )
         await telegram.send_message(chat_id, report.details)
 
-    async def _notify_failure(self, error: Exception) -> None:
-        if self.telegram is None or not self.chat_id:
-            return
-        try:
-            await self.telegram.send_message(
-                self.chat_id, failure_message(self.step, error)
-            )
-        except TelegramError as notify_error:
-            logger.error(f"Could not report the failure on Telegram: {notify_error}")
-
     def _require_gemini(self) -> GeminiClient:
         if self.gemini is None:
             raise EpisodeError("GEMINI_API_KEY não configurada")
@@ -460,6 +454,17 @@ class NewsPodcastService:
         if self.telegram is None or not self.chat_id:
             raise EpisodeError("TELEGRAM_BOT_TOKEN ou TELEGRAM_CHAT_ID não configurado")
         return self.telegram, self.chat_id
+
+
+async def notify_failure(
+    telegram: TelegramClient | None, chat_id: str | None, step: str, error: Exception
+) -> None:
+    if telegram is None or not chat_id:
+        return
+    try:
+        await telegram.send_message(chat_id, failure_message(step, error))
+    except TelegramError as notify_error:
+        logger.error(f"Could not report the failure on Telegram: {notify_error}")
 
 
 async def narrate_with_microsoft(
@@ -482,13 +487,43 @@ def parse_script(data: Any) -> Script:
     return script.model_copy(update={"turns": turns})
 
 
-async def wait_until(send_at: time) -> None:
-    local_now = datetime.now(config.LOCAL_TZ)
-    target = datetime.combine(local_now.date(), send_at, tzinfo=config.LOCAL_TZ)
-    delay = (target - local_now).total_seconds()
+async def wait_until(moment: datetime) -> None:
+    delay = (moment - datetime.now(UTC)).total_seconds()
     if 0 < delay <= config.MAX_WAIT_SECONDS:
-        logger.info(f"Waiting {delay / 60:.0f} min to send at {send_at:%H:%M}")
+        local_moment = moment.astimezone(config.LOCAL_TZ)
+        logger.info(f"Waiting {delay / 60:.0f} min to send at {local_moment:%H:%M}")
         await asyncio.sleep(delay)
+
+
+def selection_prompt(options: EpisodeOptions, start: datetime, end: datetime) -> str:
+    min_stories, max_stories = story_range(options)
+    return SELECTION_PROMPT.format(
+        min_minutes=options.min_minutes,
+        max_minutes=options.max_minutes,
+        target_minutes=round(target_minutes(options)),
+        min_stories=min_stories,
+        max_stories=max_stories,
+        window_start=local_label(start),
+        window_end=local_label(end),
+    )
+
+
+def script_prompt(
+    options: EpisodeOptions, day: date, start: datetime, end: datetime
+) -> str:
+    min_words, max_words = word_range(options)
+    return SCRIPT_PROMPT.format(
+        podcast_name=podcast_name(options.send_at),
+        host_a=config.HOSTS[0].name,
+        host_b=config.HOSTS[1].name,
+        send_time=spoken_time(options.send_at),
+        greeting=greeting(options.send_at),
+        today=long_date(day),
+        window_start=local_label(start),
+        window_end=local_label(end),
+        min_words=min_words,
+        max_words=max_words,
+    )
 
 
 def local_label(moment: datetime) -> str:
@@ -518,7 +553,7 @@ def log_selection(
         logger.info("No story from the preferred outlets today")
 
 
-def sample_caption(index: int, variant: SampleVariant) -> str:
+def sample_caption(index: int, variant: SampleVariant, options: EpisodeOptions) -> str:
     voices = f"{variant.hosts[0].name} e {variant.hosts[1].name}"
     header = f"🎧 <b>Amostra {index} de {len(SAMPLE_VARIANTS)}</b> · "
     if variant.voice == "microsoft":
@@ -534,19 +569,20 @@ def sample_caption(index: int, variant: SampleVariant) -> str:
     today = datetime.now(config.LOCAL_TZ).date()
     return (
         f"{header}{config.MODEL_LABELS[model]} ({voices}: {voice_names})\n"
-        f"Custo só da voz, episódio de {round(EPISODE_MINUTES)} min por dia: "
-        f"~{monthly_voice_cost(model, today)}/mês agora, "
-        f"~{monthly_voice_cost(model, config.PRICE_CHANGE_DAY)}/mês a partir "
+        f"Custo só da voz, episódio de {round(target_minutes(options))} min por dia: "
+        f"~{monthly_voice_cost(model, today, options)}/mês agora, "
+        f"~{monthly_voice_cost(model, config.PRICE_CHANGE_DAY, options)}/mês a partir "
         "de jan/27 (no plano grátis, R$ 0 enquanto durar a cota).\n"
         f"Configuração: NEWS_PODCAST_VOICE = {variant.voice}"
     )
 
 
-def monthly_voice_cost(model: str, day: date) -> str:
+def monthly_voice_cost(model: str, day: date, options: EpisodeOptions) -> str:
     price = price_for(model, day)
     if price is None:
         return "?"
-    tokens = GENERATED_AUDIO_SECONDS_PER_DAY * config.AUDIO_TOKENS_PER_SECOND * 30
+    speech_seconds = target_minutes(options) * 60 * options.speech_speed
+    tokens = speech_seconds * config.AUDIO_TOKENS_PER_SECOND * 30
     usd = tokens * price.output_per_million / 1_000_000
     return format_brl_rounded(usd * config.BRL_PER_USD)
 

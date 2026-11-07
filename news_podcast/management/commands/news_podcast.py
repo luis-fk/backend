@@ -8,8 +8,9 @@ from django.core.management.base import BaseCommand, CommandError, CommandParser
 
 from news_podcast.api.episode.config import DEFAULT_VOICE
 from news_podcast.api.episode.gemini import GeminiClient
-from news_podcast.api.episode.schemas import GeminiPlan, VoiceOption
-from news_podcast.api.episode.service import NewsPodcastService
+from news_podcast.api.episode.options import InvalidOptionError, parse_episode_options
+from news_podcast.api.episode.schemas import EpisodeOptions, GeminiPlan, VoiceOption
+from news_podcast.api.episode.service import NewsPodcastService, notify_failure
 from news_podcast.api.episode.telegram import TelegramClient
 
 ACTIONS = ("episode", "samples", "chat-id")
@@ -57,19 +58,36 @@ def resolve_plan() -> GeminiPlan:
     return "paid" if configured == "paid" else "free"
 
 
+def resolve_episode_options() -> EpisodeOptions:
+    return parse_episode_options(
+        minutes=getattr(settings, "NEWS_PODCAST_MINUTES", None),
+        send_at=getattr(settings, "NEWS_PODCAST_SEND_AT", None),
+        speech_speed=getattr(settings, "NEWS_PODCAST_SPEECH_SPEED", None),
+    )
+
+
 async def run_action(options: dict[str, Any]) -> None:
     api_key = getattr(settings, "GEMINI_API_KEY", None)
     bot_token = getattr(settings, "TELEGRAM_BOT_TOKEN", None)
-    chat_id = getattr(settings, "TELEGRAM_CHAT_ID", None)
+    chat_id = getattr(settings, "TELEGRAM_CHAT_ID", None) or None
 
     async with httpx.AsyncClient() as http_client:
+        telegram = TelegramClient(http_client, bot_token) if bot_token else None
+        try:
+            episode_options = resolve_episode_options()
+        except InvalidOptionError as error:
+            if options["action"] == "episode" and not options["no_send"]:
+                await notify_failure(telegram, chat_id, "configuração", error)
+            raise
+
         service = NewsPodcastService(
             http_client=http_client,
             gemini=GeminiClient(http_client, api_key) if api_key else None,
-            telegram=TelegramClient(http_client, bot_token) if bot_token else None,
-            chat_id=chat_id or None,
+            telegram=telegram,
+            chat_id=chat_id,
             voice=resolve_voice(options.get("voice")),
             plan=resolve_plan(),
+            options=episode_options,
         )
 
         action = options["action"]
