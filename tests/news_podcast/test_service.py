@@ -1,6 +1,7 @@
 import asyncio
 from collections.abc import Sequence
 from datetime import date, datetime, time
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -12,15 +13,27 @@ from news_podcast.api.episode.gemini import (
     GeminiQuotaExhaustedError,
     GeminiUnavailableError,
 )
-from news_podcast.api.episode.schemas import EpisodeOptions, Host, Turn, Usage
+from news_podcast.api.episode.schemas import (
+    EpisodeOptions,
+    EpisodeReport,
+    Host,
+    TelegramChat,
+    Turn,
+    Usage,
+)
 from news_podcast.api.episode.service import (
     NewsPodcastService,
     script_prompt,
     selection_prompt,
 )
+from news_podcast.api.episode.telegram import TelegramClient
 
 TURNS = [Turn(speaker="Bia", text="Bom dia")]
 DEFAULT_OPTIONS = EpisodeOptions(12, 18, time(7, 0), 1.0)
+CHATS = [
+    TelegramChat(id="11", name="Felipe", is_group=False),
+    TelegramChat(id="-22", name="Resumo & cia", is_group=True),
+]
 
 
 class FakeGemini(GeminiClient):
@@ -163,3 +176,73 @@ def test_default_prompts_keep_the_morning_episode() -> None:
     assert "O episódio sai às 7h de sexta-feira, 6 de novembro" in script
     assert "uma fala curta com bom dia e a data" in script
     assert "entre 2040 e 3060 palavras" in script
+
+
+class FakeTelegram(TelegramClient):
+    def __init__(self, http_client: httpx.AsyncClient) -> None:
+        super().__init__(http_client, "TOKEN")
+        self.sent: list[tuple[str, str]] = []
+
+    async def recent_chats(self) -> list[TelegramChat]:
+        return CHATS
+
+    async def send_message(self, chat_id: str, text: str) -> None:
+        self.sent.append((chat_id, text))
+
+    async def send_voice(
+        self, chat_id: str, voice_path: Path, caption: str, duration_seconds: int
+    ) -> None:
+        self.sent.append((chat_id, caption))
+
+
+def telegram_service(
+    client: httpx.AsyncClient, telegram: TelegramClient, chat_id: str | None
+) -> NewsPodcastService:
+    return NewsPodcastService(
+        http_client=client,
+        gemini=None,
+        telegram=telegram,
+        chat_id=chat_id,
+        voice="gemini-flash-lite",
+        plan="free",
+        options=DEFAULT_OPTIONS,
+    )
+
+
+async def report_chats(chat_id: str | None) -> list[tuple[str, str]]:
+    async with httpx.AsyncClient() as client:
+        telegram = FakeTelegram(client)
+        await telegram_service(client, telegram, chat_id).send_chat_ids()
+        return telegram.sent
+
+
+def test_episode_goes_out_as_a_single_voice_message(tmp_path: Path) -> None:
+    report = EpisodeReport(
+        audio_path=tmp_path / "resumo.ogg",
+        duration_seconds=600.4,
+        caption="🎙️ Resumo das 7",
+        total_usd=0.2,
+    )
+
+    async def scenario() -> list[tuple[str, str]]:
+        async with httpx.AsyncClient() as client:
+            telegram = FakeTelegram(client)
+            await telegram_service(client, telegram, "-22")._deliver(report)
+            return telegram.sent
+
+    assert asyncio.run(scenario()) == [("-22", "🎙️ Resumo das 7")]
+
+
+def test_chat_list_goes_only_to_the_configured_chat() -> None:
+    sent = asyncio.run(report_chats(chat_id="11"))
+
+    assert [chat_id for chat_id, _ in sent] == ["11"]
+    assert "👤 Felipe: <code>11</code>" in sent[0][1]
+    assert "👥 Resumo &amp; cia: <code>-22</code>" in sent[0][1]
+
+
+def test_first_setup_sends_each_chat_its_own_id() -> None:
+    sent = asyncio.run(report_chats(chat_id=None))
+
+    assert [chat_id for chat_id, _ in sent] == ["11", "-22"]
+    assert all(f"<code>{chat_id}</code>" in text for chat_id, text in sent)
