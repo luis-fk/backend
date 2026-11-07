@@ -2,9 +2,7 @@ name: News podcast
 
 on:
   schedule:
-    # GitHub schedules cannot read variables, so the workflow wakes up every hour
-    # and the check-time job decides whether this is the hour to generate.
-    - cron: "10 * * * *"
+    - cron: "10 9 * * *"
   workflow_dispatch:
     inputs:
       action:
@@ -25,57 +23,16 @@ on:
           - microsoft
         default: configurada
 
+concurrency:
+  group: news-podcast
+
 permissions:
   contents: read
 
 jobs:
-  check-time:
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    outputs:
-      due: ${{ steps.check.outputs.due }}
-    env:
-      NEWS_PODCAST_SEND_AT: ${{ vars.NEWS_PODCAST_SEND_AT }}
-    steps:
-      - name: Check if this is the hour to generate
-        id: check
-        shell: python
-        run: |
-          import os
-          import re
-          from datetime import datetime, timedelta
-          from zoneinfo import ZoneInfo
-
-          # Same default and format as DEFAULT_SEND_AT and parse_send_at in the app.
-          DEFAULT_SEND_HOUR = 7
-          send_at = os.environ.get("NEWS_PODCAST_SEND_AT", "").strip()
-          match = re.fullmatch(r"([01]?[0-9]|2[0-3]):[0-5][0-9]", send_at)
-          if send_at and not match:
-              print(
-                  f"::warning::NEWS_PODCAST_SEND_AT inválido ({send_at!r}). O episódio "
-                  "roda no horário padrão só para avisar o erro no Telegram."
-              )
-          send_hour = int(match.group(1)) if match else DEFAULT_SEND_HOUR
-          start_hour = (send_hour - 1) % 24
-
-          # Runs can start late; going back 10 minutes finds the :10 slot they belong to.
-          now = datetime.now(ZoneInfo("America/Sao_Paulo"))
-          slot_hour = (now - timedelta(minutes=10)).hour
-          due = slot_hour == start_hour
-          print(
-              f"Execução das {slot_hour:02d}:10; o episódio começa às "
-              f"{start_hour:02d}:10. {'Vai gerar agora.' if due else 'Nada a fazer.'}"
-          )
-          with open(os.environ["GITHUB_OUTPUT"], "a") as output:
-              output.write(f"due={str(due).lower()}\n")
-
   news-podcast:
-    needs: check-time
-    if: github.event_name == 'workflow_dispatch' || needs.check-time.outputs.due == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 150
-    concurrency:
-      group: news-podcast
     env:
       SECRET_KEY: news-podcast-dummy-secret-key
       OPEN_WEATHER_API_KEY: dummy
@@ -93,7 +50,9 @@ jobs:
       TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
       NEWS_PODCAST_VOICE: ${{ inputs.voice != 'configurada' && inputs.voice || vars.NEWS_PODCAST_VOICE }}
       NEWS_PODCAST_GEMINI_PLAN: ${{ vars.NEWS_PODCAST_GEMINI_PLAN }}
-      NEWS_PODCAST_SEND_AT: ${{ vars.NEWS_PODCAST_SEND_AT }}
+      # Fixed to match the cron above (09:10 UTC is 06:10 in Brasília), because GitHub
+      # schedules cannot read variables. Change both together.
+      NEWS_PODCAST_SEND_AT: "07:00"
       NEWS_PODCAST_MINUTES: ${{ vars.NEWS_PODCAST_MINUTES }}
       NEWS_PODCAST_SPEECH_SPEED: ${{ vars.NEWS_PODCAST_SPEECH_SPEED }}
       ACTION: ${{ inputs.action || 'episode' }}
