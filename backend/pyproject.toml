@@ -54,7 +54,6 @@ warn_return_any = true
 ignore_missing_imports = true
 plugins = ["mypy_django_plugin.main", "pydantic.mypy"]
 exclude = [
-    "_bmad/",
     "backend/settings.py",
     ".*/admin\\.py",
 ]
@@ -69,8 +68,6 @@ django_version = "6.0"
 target-version = "py312"
 fix = true
 exclude = [
-    ".claude",
-    "_bmad",
     "*/migrations/*",
     "backend/settings.py",
 ]

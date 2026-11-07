@@ -1,9 +1,9 @@
-# Project context
+# Frontend context
 
-## What this project does
+## What this part does
 A personal Next.js frontend that serves multiple independent apps backed by a Django backend. Currently hosts two apps — **plants** (AI chatbot for plant data) and **political-culture** (political text chatbot with WebSocket streaming) — with a third app **cfflch** (college admission checker) missing from the frontend and needing to be built.
 
-The React frontend is a separate deployment from the Django backend. It exists to learn and experiment — correctness and understanding over speed.
+It lives in `frontend/` of the monorepo, next to the Django backend in `../backend`; the root `CLAUDE.md` has the repository layout and the rules shared with the backend. Paths below are relative to `frontend/`. It is deployed as its own Railway service, with Root Directory `/frontend`. It exists to learn and experiment — correctness and understanding over speed.
 
 ## Tech stack
 - **Framework:** Next.js 15.1.6 (App Router, Turbopack in dev)
@@ -124,9 +124,8 @@ The Django backend runs at `NEXT_PUBLIC_SERVER_URL`. Key endpoints:
 - `cfflch`: the backend is fully implemented (admission status checker via web search + PDF parsing + WebSocket). The frontend app does not exist yet.
 
 ## Non-negotiables
-- **Learning-first.** Correct and understood > fast. Explain the why, not just the what.
+The shared ones (learning-first, git managed by the user) are in the root `CLAUDE.md`.
 - **App isolation.** No shared UI components across apps. Each app owns its full component tree.
-- **Git is managed by the user.** Do not commit, push, or open PRs unless explicitly asked.
 - **Backend contract matters.** When building the cfflch frontend, the WS-before-POST timing constraint is non-negotiable — the component must establish the WebSocket connection on mount, not when the user submits.
 - **No tests yet.** Vitest or Jest is not installed. Do not write tests unless explicitly asked.
 - **TypeScript strict.** All new code must pass `tsc --noEmit` cleanly.

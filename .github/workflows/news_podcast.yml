@@ -29,6 +29,10 @@ concurrency:
 permissions:
   contents: read
 
+defaults:
+  run:
+    working-directory: backend
+
 jobs:
   news-podcast:
     runs-on: ubuntu-latest
@@ -79,7 +83,7 @@ jobs:
         with:
           name: news-podcast-debug
           path: |
-            news_podcast_output/selection.json
-            news_podcast_output/script.json
+            backend/news_podcast_output/selection.json
+            backend/news_podcast_output/script.json
           retention-days: 3
           if-no-files-found: ignore

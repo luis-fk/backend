@@ -39,7 +39,3 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
-
-# bmad
-/_bmad-output
-/_bmad/custom/config.user.toml
