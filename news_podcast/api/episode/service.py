@@ -31,6 +31,8 @@ from news_podcast.api.episode.gemini import (
 )
 from news_podcast.api.episode.messages import (
     MICROSOFT_LABEL,
+    chat_id_message,
+    chat_list_message,
     episode_caption,
     episode_details,
     failure_message,
@@ -180,19 +182,19 @@ class NewsPodcastService:
         if self.telegram is None:
             raise EpisodeError("TELEGRAM_BOT_TOKEN não configurado")
 
-        chat_ids = await self.telegram.recent_private_chat_ids()
-        if not chat_ids:
+        chats = await self.telegram.recent_chats()
+        if not chats:
             raise EpisodeError(
-                "Nenhuma conversa encontrada. Mande /start para o seu bot no Telegram "
-                "e rode de novo."
+                "Nenhuma conversa encontrada. Mande /start para o bot ou adicione ele "
+                "a um grupo no Telegram e rode de novo."
             )
-        for chat_id in chat_ids:
-            await self.telegram.send_message(
-                chat_id,
-                "Achei você! Salve este número como o secret TELEGRAM_CHAT_ID "
-                f"no GitHub:\n<code>{chat_id}</code>",
-            )
-        return len(chat_ids)
+        if self.chat_id:
+            await self.telegram.send_message(self.chat_id, chat_list_message(chats))
+            return len(chats)
+
+        for chat in chats:
+            await self.telegram.send_message(chat.id, chat_id_message(chat.id))
+        return len(chats)
 
     async def _generate(
         self, now: datetime, scheduled_for: datetime | None

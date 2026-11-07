@@ -12,15 +12,26 @@ from news_podcast.api.episode.gemini import (
     GeminiQuotaExhaustedError,
     GeminiUnavailableError,
 )
-from news_podcast.api.episode.schemas import EpisodeOptions, Host, Turn, Usage
+from news_podcast.api.episode.schemas import (
+    EpisodeOptions,
+    Host,
+    TelegramChat,
+    Turn,
+    Usage,
+)
 from news_podcast.api.episode.service import (
     NewsPodcastService,
     script_prompt,
     selection_prompt,
 )
+from news_podcast.api.episode.telegram import TelegramClient
 
 TURNS = [Turn(speaker="Bia", text="Bom dia")]
 DEFAULT_OPTIONS = EpisodeOptions(12, 18, time(7, 0), 1.0)
+CHATS = [
+    TelegramChat(id="11", name="Felipe", is_group=False),
+    TelegramChat(id="-22", name="Resumo & cia", is_group=True),
+]
 
 
 class FakeGemini(GeminiClient):
@@ -163,3 +174,46 @@ def test_default_prompts_keep_the_morning_episode() -> None:
     assert "O episódio sai às 7h de sexta-feira, 6 de novembro" in script
     assert "uma fala curta com bom dia e a data" in script
     assert "entre 2040 e 3060 palavras" in script
+
+
+class FakeTelegram(TelegramClient):
+    def __init__(self, http_client: httpx.AsyncClient) -> None:
+        super().__init__(http_client, "TOKEN")
+        self.sent: list[tuple[str, str]] = []
+
+    async def recent_chats(self) -> list[TelegramChat]:
+        return CHATS
+
+    async def send_message(self, chat_id: str, text: str) -> None:
+        self.sent.append((chat_id, text))
+
+
+async def report_chats(chat_id: str | None) -> list[tuple[str, str]]:
+    async with httpx.AsyncClient() as client:
+        telegram = FakeTelegram(client)
+        service = NewsPodcastService(
+            http_client=client,
+            gemini=None,
+            telegram=telegram,
+            chat_id=chat_id,
+            voice="gemini-flash-lite",
+            plan="free",
+            options=DEFAULT_OPTIONS,
+        )
+        await service.send_chat_ids()
+        return telegram.sent
+
+
+def test_chat_list_goes_only_to_the_configured_chat() -> None:
+    sent = asyncio.run(report_chats(chat_id="11"))
+
+    assert [chat_id for chat_id, _ in sent] == ["11"]
+    assert "👤 Felipe: <code>11</code>" in sent[0][1]
+    assert "👥 Resumo &amp; cia: <code>-22</code>" in sent[0][1]
+
+
+def test_first_setup_sends_each_chat_its_own_id() -> None:
+    sent = asyncio.run(report_chats(chat_id=None))
+
+    assert [chat_id for chat_id, _ in sent] == ["11", "-22"]
+    assert all(f"<code>{chat_id}</code>" in text for chat_id, text in sent)

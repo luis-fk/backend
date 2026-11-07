@@ -27,6 +27,12 @@ class ModelPrice(NamedTuple):
     output_per_million: float
 
 
+class TelegramChat(NamedTuple):
+    id: str
+    name: str
+    is_group: bool
+
+
 class FeedSource(BaseModel):
     outlet: str
     section: str

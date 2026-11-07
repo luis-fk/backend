@@ -38,13 +38,31 @@ ffmpeg no build e as mesmas variáveis.
    repository secret*, crie `GEMINI_API_KEY` e `TELEGRAM_BOT_TOKEN`.
 4. **Descobrir o seu chat:** em *Actions → News podcast → Run workflow*, escolha a ação
    `chat-id`. O bot te manda um número no Telegram; salve como o secret
-   `TELEGRAM_CHAT_ID`.
+   `TELEGRAM_CHAT_ID`. Para mandar para um grupo, veja *Mandar para um grupo*.
 5. **Ouvir as vozes:** rode de novo com a ação `samples`. Chegam 4 amostras do mesmo
    trecho, cada uma com o custo mensal estimado.
 6. **Escolher (opcional):** na aba *Variables* da mesma tela, crie só as variáveis que
    quiser mudar (veja *Variáveis*), como a voz em `NEWS_PODCAST_VOICE`.
 7. **Testar:** rode com a ação `episode`. Daí em diante ele roda sozinho: começa às
    6h10 e envia às 7h.
+
+## Mandar para um grupo
+
+O bot só envia para a conversa do `TELEGRAM_CHAT_ID`. Quem só abre o bot e manda
+`/start` não recebe nada. Para mais gente ouvir, use um grupo:
+
+1. No Telegram, crie um grupo com as pessoas e adicione o bot (procure pelo @ dele).
+2. Em *Actions → News podcast → Run workflow*, rode a ação `chat-id`. Como o
+   `TELEGRAM_CHAT_ID` já existe, o bot manda só para essa conversa a lista das conversas
+   que viu nas últimas 24 horas, com o número de cada uma. O grupo aparece com 👥 e um
+   número negativo.
+3. Troque o secret `TELEGRAM_CHAT_ID` pelo número do grupo. Daí em diante o resumo, a
+   mensagem de fontes e os avisos de erro vão para o grupo.
+
+Se o grupo não aparecer na lista (o Telegram só guarda as últimas 24 horas para o bot),
+mande `/start@nome_do_bot` no grupo e rode de novo. Se o Telegram transformar o grupo em
+supergrupo, o que acontece ao mudar algumas configurações dele, o número muda: repita os
+passos 2 e 3.
 
 ## Variáveis
 
