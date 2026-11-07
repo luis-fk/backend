@@ -94,6 +94,8 @@ export default function Chat() {
     }
   };
 
+  const userId = session?.userId;
+
   const send = useCallback(async () => {
     if (sending || !input.trim()) return;
     setSending(true);
@@ -103,18 +105,18 @@ export default function Chat() {
 
     try {
       await axios.post(`${serverUrl}/api/political-culture/chatbot/message`, {
-        user_id: session?.userId,
+        user_id: userId,
         text: userMsg,
       });
     } catch (error) {
       logger.error("Failed to send chat message", {
-        userId: session?.userId,
+        userId,
         error,
       });
       setErrorMessage("Falha ao enviar a mensagem. Tente novamente.");
       setSending(false);
     }
-  }, [sending, input, serverUrl, session?.userId]);
+  }, [sending, input, serverUrl, userId]);
 
   const containerStyle = useMemo(
     () => ({
