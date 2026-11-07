@@ -6,11 +6,20 @@
       "source.organizeImports": "explicit"
     }
   },
-  "python.defaultInterpreterPath": "/home/felipelk/backend/.venv/bin/python",
-  "mypy-type-checker.path": ["/home/felipelk/backend/.venv/bin/mypy"],
-  "mypy-type-checker.cwd": "${workspaceFolder}",
+  "python.defaultInterpreterPath": "${workspaceFolder}/backend/.venv/bin/python",
+  "mypy-type-checker.path": ["${workspaceFolder}/backend/.venv/bin/mypy"],
+  "mypy-type-checker.importStrategy": "fromEnvironment", // useBundled puts the extension's old typing_extensions first on PYTHONPATH, which breaks the pydantic.mypy plugin
+  "mypy-type-checker.cwd": "${workspaceFolder}/backend",
   "mypy-type-checker.args": [
     "--config-file=pyproject.toml"
   ],
   "mypy-type-checker.reportingScope": "workspace",
+  "[javascript][javascriptreact][typescript][typescriptreact][css]": {
+    "editor.defaultFormatter": "rvest.vs-code-prettier-eslint",
+    "editor.formatOnType": false, // required by vs-code-prettier-eslint
+    "editor.formatOnPaste": true,
+    "editor.formatOnSave": true,
+    "editor.formatOnSaveMode": "file" // required by vs-code-prettier-eslint to format on save
+  },
+  "vs-code-prettier-eslint.prettierLast": true
 }

@@ -1,0 +1,137 @@
+.search-container {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 800px;
+  padding: 2rem;
+  box-sizing: border-box;
+}
+
+.search-container h1 {
+  font-size: 1.8rem;
+  margin-bottom: 1.5rem;
+}
+
+.search-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.search-form label {
+  font-size: 0.9rem;
+  color: #aaa;
+  margin-bottom: 0.25rem;
+}
+
+.search-form textarea,
+.search-form input[type="text"],
+.search-form input[type="number"] {
+  background: #3e3e3e;
+  border: 1px solid #555;
+  border-radius: 6px;
+  color: #ededed;
+  padding: 0.5rem 0.75rem;
+  font-size: 1rem;
+  font-family: inherit;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.search-form select {
+  display: block;
+  background: #3e3e3e;
+  border: 1px solid #555;
+  border-radius: 6px;
+  color: #ededed;
+  padding: 0.5rem 0.75rem;
+  font-size: 1rem;
+  font-family: inherit;
+  width: auto;
+  appearance: none;
+}
+
+.search-form textarea {
+  resize: vertical;
+  min-height: 120px;
+}
+
+.search-form textarea:focus,
+.search-form input:focus,
+.search-form select:focus {
+  outline: none;
+  border-color: #0078d4;
+}
+
+.search-form button[type="submit"] {
+  align-self: flex-start;
+  background-color: #0078d4;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  padding: 0.6rem 1.4rem;
+  font-size: 1rem;
+  cursor: pointer;
+}
+
+.search-form button[type="submit"]:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.search-form button[type="submit"]:hover:not(:disabled) {
+  background-color: #005fa3;
+}
+
+.results-stream {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.results-stream h2 {
+  font-size: 1.2rem;
+  margin-bottom: 0.5rem;
+}
+
+.loading-indicator {
+  color: #aaa;
+  font-style: italic;
+}
+
+.result-card {
+  background: #3e3e3e;
+  border-radius: 8px;
+  padding: 1rem 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.result-card-name {
+  font-size: 1.05rem;
+  font-weight: bold;
+}
+
+.pdf-links {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.pdf-links a {
+  color: #4fc3f7;
+  font-size: 0.9rem;
+  text-decoration: none;
+}
+
+.pdf-links a:hover {
+  text-decoration: underline;
+}
+
+.not-found {
+  color: #888;
+  font-size: 0.9rem;
+  font-style: italic;
+}
