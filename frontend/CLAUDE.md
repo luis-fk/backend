@@ -6,17 +6,18 @@ A personal Next.js frontend that serves multiple independent apps backed by a Dj
 It lives in `frontend/` of the monorepo, next to the Django backend in `../backend`; the root `CLAUDE.md` has the repository layout and the rules shared with the backend. Paths below are relative to `frontend/`. It is deployed as its own Railway service, with Root Directory `/frontend`. It exists to learn and experiment — correctness and understanding over speed.
 
 ## Tech stack
-- **Framework:** Next.js 15.1.6 (App Router, Turbopack in dev)
-- **UI Library:** React 18.2.0 + TypeScript 4.9.5 (strict mode)
-- **Styling:** Material-UI 6.4.1 (with Emotion) + Tailwind CSS 3.4.1 — MUI for components, Tailwind for utility classes. Both coexist; keep new code consistent with the surrounding file.
-- **Auth:** Jose 5.9.6 for JWT encryption (HS256), stored in `httpOnly` cookies, managed via Next.js server actions and middleware
+- **Framework:** Next.js 15 (App Router, Turbopack in dev)
+- **UI Library:** React 18 + TypeScript 5 (strict mode)
+- **Styling:** Material-UI 6 (with Emotion) + Tailwind CSS 3 — MUI for components, Tailwind for utility classes. Both coexist; keep new code consistent with the surrounding file.
+- **Auth:** Jose 5 for JWT encryption (HS256), stored in `httpOnly` cookies, managed via Next.js server actions and middleware
 - **HTTP:** Axios for REST calls to the Django backend
 - **WebSocket:** Native browser `WebSocket` API (no library), managed via custom hooks
 - **Logging:** Client-side logger (`/src/app/api/log/client-logger.ts`) that sends log entries to a Next.js API route (`/api/log`) via Beacon API
 - **Markdown:** `react-markdown` + `remark-gfm` for chat message rendering
 - **Chat UI:** `@chatscope/chat-ui-kit-react` (used in `plants` only)
-- **Linting:** ESLint 8.57.1 + Prettier 3.4.2 with `@trivago/prettier-plugin-sort-imports`
-- **Package manager:** npm
+- **Linting:** ESLint 9 (flat config) + Prettier 3 with `@trivago/prettier-plugin-sort-imports`
+- **Package manager:** npm. Exact versions live in `package.json`.
+- **Security overrides:** Railway's build scanner blocks lockfiles with vulnerable dependencies (confirmed for Next.js advisories rated high or critical; the full rule is not documented), so keep `npm audit --audit-level=high` clean. `overrides` in `package.json` forces patched copies where a dependency pins a vulnerable one: `postcss` inside `next` (Next 15 pins 8.4.31) and `minimatch` inside `prettier-eslint` → `@typescript-eslint/typescript-estree@6` (pins 9.0.3). Drop each one when its parent is upgraded (Next 16, `prettier-eslint` 17).
 
 ## Architecture
 
