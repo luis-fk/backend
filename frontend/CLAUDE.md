@@ -6,18 +6,18 @@ A personal Next.js frontend that serves multiple independent apps backed by a Dj
 It lives in `frontend/` of the monorepo, next to the Django backend in `../backend`; the root `CLAUDE.md` has the repository layout and the rules shared with the backend. Paths below are relative to `frontend/`. It is deployed as its own Railway service, with Root Directory `/frontend`. It exists to learn and experiment — correctness and understanding over speed.
 
 ## Tech stack
-- **Framework:** Next.js 15 (App Router, Turbopack in dev)
-- **UI Library:** React 18 + TypeScript 5 (strict mode)
-- **Styling:** Material-UI 6 (with Emotion) + Tailwind CSS 3 — MUI for components, Tailwind for utility classes. Both coexist; keep new code consistent with the surrounding file.
-- **Auth:** Jose 5 for JWT encryption (HS256), stored in `httpOnly` cookies, managed via Next.js server actions and middleware
+- **Framework:** Next.js 16 (App Router, Turbopack for dev and build). Next 16 changed APIs and conventions, so read the relevant guide in `node_modules/next/dist/docs/` (the docs of the installed version) before writing Next-specific code; `AGENTS.md`, which `next dev` writes, says the same for other agents.
+- **UI Library:** React 19 + TypeScript 5 (strict mode)
+- **Styling:** Material-UI 6 (with Emotion) for components and plain CSS files for component-specific styles. There is no Tailwind and no PostCSS config.
+- **Auth:** Jose 5 for JWT encryption (HS256), stored in `httpOnly` cookies, managed via Next.js server actions and the proxy
 - **HTTP:** Axios for REST calls to the Django backend
 - **WebSocket:** Native browser `WebSocket` API (no library), managed via custom hooks
 - **Logging:** Client-side logger (`/src/app/api/log/client-logger.ts`) that sends log entries to a Next.js API route (`/api/log`) via Beacon API
 - **Markdown:** `react-markdown` + `remark-gfm` for chat message rendering
 - **Chat UI:** `@chatscope/chat-ui-kit-react` (used in `plants` only)
-- **Linting:** ESLint 9 (flat config) + Prettier 3 with `@trivago/prettier-plugin-sort-imports`
+- **Linting:** ESLint 9 flat config (`eslint.config.mjs` with `eslint-config-next`, run by `npm run lint` = `eslint .`; `next lint` no longer exists) + Prettier 3 with `@trivago/prettier-plugin-sort-imports`. `react-hooks/set-state-in-effect`, new in `eslint-plugin-react-hooks` 7, is a warning until the existing effects that set state on mount are refactored.
 - **Package manager:** npm. Exact versions live in `package.json`.
-- **Security overrides:** Railway's build scanner blocks lockfiles with vulnerable dependencies (confirmed for Next.js advisories rated high or critical; the full rule is not documented), so keep `npm audit --audit-level=high` clean. `overrides` in `package.json` forces patched copies where a dependency pins a vulnerable one: `postcss` inside `next` (Next 15 pins 8.4.31) and `minimatch` inside `prettier-eslint` → `@typescript-eslint/typescript-estree@6` (pins 9.0.3). Drop each one when its parent is upgraded (Next 16, `prettier-eslint` 17).
+- **Security overrides:** Railway's build scanner blocks lockfiles with vulnerable dependencies (confirmed for Next.js advisories rated high or critical; the full rule is not documented), so keep `npm audit --audit-level=high` clean. `overrides` in `package.json` forces a patched `minimatch` inside `prettier-eslint` → `@typescript-eslint/typescript-estree@6`, which pins 9.0.3. Drop it when `prettier-eslint` moves to 17, which is ESM-only and not yet supported by the VS Code extension `rvest.vs-code-prettier-eslint` (it expects ^16).
 
 ## Architecture
 
@@ -26,10 +26,10 @@ Each app lives under `src/app/<app-name>/` and is fully self-contained for UI lo
 
 ```
 src/
+├── proxy.ts                     # Auth routing for all projects
 ├── app/
 │   ├── layout.tsx               # Root layout
 │   ├── page.tsx                 # Landing page (links to each app)
-│   ├── middleware.tsx            # Auth routing for all projects
 │   ├── actions/                 # Shared server actions
 │   │   ├── login.ts             # Login logic (calls backend /api/user/{name})
 │   │   ├── session.ts           # JWT encrypt/decrypt/create/delete
@@ -51,16 +51,16 @@ src/
 ```
 
 ### Shared vs app-specific
-- **Shared:** auth actions (`session.ts`, `login.ts`, `useSession.ts`), the logger, middleware, and infrastructure UI components (`src/app/components/`). These live in `src/app/actions/`, `src/app/api/`, and `src/app/components/`.
+- **Shared:** auth actions (`session.ts`, `login.ts`, `useSession.ts`), the logger, the proxy, and infrastructure UI components (`src/app/components/`). These live in `src/app/actions/`, `src/app/api/`, and `src/app/components/`.
 - **App-specific:** all feature components, CSS, and hooks. Do not create shared feature UI across apps — duplication is preferred over coupling. Exception: pure infrastructure components with no app-specific logic (e.g. `ErrorToast`) may live in `src/app/components/`.
 
-### Middleware
-`src/middleware.tsx` handles auth routing for all apps. The `PROJECTS` map must be updated when a new app is added — add the app name, its `publicPaths`, `protectedPaths`, and `defaultProtectedPath`.
+### Proxy
+`src/proxy.ts` handles auth routing for all apps. It is what Next.js called middleware before version 16, and it runs on the Node.js runtime (the Edge runtime is not available in a proxy). The `PROJECTS` map must be updated when a new app is added — add the app name, its `publicPaths`, `protectedPaths`, and `defaultProtectedPath`.
 
 ### Auth flow
 1. User submits login form → server action `login()` calls backend `POST /api/user/{name}`
 2. On success: `createSession(userId)` encrypts a JWT with Jose (HS256) and sets an `httpOnly` cookie
-3. Middleware reads the cookie on every request and redirects unauthenticated users to `/<app>` (login page)
+3. The proxy reads the cookie on every request and redirects unauthenticated users to `/<app>` (login page)
 4. Client components read the session via `useSession()` hook to get `userId`
 
 ### WebSocket pattern
@@ -90,9 +90,7 @@ src/
 - `(routes)/<route>/page.tsx` — page components (route group with parentheses keeps routes clean)
 
 ### CSS
-- App-specific CSS in `<app>/css/`
-- Use Tailwind for layout and spacing; use custom CSS for component-specific styles not easily expressed in Tailwind
-- Do not mix inline styles with Tailwind — pick one per component
+- App-specific CSS in `<app>/css/`, written as plain CSS (Tailwind was removed with the Next 16 upgrade; it was configured but no CSS file loaded it)
 
 ### Environment variables
 - `NEXT_PUBLIC_SERVER_URL` — the Django backend URL (available client-side)
