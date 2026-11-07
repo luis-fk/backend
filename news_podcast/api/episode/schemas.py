@@ -110,5 +110,4 @@ class EpisodeReport(BaseModel):
     audio_path: Path
     duration_seconds: float
     caption: str
-    details: str
     total_usd: float

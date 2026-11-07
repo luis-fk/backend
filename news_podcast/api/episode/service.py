@@ -261,7 +261,6 @@ class NewsPodcastService:
             audio_path=audio_path,
             duration_seconds=duration,
             caption=caption,
-            details=details,
             total_usd=total_cost_usd(usages, day),
         )
 
@@ -445,7 +444,6 @@ class NewsPodcastService:
         await telegram.send_voice(
             chat_id, report.audio_path, report.caption, round(report.duration_seconds)
         )
-        await telegram.send_message(chat_id, report.details)
 
     def _require_gemini(self) -> GeminiClient:
         if self.gemini is None:
