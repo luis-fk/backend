@@ -1,11 +1,8 @@
 from datetime import datetime, time
 from pathlib import Path
-from typing import Literal, NamedTuple
+from typing import NamedTuple
 
 from pydantic import BaseModel, ConfigDict, Field
-
-VoiceOption = Literal["gemini-flash", "gemini-flash-lite", "microsoft"]
-GeminiPlan = Literal["free", "paid"]
 
 
 class EpisodeOptions(NamedTuple):
@@ -19,7 +16,6 @@ class Host(NamedTuple):
     name: str
     speaker_id: str
     gemini_voice: str
-    microsoft_voice: str
 
 
 class ModelPrice(NamedTuple):
@@ -87,7 +83,6 @@ class Turn(BaseModel):
 
 
 class Script(BaseModel):
-    title: str = ""
     turns: list[Turn]
 
 
@@ -96,18 +91,9 @@ class Usage(BaseModel):
     model: str
     input_tokens: int = 0
     output_tokens: int = 0
-    audio_seconds: float = 0.0
-
-
-class Narration(BaseModel):
-    parts: list[Path]
-    usages: list[Usage]
-    voice_label: str
-    gap_seconds: float
 
 
 class EpisodeReport(BaseModel):
     audio_path: Path
     duration_seconds: float
     caption: str
-    total_usd: float

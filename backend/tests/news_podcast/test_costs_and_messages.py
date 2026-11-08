@@ -35,8 +35,8 @@ USAGES = [
 
 
 def test_prices_double_in_january_2027() -> None:
-    november = price_for("gemini-3.8-flash-tts", NOVEMBER)
-    january = price_for("gemini-3.8-flash-tts", JANUARY)
+    november = price_for("gemini-3.8-flash-lite-tts", NOVEMBER)
+    january = price_for("gemini-3.8-flash-lite-tts", JANUARY)
 
     assert november is not None and january is not None
     assert january.output_per_million == 2 * november.output_per_million
@@ -45,12 +45,12 @@ def test_prices_double_in_january_2027() -> None:
 def test_voice_cost_follows_audio_tokens() -> None:
     eighteen_minutes = Usage(
         step="voice",
-        model="gemini-3.8-flash-tts",
+        model="gemini-3.8-flash-lite-tts",
         input_tokens=0,
         output_tokens=18 * 60 * 25,
     )
 
-    assert usage_cost_usd(eighteen_minutes, NOVEMBER) == pytest.approx(0.243)
+    assert usage_cost_usd(eighteen_minutes, NOVEMBER) == pytest.approx(0.162)
 
 
 def test_unknown_models_cost_nothing() -> None:
@@ -86,17 +86,11 @@ def test_details_show_the_sources_and_a_short_cost_summary() -> None:
         for index in range(3)
     ]
 
-    details = episode_details(day=NOVEMBER, briefs=briefs, usages=USAGES, plan="free")
+    details = episode_details(day=NOVEMBER, briefs=briefs, usages=USAGES)
 
     assert details.splitlines() == [
         "<b>Fontes:</b> CNN Brasil (3), g1 (3)",
         "",
-        "💰 <b>Custo:</b> R$ 0 no plano grátis (no pago: R$ 1,04 hoje, ~R$ 31/mês)",
+        "💰 <b>Custo no plano pago:</b> R$ 1,04 hoje (~R$ 31/mês)",
         "Leitura R$ 0,16 · Roteiro R$ 0,27 · Voz R$ 0,61",
     ]
-
-
-def test_paid_plan_shows_the_real_cost() -> None:
-    details = episode_details(day=NOVEMBER, briefs=[], usages=USAGES, plan="paid")
-
-    assert details.splitlines()[2] == "💰 <b>Custo:</b> R$ 1,04 hoje (~R$ 31/mês)"

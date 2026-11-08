@@ -2,7 +2,7 @@ from datetime import date, time
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-from news_podcast.api.episode.schemas import Host, ModelPrice, VoiceOption
+from news_podcast.api.episode.schemas import Host, ModelPrice
 
 APP_DIR = Path(__file__).resolve().parents[2]
 OPML_PATH = APP_DIR / "feeds.opml"
@@ -29,43 +29,15 @@ MINUTES_PER_STORY = 1.5
 SHORT_SCRIPT_RATIO = 0.85
 
 HOSTS = (
-    Host(
-        name="Bia",
-        speaker_id="Bia",
-        gemini_voice="Kore",
-        microsoft_voice="pt-BR-FranciscaNeural",
-    ),
-    Host(
-        name="Léo",
-        speaker_id="Leo",
-        gemini_voice="Charon",
-        microsoft_voice="pt-BR-AntonioNeural",
-    ),
-)
-ALTERNATIVE_HOSTS = (
-    HOSTS[0]._replace(gemini_voice="Aoede"),
-    HOSTS[1]._replace(gemini_voice="Puck"),
-)
-SAMPLE_DIALOGUE = (
-    "Bom dia! Este é um teste rápido pra você comparar as vozes do seu resumo de "
-    "notícias.",
-    "A ideia é ouvir o mesmo trecho com cada opção. Repara na entonação, nas pausas "
-    "e no ritmo da conversa.",
-    "E em como cada voz lê números e nomes, tipo uma inflação de 4,5% em doze meses, "
-    "o dólar a R$ 5,50 ou nomes como Haddad, Alcolumbre e Zelensky.",
-    "No fim, vale a que for mais agradável de ouvir todo dia, por uns dez minutos.",
-    "Escolheu? É só configurar no GitHub. Até amanhã!",
+    Host(name="Bia", speaker_id="Bia", gemini_voice="Kore"),
+    Host(name="Léo", speaker_id="Leo", gemini_voice="Charon"),
 )
 
 TEXT_MODEL = "gemini-3.8-flash"
 TEXT_FALLBACK_MODEL = "gemini-3.6-flash"
 THINKING_LEVEL = "medium"
 
-DEFAULT_VOICE: VoiceOption = "gemini-flash-lite"
-TTS_MODELS: dict[VoiceOption, str] = {
-    "gemini-flash": "gemini-3.8-flash-tts",
-    "gemini-flash-lite": "gemini-3.8-flash-lite-tts",
-}
+TTS_MODEL = "gemini-3.8-flash-lite-tts"
 TTS_STYLE = (
     "Warm, conversational news podcast host speaking Brazilian Portuguese "
     "with a neutral Brazilian accent; clear diction; brisk, fast pace."
@@ -76,9 +48,6 @@ HEADLINE_TTS_STYLE = (
     "neutral Brazilian accent; clear diction."
 )
 TTS_CHUNK_WORDS = 650
-GEMINI_GAP_SECONDS = 0.25
-MICROSOFT_GAP_SECONDS = 0.35
-MICROSOFT_RATE = "+6%"
 AUDIO_TOKENS_PER_SECOND = 25
 VOICE_RETRY_MINUTES = (10, 20)
 
@@ -86,14 +55,7 @@ PRICE_CHANGE_DAY = date(2027, 1, 1)
 PRICES: dict[str, tuple[ModelPrice, ModelPrice]] = {
     "gemini-3.8-flash": (ModelPrice(0.75, 3.75), ModelPrice(1.50, 7.50)),
     "gemini-3.6-flash": (ModelPrice(0.75, 3.75), ModelPrice(1.50, 7.50)),
-    "gemini-3.8-flash-tts": (ModelPrice(0.50, 9.00), ModelPrice(1.00, 18.00)),
     "gemini-3.8-flash-lite-tts": (ModelPrice(0.50, 6.00), ModelPrice(1.00, 12.00)),
-}
-MODEL_LABELS: dict[str, str] = {
-    "gemini-3.8-flash": "Gemini 3.8 Flash",
-    "gemini-3.6-flash": "Gemini 3.6 Flash",
-    "gemini-3.8-flash-tts": "Gemini 3.8 Flash TTS",
-    "gemini-3.8-flash-lite-tts": "Gemini 3.8 Flash-Lite TTS",
 }
 BRL_PER_USD = 5.50
 

@@ -9,12 +9,7 @@ from news_podcast.api.episode.costs import (
     format_brl_rounded,
     total_cost_usd,
 )
-from news_podcast.api.episode.schemas import (
-    GeminiPlan,
-    StoryBrief,
-    TelegramChat,
-    Usage,
-)
+from news_podcast.api.episode.schemas import StoryBrief, TelegramChat, Usage
 
 WEEKDAYS = (
     "segunda-feira",
@@ -40,7 +35,6 @@ MONTHS = (
     "dezembro",
 )
 DAYS_PER_MONTH = 30
-MICROSOFT_LABEL = "Microsoft"
 COST_STEPS = (("Leitura", "selection"), ("Roteiro", "script"), ("Voz", "voice"))
 
 
@@ -67,32 +61,24 @@ def episode_caption(podcast_name: str, day: date) -> str:
 
 
 def episode_details(
-    *,
-    day: date,
-    briefs: Sequence[StoryBrief],
-    usages: Sequence[Usage],
-    plan: GeminiPlan,
+    *, day: date, briefs: Sequence[StoryBrief], usages: Sequence[Usage]
 ) -> str:
     lines = [
         f"<b>Fontes:</b> {html.escape(sources_line(outlet_counts(briefs)))}",
         "",
-        *cost_lines(day=day, usages=usages, plan=plan),
+        *cost_lines(day=day, usages=usages),
     ]
     return "\n".join(lines)
 
 
-def cost_lines(*, day: date, usages: Sequence[Usage], plan: GeminiPlan) -> list[str]:
+def cost_lines(*, day: date, usages: Sequence[Usage]) -> list[str]:
     total = total_cost_usd(usages, day)
     monthly = format_brl_rounded(total * DAYS_PER_MONTH * BRL_PER_USD)
-    summary = (
-        f"R$ 0 no plano grátis (no pago: {brl(total)} hoje, ~{monthly}/mês)"
-        if plan == "free"
-        else f"{brl(total)} hoje (~{monthly}/mês)"
-    )
+    summary = f"{brl(total)} hoje (~{monthly}/mês)"
     steps = " · ".join(
         f"{label} {step_cost(usages, step, day)}" for label, step in COST_STEPS
     )
-    return [f"💰 <b>Custo:</b> {summary}", steps]
+    return [f"💰 <b>Custo no plano pago:</b> {summary}", steps]
 
 
 def step_cost(usages: Sequence[Usage], step: str, day: date) -> str:

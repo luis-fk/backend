@@ -6,6 +6,7 @@ logger = logging.getLogger(__name__)
 
 SAMPLE_RATE = "24000"
 OPUS_BITRATE = "32k"
+GAP_SECONDS = 0.25
 LOUDNESS_FILTER = "loudnorm=I=-16:TP=-1.5:LRA=11"
 FFMPEG = ("ffmpeg", "-hide_banner", "-loglevel", "error", "-y")
 
@@ -28,7 +29,7 @@ async def run_tool(*args: str) -> str:
 
 
 async def build_voice_note(
-    parts: list[Path], output: Path, gap_seconds: float, speed: float, workdir: Path
+    parts: list[Path], output: Path, speed: float, workdir: Path
 ) -> float:
     if not parts:
         raise AudioError("Nenhum trecho de áudio para juntar")
@@ -37,7 +38,7 @@ async def build_voice_note(
         await to_wav(part, workdir / f"part_{index:04d}.wav")
         for index, part in enumerate(parts)
     ]
-    silence = await make_silence(workdir / "silence.wav", gap_seconds)
+    silence = await make_silence(workdir / "silence.wav", GAP_SECONDS)
     playlist = write_playlist(normalized, silence, workdir / "playlist.txt")
 
     await run_tool(

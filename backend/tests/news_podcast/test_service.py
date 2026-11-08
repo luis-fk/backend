@@ -73,8 +73,6 @@ def make_service(
         gemini=gemini,
         telegram=None,
         chat_id=None,
-        voice="gemini-flash-lite",
-        plan="free",
         options=DEFAULT_OPTIONS,
     )
 
@@ -93,7 +91,7 @@ async def synthesize_with(failures: list[Exception]) -> list[int]:
     async with httpx.AsyncClient() as client:
         gemini = FakeGemini(client, voice_failures=failures)
         service = make_service(client, gemini)
-        await service._synthesize_patiently(gemini, "tts", TURNS)
+        await service._synthesize_patiently(gemini, TURNS)
         return service.voice_retry_minutes
 
 
@@ -203,8 +201,6 @@ def telegram_service(
         gemini=None,
         telegram=telegram,
         chat_id=chat_id,
-        voice="gemini-flash-lite",
-        plan="free",
         options=DEFAULT_OPTIONS,
     )
 
@@ -221,7 +217,6 @@ def test_episode_goes_out_as_a_single_voice_message(tmp_path: Path) -> None:
         audio_path=tmp_path / "resumo.ogg",
         duration_seconds=600.4,
         caption="🎙️ Resumo das 7",
-        total_usd=0.2,
     )
 
     async def scenario() -> list[tuple[str, str]]:

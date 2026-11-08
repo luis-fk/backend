@@ -19,7 +19,7 @@ O app não tem models nem banco de dados, então não precisa de um `news_podcas
 | Roteiro | `service.py` + `prompts.py` | O Gemini escreve o diálogo com 170 palavras por minuto de episódio, vezes a velocidade (de 2.040 a 3.060 palavras no padrão), abrindo com uma escalada de 3 a 5 manchetes curtas, como nos telejornais. Se vier curto demais, pede uma versão mais longa uma vez. |
 | Voz | `api/episode/gemini.py` | O Gemini 3.8 Flash-Lite TTS gera o diálogo com as duas vozes, em blocos de cerca de 650 palavras. Se o Gemini estiver fora do ar, o código espera e tenta de novo (veja *Bom saber*). |
 | Áudio | `api/episode/audio.py` | O ffmpeg junta os trechos, normaliza o volume e gera um OGG/Opus de 32 kbps (cerca de 4 MB para 15 minutos), o formato das mensagens de voz do Telegram. |
-| Envio | `api/episode/telegram.py` | `sendVoice` com o título e a data na legenda (por ser mensagem de voz, o Telegram mostra o botão de velocidade 1x, 1,5x, 2x). É a única mensagem do episódio; fontes e custos ficam só no log. Na execução agendada, espera dar 7h para enviar. Se algo falhar, chega uma mensagem dizendo em qual etapa. |
+| Envio | `api/episode/telegram.py` | `sendVoice` com o título e a data na legenda (por ser mensagem de voz, o Telegram mostra o botão de velocidade 1x, 1,5x, 2x). Na execução agendada, espera dar 7h para enviar. Se algo falhar, chega uma mensagem dizendo em qual etapa. |
 
 Por que GitHub Actions e não Railway: o repositório é público, então os minutos do
 Actions são de graça; o runner já tem um botão para rodar na hora e mostra o log de cada
@@ -39,11 +39,9 @@ ffmpeg no build e as mesmas variáveis.
 4. **Descobrir o seu chat:** em *Actions → News podcast → Run workflow*, escolha a ação
    `chat-id`. O bot te manda um número no Telegram; salve como o secret
    `TELEGRAM_CHAT_ID`. Para mandar para um grupo, veja *Mandar para um grupo*.
-5. **Ouvir as vozes:** rode de novo com a ação `samples`. Chegam 4 amostras do mesmo
-   trecho, cada uma com o custo mensal estimado.
-6. **Escolher (opcional):** na aba *Variables* da mesma tela, crie só as variáveis que
-   quiser mudar (veja *Variáveis*), como a voz em `NEWS_PODCAST_VOICE`.
-7. **Testar:** rode com a ação `episode`. Daí em diante ele roda sozinho: começa às
+5. **Escolher (opcional):** na aba *Variables* da mesma tela, crie só as variáveis que
+   quiser mudar (veja *Variáveis*), como a duração em `NEWS_PODCAST_MINUTES`.
+6. **Testar:** rode com a ação `episode`. Daí em diante ele roda sozinho: começa às
    6h10 e envia às 7h.
 
 ## Mandar para um grupo
@@ -74,8 +72,6 @@ em silêncio: o episódio falha e chega no Telegram uma mensagem dizendo o que c
 |---|---|---|---|
 | `NEWS_PODCAST_MINUTES` | `12-18` | `8-12` | Duração do áudio que chega no Telegram, em minutos (mínimo-máximo, a partir de 5). |
 | `NEWS_PODCAST_SPEECH_SPEED` | `1` | `1.25` | Velocidade do arquivo, de 0.5 a 2 (também aceita `1,25` e `1.25x`). |
-| `NEWS_PODCAST_VOICE` | `gemini-flash-lite` | `gemini-flash` | Voz: `gemini-flash`, `gemini-flash-lite` ou `microsoft`. |
-| `NEWS_PODCAST_GEMINI_PLAN` | `free` | `paid` | Com `paid`, o log mostra o custo como cobrado. Use se ativar o pagamento no Google. |
 
 - **Horário (fixo por enquanto):** o agendamento do GitHub não lê variáveis. A v2.3.0
   tentou acordar o workflow toda hora e decidir a hora certa num job à parte, mas o
@@ -115,8 +111,8 @@ chaves no `.env`:
 uv run python manage.py news_podcast episode --no-send
 ```
 
-O áudio e os JSON de cada etapa ficam em `backend/news_podcast_output/`, que está no
-`.gitignore`.
+O áudio e os JSON da seleção e do roteiro ficam em `backend/news_podcast_output/`, que
+está no `.gitignore`.
 
 ## Bom saber
 
@@ -124,8 +120,9 @@ O áudio e os JSON de cada etapa ficam em `backend/news_podcast_output/`, que es
   escolhidas, nunca as chaves, que o GitHub mascara.
 - O GitHub pausa agendamentos em repositório público que fica 60 dias sem nenhuma
   atividade.
-- Os preços do Gemini em `PRICES` são promocionais até 31/12/2026 e dobram em
-  1/1/2027. Se o Google mudar a tabela, é só atualizar ali.
+- O custo no log é o do plano pago; no plano grátis, a execução não custa nada. Os preços
+  do Gemini em `PRICES` são promocionais até 31/12/2026 e dobram em 1/1/2027. Se o
+  Google mudar a tabela, é só atualizar ali.
 - `NEWS_PODCAST_SPEECH_SPEED` acelera o próprio arquivo com o filtro `atempo` do
   ffmpeg. O botão de velocidade do player do Telegram (1x, 1,5x, 2x) continua valendo, e
   as duas velocidades se multiplicam.
@@ -137,6 +134,3 @@ O áudio e os JSON de cada etapa ficam em `backend/news_podcast_output/`, que es
 - A voz não tem reserva: se o Gemini estiver fora do ar, o código espera 10 minutos e
   depois 20 e tenta de novo. Se ainda falhar, ou se a cota do dia acabar, o episódio do
   dia não sai e chega uma mensagem de erro no Telegram.
-- A voz da Microsoft (`microsoft_voice.py`, via edge-tts) vem do serviço de leitura em voz
-  alta do Edge, que não é uma API oficial. Ela só é usada se você escolher
-  `NEWS_PODCAST_VOICE=microsoft`.

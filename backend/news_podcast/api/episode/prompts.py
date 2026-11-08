@@ -84,8 +84,8 @@ do jeito que soam naturais em voz alta.
 
 Responda só com JSON neste formato, com "headline": true só nas manchetes da \
 escalada:
-{{"title": "título curto do episódio", "turns": [{{"speaker": "{host_a}", \
-"text": "...", "headline": true}}, {{"speaker": "{host_b}", "text": "..."}}]}}
+{{"turns": [{{"speaker": "{host_a}", "text": "...", "headline": true}}, \
+{{"speaker": "{host_b}", "text": "..."}}]}}
 """.strip()
 
 EXPAND_PROMPT = """
