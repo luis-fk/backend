@@ -2,11 +2,13 @@
 
 import { useState, useEffect, useCallback } from "react";
 import axios from "axios";
+import { useSession } from "@/app/actions/useSession";
 import { logger } from "@/app/api/log/client-logger";
 import { SavedAdmissionResult, ClassRoom, ResultChanges } from "@/cfflch/types";
 import ResultCard from "@/cfflch/components/result-card";
 import Toast from "@/app/components/Toast";
 import "@/cfflch/css/results.css";
+import { errorMessage } from "@/cfflch/api-errors";
 
 interface ResultsTableProps {
   serverUrl: string | undefined;
@@ -44,35 +46,48 @@ export default function ResultsTable({
   const [pdfFilter, setPdfFilter] = useState<PdfFilter>("all");
   const [classFilter, setClassFilter] = useState<number | null>(null);
 
+  const session = useSession("cfflch");
+  const token = session?.token;
+
   const loading = Boolean(serverUrl) && loaded?.year !== year;
   const failed = loaded?.year === year && loaded.failed;
 
   useEffect(() => {
-    if (!serverUrl) return;
+    if (!serverUrl || !token) return;
 
     const controller = new AbortController();
     axios
       .get<ClassRoom[]>(`${serverUrl}/api/cfflch/class-rooms/`, {
+        headers: { Authorization: `Bearer ${token}` },
         signal: controller.signal,
       })
       .then((res) => setClassrooms(res.data))
       .catch((err: unknown) => {
         if (axios.isCancel(err)) return;
         logger.error("Failed to fetch classrooms", { error: err });
-        setError("Não foi possível carregar as turmas. Tente de novo.");
+        setError(
+          errorMessage(
+            err,
+            "Não foi possível carregar as turmas. Tente de novo.",
+          ),
+        );
       });
 
     return () => controller.abort();
-  }, [serverUrl]);
+  }, [serverUrl, token]);
 
   useEffect(() => {
-    if (!serverUrl) return;
+    if (!serverUrl || !token) return;
 
     const controller = new AbortController();
     axios
       .get<SavedAdmissionResult[]>(
         `${serverUrl}/api/cfflch/admission-results/`,
-        { params: { year }, signal: controller.signal },
+        {
+          headers: { Authorization: `Bearer ${token}` },
+          params: { year },
+          signal: controller.signal,
+        },
       )
       .then((res) => {
         setResults(res.data);
@@ -84,12 +99,17 @@ export default function ResultsTable({
           year,
           error: err,
         });
-        setError("Não foi possível carregar os resultados. Tente de novo.");
+        setError(
+          errorMessage(
+            err,
+            "Não foi possível carregar os resultados. Tente de novo.",
+          ),
+        );
         setLoaded({ year, failed: true });
       });
 
     return () => controller.abort();
-  }, [serverUrl, year]);
+  }, [serverUrl, token, year]);
 
   const handleDeleted = useCallback((id: number): void => {
     setResults((prev) => prev.filter((r) => r.id !== id));
@@ -199,7 +219,11 @@ export default function ResultsTable({
         </div>
       </div>
 
-      {loading ? (
+      {session === null ? (
+        <p className="muted">
+          Não foi possível carregar a sua sessão. Recarregue a página.
+        </p>
+      ) : loading ? (
         <p className="muted">Carregando resultados…</p>
       ) : failed ? (
         <p className="muted">
@@ -216,6 +240,7 @@ export default function ResultsTable({
               key={result.id}
               result={result}
               serverUrl={serverUrl}
+              token={token}
               classrooms={classrooms}
               onDeleted={handleDeleted}
               onUpdated={handleUpdated}

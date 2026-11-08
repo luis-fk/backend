@@ -13,6 +13,7 @@ https://docs.djangoproject.com/en/5.1/ref/settings/
 from pathlib import Path
 
 import dj_database_url
+from django.core.exceptions import ImproperlyConfigured
 from environ import Env
 
 env = Env()
@@ -27,6 +28,15 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = env("SECRET_KEY")
+# Shared with the frontend, which signs the API tokens checked in backend/api_auth.py.
+# A short secret would make the tokens easy to forge.
+API_TOKEN_SECRET = env("API_TOKEN_SECRET")
+if len(API_TOKEN_SECRET) < 32:
+    raise ImproperlyConfigured("API_TOKEN_SECRET must have at least 32 characters.")
+ESP32_DEVICE_KEY = env("ESP32_DEVICE_KEY")
+# The API checks only its own tokens. DRF's default session and basic
+# authentication would otherwise test Django admin passwords sent to any endpoint.
+REST_FRAMEWORK = {"DEFAULT_AUTHENTICATION_CLASSES": []}
 OPEN_WEATHER_API_KEY = env("OPEN_WEATHER_API_KEY")
 TAVILY_API_KEY = env("TAVILY_API_KEY", default=None)
 GEMINI_API_KEY = env("GEMINI_API_KEY", default=None)

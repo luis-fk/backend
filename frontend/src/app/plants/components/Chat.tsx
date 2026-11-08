@@ -9,6 +9,14 @@ import { logger } from "@/app/api/log/client-logger";
 import Toast from "@/app/components/Toast";
 import "@/plants/css/chat.css";
 
+// The backend answers 401 once the session's token has expired (or the secrets
+// changed); only a reload, which leads to the login page, fixes it.
+const SESSION_EXPIRED = "Sua sessão expirou. Recarregue a página.";
+
+function expired(error: unknown): boolean {
+  return axios.isAxiosError(error) && error.response?.status === 401;
+}
+
 export interface MessageType {
   message: string;
   role: string;
@@ -35,6 +43,7 @@ export default function Chat(): React.ReactElement {
 
   const session = useSession("plants");
   const userId = session?.userId;
+  const token = session?.token;
   const serverUrl = process.env.NEXT_PUBLIC_SERVER_URL;
 
   // Without a session (null) there is no history to wait for.
@@ -42,12 +51,13 @@ export default function Chat(): React.ReactElement {
 
   useEffect(() => {
     // loadingHistory starts as true, so there is nothing to set until the session arrives.
-    if (!userId) return;
+    if (!userId || !token) return;
 
     async function fetchChatHistory(): Promise<void> {
       try {
         const response = await axios.get<MessageType[]>(
-          `${serverUrl}/api/chat-history/${userId}`,
+          `${serverUrl}/api/chat-history/${userId}/`,
+          { headers: { Authorization: `Bearer ${token}` } },
         );
 
         // A 204, or a 200 with an empty list, means there is no history yet.
@@ -58,14 +68,18 @@ export default function Chat(): React.ReactElement {
         }
       } catch (error: unknown) {
         logger.error("Failed to fetch chat history", { userId, error });
-        setErrorMessage("Não foi possível carregar o histórico de mensagens.");
+        setErrorMessage(
+          expired(error)
+            ? SESSION_EXPIRED
+            : "Não foi possível carregar o histórico de mensagens.",
+        );
       } finally {
         setLoadingHistory(false);
       }
     }
 
     fetchChatHistory();
-  }, [userId, serverUrl]);
+  }, [userId, token, serverUrl]);
 
   // Keep the latest message in view, also when the history replaces the loading
   // text. A layout effect runs before the browser paints, so a long history
@@ -80,6 +94,8 @@ export default function Chat(): React.ReactElement {
 
     // One message at a time: send only after the assistant has answered.
     if (!userMessage || messages[messages.length - 1]?.role !== "ai") return;
+    // No token yet, or no session (the chat shows the session error).
+    if (!token) return;
 
     setSending(true);
     setMessages((previous) => [
@@ -94,6 +110,7 @@ export default function Chat(): React.ReactElement {
       const response = await axios.post<ChatbotResponse>(
         `${serverUrl}/api/chatbot/message`,
         { user_id: userId, message: userMessage },
+        { headers: { Authorization: `Bearer ${token}` } },
       );
 
       setMessages((previous) => [
@@ -106,7 +123,11 @@ export default function Chat(): React.ReactElement {
       // assistant's again and the user can retry.
       setMessages((previous) => previous.slice(0, -1));
       setMessageInput((current) => current || userMessage);
-      setErrorMessage("Falha ao enviar a mensagem. Tente de novo.");
+      setErrorMessage(
+        expired(error)
+          ? SESSION_EXPIRED
+          : "Falha ao enviar a mensagem. Tente de novo.",
+      );
     } finally {
       setSending(false);
     }

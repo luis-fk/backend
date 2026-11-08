@@ -6,6 +6,7 @@ from rest_framework import status
 from rest_framework.request import Request
 from rest_framework.views import APIView
 
+from backend.api_auth import require_user_token
 from cfflch.api.admission_results.serializers import (
     AdmissionResultPatchSerializer,
     AdmissionResultSerializer,
@@ -17,6 +18,7 @@ logger = logging.getLogger(__name__)
 
 class AdmissionResultsListApi(APIView):
     def get(self, request: Request) -> JsonResponse:
+        require_user_token(request, "cfflch")
         year_param = request.query_params.get("year")
         if not year_param:
             return JsonResponse(
@@ -57,6 +59,7 @@ class AdmissionResultDetailApi(APIView):
             )
 
     def patch(self, request: Request, pk: int) -> JsonResponse:
+        require_user_token(request, "cfflch")
         result = self._get_object(pk)
         if isinstance(result, JsonResponse):
             return result
@@ -89,6 +92,7 @@ class AdmissionResultDetailApi(APIView):
         )
 
     def delete(self, request: Request, pk: int) -> JsonResponse:
+        require_user_token(request, "cfflch")
         result = self._get_object(pk)
         if isinstance(result, JsonResponse):
             return result

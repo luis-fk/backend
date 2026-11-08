@@ -11,6 +11,7 @@ from django.views import View
 from django.views.decorators.csrf import csrf_exempt
 from rest_framework import status
 
+from backend.api_auth import has_valid_user_token
 from cfflch.api.admission_status.schemas import StudentResult
 from cfflch.api.admission_status.serializers import AdmissionStatusRequestSerializer
 from cfflch.api.admission_status.service import AdmissionStatusService
@@ -21,6 +22,12 @@ logger = logging.getLogger(__name__)
 @method_decorator(csrf_exempt, name="dispatch")
 class AdmissionStatusApi(View):
     async def post(self, request: Any) -> JsonResponse:
+        if not has_valid_user_token(request, "cfflch"):
+            return JsonResponse(
+                {"error": "Missing or invalid token."},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
         try:
             body = json.loads(request.body)
         except json.JSONDecodeError:

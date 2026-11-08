@@ -4,6 +4,7 @@ from typing import Any
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from backend.api_auth import require_same_user, require_user_token
 from political_culture.api.messages.serializers import ChatHistorySerializer
 from political_culture.models import ChatHistory
 
@@ -12,7 +13,9 @@ logger = logging.getLogger(__name__)
 
 class MessagesApi(APIView):
     def get(self, request: Any, *args: Any, **kwargs: Any) -> Response:
+        token_user_id = require_user_token(request, "political-culture")
         user_id = kwargs.get("userId")
+        require_same_user(token_user_id, user_id)
 
         logger.info(f"Fetching chat history for user {user_id}")
 

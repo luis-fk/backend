@@ -3,7 +3,7 @@ import { decrypt } from "@/app/actions/session";
 
 // Excludes _next internals, API routes, and any path with a file extension
 export const config = {
-  matcher: ["/((?!_next/|api/|.*\\..*).*)",],
+  matcher: ["/((?!_next/|api/|.*\\..*).*)"],
 };
 
 type ProjectConfig = {
@@ -45,7 +45,7 @@ export default async function proxy(req: NextRequest) {
 
   const cookieName = `session-${project}`;
   const cookie = req.cookies.get(cookieName)?.value;
-  const session = await decrypt(cookie);
+  const session = await decrypt(cookie, project);
 
   const isPublic = cfg.publicPaths.some((p) => p === subPath);
   const isProtected = cfg.protectedPaths.some(

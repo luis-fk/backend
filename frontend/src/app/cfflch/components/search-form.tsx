@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import { useSession } from "@/app/actions/useSession";
 import {
   useAdmissionSearch,
   AdmissionResult,
@@ -42,8 +43,11 @@ function ResultItem({
 
 export default function SearchForm(): React.ReactElement {
   const serverUrl = process.env.NEXT_PUBLIC_SERVER_URL;
-  const { results, loading, error, search, clearError } =
-    useAdmissionSearch(serverUrl);
+  const session = useSession("cfflch");
+  const { results, loading, error, search, clearError } = useAdmissionSearch(
+    serverUrl,
+    session?.token,
+  );
 
   const [namesValue, setNamesValue] = useState("");
   const [currentYear] = useState(() => new Date().getFullYear());
@@ -144,10 +148,16 @@ export default function SearchForm(): React.ReactElement {
           </div>
         </div>
 
-        <button type="submit" className="button" disabled={loading}>
+        <button type="submit" className="button" disabled={loading || !session}>
           {loading ? "Buscando…" : "Buscar"}
         </button>
       </form>
+
+      {session === null && (
+        <p className="muted">
+          Não foi possível carregar a sua sessão. Recarregue a página.
+        </p>
+      )}
 
       {(results.length > 0 || loading) && (
         <section

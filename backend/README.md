@@ -19,11 +19,18 @@ make migrate
 make run            # http://localhost:8000
 ```
 
-Settings come from `backend/backend/.env`. Required: `SECRET_KEY`, `ENVIRONMENT=development`, `SERVER_URL`, `NGROK_URL`, `FRONT_END_URL`, `OPEN_WEATHER_API_KEY`, `OPENAI_API_KEY` and the four `*_DATABASE_URL`. cfflch and the plants web search also need `TAVILY_API_KEY`, and production needs `REDIS_URL`.
+Settings come from `backend/backend/.env`. Required: `SECRET_KEY`, `API_TOKEN_SECRET`, `ESP32_DEVICE_KEY`, `ENVIRONMENT=development`, `SERVER_URL`, `NGROK_URL`, `FRONT_END_URL`, `OPEN_WEATHER_API_KEY`, `OPENAI_API_KEY` and the four `*_DATABASE_URL`. cfflch and the plants web search also need `TAVILY_API_KEY`, and production needs `REDIS_URL`.
 
 Users are created in the Django admin (`/admin/`).
 
 Other commands: `make lint`, `make type-check`, `uv run pytest`, `make requirements` (regenerates `requirements.txt`, which Railway installs from).
+
+## API access
+Every API endpoint checks a token ([`backend/api_auth.py`](backend/api_auth.py)); `/admin/` keeps Django's login. The frontend signs JWTs (HS256) with `API_TOKEN_SECRET`, so both services need the same value, with at least 32 characters (`openssl rand -base64 32`). The browser sends the logged-in user's token as `Authorization: Bearer <token>`, or as the WebSocket subprotocols `bearer` and `<token>`, and the login Server Actions send a 60-second login token to `/api/<app>/users/<name>`.
+
+The ESP32 sends the header `X-Device-Key: <ESP32_DEVICE_KEY>` to `/api/esp32/humidity-data`.
+
+To call the word counter from Bruno, print a political-culture token with `uv run python manage.py api_token <user id>` (valid for 30 days, or `--days N`) and use it as the Bearer token. The token only works on a server with the same `API_TOKEN_SECRET` as the shell that printed it (for Railway, run the command with Railway's value). The user id is the `id` in political_culture's Users table (Django admin).
 
 ## Deployment
 Railway deploys `main` (Root Directory `/backend`). Pull requests run Ruff, mypy and pytest in CI.

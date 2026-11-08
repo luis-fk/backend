@@ -5,6 +5,7 @@ from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from backend.api_auth import require_same_user, require_user_token
 from political_culture.api.word_counter.serializers import ContentSerializer
 from political_culture.api.word_counter.service import add_text, add_text_word_count
 
@@ -17,11 +18,13 @@ class WordCounterApi(APIView):
     def post(self, request: Any, *args: Any, **kwargs: Any) -> Response:
         logger.info("Receiving text, starting word counting")
 
+        token_user_id = require_user_token(request, "political-culture")
         serializer = ContentSerializer(data=request.data)
 
         if serializer.is_valid():
             content = serializer.validated_data["content"]
             user_id = serializer.validated_data["user_id"]
+            require_same_user(token_user_id, user_id)
 
             text_db = add_text(content, user_id, user_submitted_text=False)
 

@@ -15,7 +15,10 @@ jobs:
     runs-on: ubuntu-latest
     env:
       SECRET_KEY: ci-dummy-secret-key
+      API_TOKEN_SECRET: ci-dummy-api-token-secret-at-least-32-chars
+      ESP32_DEVICE_KEY: ci-dummy-device-key
       OPEN_WEATHER_API_KEY: dummy
+      OPENAI_API_KEY: dummy
       ENVIRONMENT: development
       NGROK_URL: http://localhost
       SERVER_URL: http://localhost

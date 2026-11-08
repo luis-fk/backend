@@ -29,6 +29,8 @@ jobs:
     timeout-minutes: 150
     env:
       SECRET_KEY: news-podcast-dummy-secret-key
+      API_TOKEN_SECRET: news-podcast-dummy-api-token-secret
+      ESP32_DEVICE_KEY: news-podcast-dummy-device-key
       OPEN_WEATHER_API_KEY: dummy
       ENVIRONMENT: development
       NGROK_URL: http://localhost

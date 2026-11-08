@@ -7,17 +7,23 @@ from django.utils.decorators import method_decorator
 from django.views import View
 from django.views.decorators.csrf import csrf_exempt
 
+from backend.api_auth import has_valid_device_key
 from plants.api.esp32.serializers import HumidityDataSerializer
 from plants.api.esp32.service import fetch_weather_data
 from plants.models import Esp32Data
 
 logger = logging.getLogger(__name__)
 
+INVALID_KEY = {"error": "Missing or invalid device key."}
+
 
 @method_decorator(csrf_exempt, name="dispatch")
 class Esp32Api(View):
     async def post(self, request: Any, *args: Any, **kwargs: Any) -> JsonResponse:
         logger.info("Receiving data from ESP32, starting data treatment")
+
+        if not has_valid_device_key(request):
+            return JsonResponse(INVALID_KEY, status=401)
 
         try:
             body = json.loads(request.body)
@@ -30,9 +36,10 @@ class Esp32Api(View):
             logger.error("Invalid data received from ESP32: %s", serializer.errors)
             return JsonResponse(serializer.errors, status=400)
 
-        analog_value = serializer.validated_data["analogValue"]
-        digital_value = serializer.validated_data["digitalValue"]
-        user_id = serializer.validated_data["userId"]
+        # validated_data uses each field's source, not the JSON name.
+        analog_value = serializer.validated_data["analog_value"]
+        digital_value = serializer.validated_data["digital_value"]
+        user_id = serializer.validated_data["user_id"]
 
         logger.info("Fetching weather data")
         weather_data = await fetch_weather_data(user_id=user_id)
@@ -56,6 +63,9 @@ class Esp32Api(View):
 
     async def get(self, request: Any, *args: Any, **kwargs: Any) -> JsonResponse:
         logger.info("Fetching humidity data from ESP32")
+
+        if not has_valid_device_key(request):
+            return JsonResponse(INVALID_KEY, status=401)
 
         data = [entry async for entry in Esp32Data.objects.all()]
 

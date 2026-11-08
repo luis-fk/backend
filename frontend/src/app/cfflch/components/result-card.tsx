@@ -5,10 +5,12 @@ import axios from "axios";
 import { logger } from "@/app/api/log/client-logger";
 import { SavedAdmissionResult, ClassRoom, ResultChanges } from "@/cfflch/types";
 import Toast from "@/app/components/Toast";
+import { errorMessage } from "@/cfflch/api-errors";
 
 interface ResultCardProps {
   result: SavedAdmissionResult;
   serverUrl: string | undefined;
+  token: string | undefined;
   classrooms: ClassRoom[];
   onDeleted: (id: number) => void;
   onUpdated: (id: number, changes: ResultChanges) => void;
@@ -17,6 +19,7 @@ interface ResultCardProps {
 export default function ResultCard({
   result,
   serverUrl,
+  token,
   classrooms,
   onDeleted,
   onUpdated,
@@ -26,7 +29,7 @@ export default function ResultCard({
   const [error, setError] = useState<string | null>(null);
 
   const handleApprovedToggle = useCallback(async (): Promise<void> => {
-    if (!serverUrl) return;
+    if (!serverUrl || !token) return;
     const previous = approved;
     setApproved(!previous);
 
@@ -34,6 +37,7 @@ export default function ResultCard({
       await axios.patch(
         `${serverUrl}/api/cfflch/admission-results/${result.id}/`,
         { approved: !previous },
+        { headers: { Authorization: `Bearer ${token}` } },
       );
       onUpdated(result.id, { approved: !previous });
     } catch (err) {
@@ -42,13 +46,18 @@ export default function ResultCard({
         error: err,
       });
       setApproved(previous);
-      setError("Não foi possível atualizar a aprovação. Tente de novo.");
+      setError(
+        errorMessage(
+          err,
+          "Não foi possível atualizar a aprovação. Tente de novo.",
+        ),
+      );
     }
-  }, [approved, result.id, serverUrl, onUpdated]);
+  }, [approved, result.id, serverUrl, token, onUpdated]);
 
   const handleClassChange = useCallback(
     async (e: React.ChangeEvent<HTMLSelectElement>): Promise<void> => {
-      if (!serverUrl) return;
+      if (!serverUrl || !token) return;
       const newId = e.target.value === "" ? null : Number(e.target.value);
       const prev = classRoomId;
       setClassRoomId(newId);
@@ -57,6 +66,7 @@ export default function ResultCard({
         await axios.patch(
           `${serverUrl}/api/cfflch/admission-results/${result.id}/`,
           { class_room_id: newId },
+          { headers: { Authorization: `Bearer ${token}` } },
         );
         onUpdated(result.id, { class_room_id: newId });
       } catch (err) {
@@ -65,26 +75,34 @@ export default function ResultCard({
           error: err,
         });
         setClassRoomId(prev);
-        setError("Não foi possível mudar a turma. Tente de novo.");
+        setError(
+          errorMessage(err, "Não foi possível mudar a turma. Tente de novo."),
+        );
       }
     },
-    [classRoomId, result.id, serverUrl, onUpdated],
+    [classRoomId, result.id, serverUrl, token, onUpdated],
   );
 
   const handleDelete = useCallback(async (): Promise<void> => {
-    if (!serverUrl) return;
+    if (!serverUrl || !token) return;
     if (!confirm(`Excluir o resultado de ${result.student_name}?`)) return;
 
     try {
       await axios.delete(
         `${serverUrl}/api/cfflch/admission-results/${result.id}/`,
+        { headers: { Authorization: `Bearer ${token}` } },
       );
       onDeleted(result.id);
     } catch (err) {
       logger.error("Failed to delete result", { id: result.id, error: err });
-      setError("Não foi possível excluir o resultado. Tente de novo.");
+      setError(
+        errorMessage(
+          err,
+          "Não foi possível excluir o resultado. Tente de novo.",
+        ),
+      );
     }
-  }, [result.id, result.student_name, serverUrl, onDeleted]);
+  }, [result.id, result.student_name, serverUrl, token, onDeleted]);
 
   const pdfUrls = result.pdf_urls ?? [];
   const nameId = `result-name-${result.id}`;
