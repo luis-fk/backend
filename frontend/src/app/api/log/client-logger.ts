@@ -2,6 +2,11 @@
 
 type LogLevel = "log" | "info" | "warn" | "error";
 
+// An axios error carries its request's headers, and with them the API token,
+// which must not end up in the server logs.
+const hideToken = (key: string, value: unknown): unknown =>
+  key.toLowerCase() === "authorization" ? "[hidden]" : value;
+
 const sendLogToServer = (
   level: LogLevel,
   message: unknown,
@@ -14,13 +19,16 @@ const sendLogToServer = (
   try {
     const blob = new Blob(
       [
-        JSON.stringify({
-          level,
-          message,
-          optionalParams,
-          timestamp: new Date().toISOString(),
-          url: window.location.href,
-        }),
+        JSON.stringify(
+          {
+            level,
+            message,
+            optionalParams,
+            timestamp: new Date().toISOString(),
+            url: window.location.href,
+          },
+          hideToken,
+        ),
       ],
       { type: "application/json" },
     );

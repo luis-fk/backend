@@ -4,6 +4,7 @@ import { MessageType } from "@/political-culture/components/Chat";
 
 interface UseChatSocketProps {
   userId: string | undefined;
+  token: string | undefined;
   serverUrl: string | undefined;
   onMessage: (message: MessageType) => void;
   setSending: (sending: boolean) => void;
@@ -12,6 +13,7 @@ interface UseChatSocketProps {
 
 export function useChatSocket({
   userId,
+  token,
   serverUrl,
   onMessage,
   setSending,
@@ -54,11 +56,13 @@ export function useChatSocket({
   }, [userId]);
 
   useEffect(() => {
-    if (!userId || !serverUrl) return;
+    if (!userId || !token || !serverUrl) return;
 
     const wsProtocol = serverUrl.startsWith("https://") ? "wss://" : "ws://";
     const wsUrl = `${wsProtocol}${serverUrl.split("://")[1]}/ws/chat/${userId}`;
-    const socket = new WebSocket(wsUrl);
+    // A browser can't set headers on a WebSocket, so the token goes as a
+    // subprotocol (in the URL it would end up in access logs).
+    const socket = new WebSocket(wsUrl, ["bearer", token]);
 
     socket.onopen = handleOpen;
     socket.onmessage = handleMessage;
@@ -66,5 +70,13 @@ export function useChatSocket({
     socket.onclose = handleClose;
 
     return () => socket.close();
-  }, [userId, serverUrl, handleOpen, handleMessage, handleError, handleClose]);
+  }, [
+    userId,
+    token,
+    serverUrl,
+    handleOpen,
+    handleMessage,
+    handleError,
+    handleClose,
+  ]);
 }

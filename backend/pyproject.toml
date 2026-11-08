@@ -1,6 +1,6 @@
 [project]
 name = "backend"
-version = "3.1.0"
+version = "4.0.0"
 description = ""
 authors = [{ name = "fl-korbes", email = "felipekorbes@live.com" }]
 readme = "README.md"
@@ -28,6 +28,7 @@ dependencies = [
     "trafilatura==2.3.1",
     "googlenewsdecoder==0.2.2",
     "httpx==0.28.1",
+    "pyjwt==2.15.1",
 ]
 
 [dependency-groups]
@@ -40,6 +41,7 @@ dev = [
     "djangorestframework-stubs==3.16.9",
     "types-requests==2.33.0.20260508",
     "ipykernel==7.2.0",
+    "pytest-django==4.14.0",
 ]
 
 [build-system]
@@ -81,3 +83,4 @@ addopts = "-ra -q"
 testpaths = [
     "tests"
 ]
+DJANGO_SETTINGS_MODULE = "backend.settings"

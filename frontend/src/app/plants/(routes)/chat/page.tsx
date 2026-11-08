@@ -5,6 +5,6 @@ export const metadata: Metadata = {
   title: "Chat",
 };
 
-export default function Page() {
+export default function Page(): React.ReactElement {
   return <Chat />;
 }

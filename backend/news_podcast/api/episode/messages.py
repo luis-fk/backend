@@ -1,6 +1,6 @@
 import html
 from collections import Counter
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from datetime import date
 
 from news_podcast.api.episode.config import BRL_PER_USD
@@ -9,7 +9,12 @@ from news_podcast.api.episode.costs import (
     format_brl_rounded,
     total_cost_usd,
 )
-from news_podcast.api.episode.schemas import StoryBrief, TelegramChat, Usage
+from news_podcast.api.episode.schemas import (
+    ModelPrice,
+    StoryBrief,
+    TelegramChat,
+    Usage,
+)
 
 WEEKDAYS = (
     "segunda-feira",
@@ -61,28 +66,36 @@ def episode_caption(podcast_name: str, day: date) -> str:
 
 
 def episode_details(
-    *, day: date, briefs: Sequence[StoryBrief], usages: Sequence[Usage]
+    *,
+    briefs: Sequence[StoryBrief],
+    usages: Sequence[Usage],
+    prices: Mapping[str, ModelPrice],
 ) -> str:
     lines = [
         f"<b>Fontes:</b> {html.escape(sources_line(outlet_counts(briefs)))}",
         "",
-        *cost_lines(day=day, usages=usages),
+        *cost_lines(usages=usages, prices=prices),
     ]
     return "\n".join(lines)
 
 
-def cost_lines(*, day: date, usages: Sequence[Usage]) -> list[str]:
-    total = total_cost_usd(usages, day)
+def cost_lines(
+    *, usages: Sequence[Usage], prices: Mapping[str, ModelPrice]
+) -> list[str]:
+    total = total_cost_usd(usages, prices)
     monthly = format_brl_rounded(total * DAYS_PER_MONTH * BRL_PER_USD)
     summary = f"{brl(total)} hoje (~{monthly}/mês)"
     steps = " · ".join(
-        f"{label} {step_cost(usages, step, day)}" for label, step in COST_STEPS
+        f"{label} {step_cost(usages, step, prices)}" for label, step in COST_STEPS
     )
     return [f"💰 <b>Custo no plano pago:</b> {summary}", steps]
 
 
-def step_cost(usages: Sequence[Usage], step: str, day: date) -> str:
-    return brl(total_cost_usd((usage for usage in usages if usage.step == step), day))
+def step_cost(
+    usages: Sequence[Usage], step: str, prices: Mapping[str, ModelPrice]
+) -> str:
+    in_step = (usage for usage in usages if usage.step == step)
+    return brl(total_cost_usd(in_step, prices))
 
 
 def brl(usd: float) -> str:
@@ -94,7 +107,7 @@ def failure_message(step: str, error: Exception) -> str:
         "⚠️ Não consegui gerar o episódio de hoje.\n"
         f"<b>Etapa:</b> {html.escape(step)}\n"
         f"<b>Erro:</b> {html.escape(str(error)[:600])}\n"
-        "O log completo fica no GitHub Actions."
+        "O log completo fica no Railway."
     )
 
 
@@ -109,14 +122,15 @@ def chat_list_message(chats: Sequence[TelegramChat]) -> str:
             "Conversas que o bot viu nas últimas 24 horas:",
             *lines,
             "",
-            "Para o resumo ir para outra conversa, troque o secret "
-            "<b>TELEGRAM_CHAT_ID</b> no GitHub pelo número dela.",
+            "Para o resumo ir para outra conversa, troque a variável "
+            "<b>TELEGRAM_CHAT_ID</b> do podcast no Railway pelo número dela.",
         ]
     )
 
 
 def chat_id_message(chat_id: str) -> str:
     return (
-        "Achei esta conversa! Para o resumo chegar aqui, salve este número como o "
-        f"secret <b>TELEGRAM_CHAT_ID</b> no GitHub:\n<code>{chat_id}</code>"
+        "Achei esta conversa! Para o resumo chegar aqui, salve este número na "
+        "variável <b>TELEGRAM_CHAT_ID</b> do podcast no Railway:\n"
+        f"<code>{chat_id}</code>"
     )

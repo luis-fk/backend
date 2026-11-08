@@ -2,17 +2,29 @@
 
 import { useState, useEffect, useCallback } from "react";
 import axios from "axios";
+import { useSession } from "@/app/actions/useSession";
 import { logger } from "@/app/api/log/client-logger";
-import { SavedAdmissionResult, ClassRoom } from "@/cfflch/types";
+import { SavedAdmissionResult, ClassRoom, ResultChanges } from "@/cfflch/types";
 import ResultCard from "@/cfflch/components/result-card";
 import Toast from "@/app/components/Toast";
 import "@/cfflch/css/results.css";
+import { errorMessage } from "@/cfflch/api-errors";
 
 interface ResultsTableProps {
   serverUrl: string | undefined;
 }
 
 type PdfFilter = "all" | "found" | "not-found";
+
+const PDF_FILTERS: { value: PdfFilter; label: string }[] = [
+  { value: "all", label: "Todos" },
+  { value: "found", label: "Com PDF" },
+  { value: "not-found", label: "Sem PDF" },
+];
+
+function countLabel(count: number, singular: string, plural: string): string {
+  return `${count} ${count === 1 ? singular : plural}`;
+}
 
 export default function ResultsTable({
   serverUrl,
@@ -25,50 +37,57 @@ export default function ResultsTable({
   const [year, setYear] = useState(currentYear);
   const [results, setResults] = useState<SavedAdmissionResult[]>([]);
   // Last finished request; loading and failure are derived from it.
-  const [loaded, setLoaded] = useState<{ year: number; failed: boolean } | null>(
-    null,
-  );
+  const [loaded, setLoaded] = useState<{
+    year: number;
+    failed: boolean;
+  } | null>(null);
   const [classrooms, setClassrooms] = useState<ClassRoom[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [pdfFilter, setPdfFilter] = useState<PdfFilter>("all");
   const [classFilter, setClassFilter] = useState<number | null>(null);
 
+  const session = useSession("cfflch");
+  const token = session?.token;
+
   const loading = Boolean(serverUrl) && loaded?.year !== year;
   const failed = loaded?.year === year && loaded.failed;
 
   useEffect(() => {
-    if (!serverUrl) return;
+    if (!serverUrl || !token) return;
 
     const controller = new AbortController();
     axios
       .get<ClassRoom[]>(`${serverUrl}/api/cfflch/class-rooms/`, {
+        headers: { Authorization: `Bearer ${token}` },
         signal: controller.signal,
       })
       .then((res) => setClassrooms(res.data))
       .catch((err: unknown) => {
         if (axios.isCancel(err)) return;
         logger.error("Failed to fetch classrooms", { error: err });
-        if (axios.isAxiosError(err)) {
-          setError(
-            err.response?.data?.error ??
-              "Failed to load classrooms. Please try again.",
-          );
-        } else {
-          setError("Failed to load classrooms. Please try again.");
-        }
+        setError(
+          errorMessage(
+            err,
+            "Não foi possível carregar as turmas. Tente de novo.",
+          ),
+        );
       });
 
     return () => controller.abort();
-  }, [serverUrl]);
+  }, [serverUrl, token]);
 
   useEffect(() => {
-    if (!serverUrl) return;
+    if (!serverUrl || !token) return;
 
     const controller = new AbortController();
     axios
       .get<SavedAdmissionResult[]>(
         `${serverUrl}/api/cfflch/admission-results/`,
-        { params: { year }, signal: controller.signal },
+        {
+          headers: { Authorization: `Bearer ${token}` },
+          params: { year },
+          signal: controller.signal,
+        },
       )
       .then((res) => {
         setResults(res.data);
@@ -80,23 +99,31 @@ export default function ResultsTable({
           year,
           error: err,
         });
-        if (axios.isAxiosError(err)) {
-          setError(
-            err.response?.data?.error ??
-              "Failed to load results. Please try again.",
-          );
-        } else {
-          setError("Failed to load results. Please try again.");
-        }
+        setError(
+          errorMessage(
+            err,
+            "Não foi possível carregar os resultados. Tente de novo.",
+          ),
+        );
         setLoaded({ year, failed: true });
       });
 
     return () => controller.abort();
-  }, [serverUrl, year]);
+  }, [serverUrl, token, year]);
 
   const handleDeleted = useCallback((id: number): void => {
     setResults((prev) => prev.filter((r) => r.id !== id));
   }, []);
+
+  // A row saved a change: update it here too, so the summary and the class filter stay current.
+  const handleUpdated = useCallback(
+    (id: number, changes: ResultChanges): void => {
+      setResults((prev) =>
+        prev.map((r) => (r.id === id ? { ...r, ...changes } : r)),
+      );
+    },
+    [],
+  );
 
   const filtered = results
     .filter((r) => {
@@ -108,53 +135,81 @@ export default function ResultsTable({
       classFilter === null ? true : r.class_room_id === classFilter,
     );
 
-  return (
-    <div className="results-container">
-      <h1>Admission Results</h1>
+  // Counts the rows on screen. While a year loads, after it fails, or when nothing
+  // is on screen (the empty message says why), the summary stays empty.
+  const approvedCount = filtered.filter((r) => r.approved).length;
+  const summary =
+    loading || failed || filtered.length === 0
+      ? null
+      : `${countLabel(filtered.length, "aluno", "alunos")}, ${countLabel(approvedCount, "aprovado", "aprovados")}`;
 
-      <div className="year-selector">
-        <label htmlFor="year-input">Year</label>
-        <select
-          id="year-input"
-          value={year}
-          disabled={loading}
-          onChange={(e) => {
-            setYear(Number(e.target.value));
-            setError(null);
-          }}
-        >
-          {years.map((y) => (
-            <option key={y} value={y}>
-              {y}
-            </option>
-          ))}
-        </select>
+  return (
+    <main className="page">
+      <div className="page-header">
+        <h1 className="page-title">Resultados</h1>
+        <p className="muted results-summary">{summary}</p>
       </div>
 
-      <div className="filter-row">
-        <div className="filter-group">
-          <label htmlFor="pdf-filter">PDF</label>
+      <div className="results-toolbar">
+        <div className="field">
+          <label htmlFor="year-input" className="field-label">
+            Ano
+          </label>
           <select
-            id="pdf-filter"
-            value={pdfFilter}
-            onChange={(e) => setPdfFilter(e.target.value as PdfFilter)}
+            id="year-input"
+            className="select"
+            value={year}
+            disabled={loading}
+            onChange={(e) => {
+              setYear(Number(e.target.value));
+              setError(null);
+            }}
           >
-            <option value="all">All</option>
-            <option value="found">Found</option>
-            <option value="not-found">Not found</option>
+            {years.map((y) => (
+              <option key={y} value={y}>
+                {y}
+              </option>
+            ))}
           </select>
         </div>
 
-        <div className="filter-group">
-          <label htmlFor="class-filter">Class</label>
+        <div className="field">
+          <span id="pdf-filter-label" className="field-label">
+            Listas
+          </span>
+          <div
+            className="segmented"
+            role="group"
+            aria-labelledby="pdf-filter-label"
+          >
+            {PDF_FILTERS.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                aria-pressed={pdfFilter === option.value}
+                onClick={() => setPdfFilter(option.value)}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="field">
+          <label htmlFor="class-filter" className="field-label">
+            Turma
+          </label>
           <select
             id="class-filter"
+            className="select"
             value={classFilter ?? ""}
             onChange={(e) =>
-              setClassFilter(e.target.value === "" ? null : Number(e.target.value))
+              setClassFilter(
+                e.target.value === "" ? null : Number(e.target.value),
+              )
             }
           >
-            <option value="">All classes</option>
+            <option value="">Todas as turmas</option>
             {classrooms.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.name}
@@ -164,27 +219,37 @@ export default function ResultsTable({
         </div>
       </div>
 
-      {loading ? (
-        <span className="loading-state">Loading results...</span>
+      {session === null ? (
+        <p className="muted">
+          Não foi possível carregar a sua sessão. Recarregue a página.
+        </p>
+      ) : loading ? (
+        <p className="muted">Carregando resultados…</p>
       ) : failed ? (
-        <span className="empty-state">Could not load the results for {year}.</span>
+        <p className="muted">
+          Não foi possível carregar os resultados de {year}.
+        </p>
+      ) : results.length === 0 ? (
+        <p className="muted">Nenhum resultado para {year}.</p>
       ) : filtered.length === 0 ? (
-        <span className="empty-state">No results found for {year}.</span>
+        <p className="muted">Nenhum resultado com esses filtros.</p>
       ) : (
-        <div className="results-list">
+        <ul className="list">
           {filtered.map((result) => (
             <ResultCard
               key={result.id}
               result={result}
               serverUrl={serverUrl}
+              token={token}
               classrooms={classrooms}
               onDeleted={handleDeleted}
+              onUpdated={handleUpdated}
             />
           ))}
-        </div>
+        </ul>
       )}
 
       <Toast message={error} onClose={() => setError(null)} />
-    </div>
+    </main>
   );
 }

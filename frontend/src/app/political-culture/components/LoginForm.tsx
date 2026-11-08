@@ -1,20 +1,21 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { login } from "@/political-culture/actions/login";
 import { logger } from "@/app/api/log/client-logger";
-import { useRouter } from "next/navigation";
-import Toast from "@/app/components/Toast";
-import "@/political-culture/css/login.css";
 
-export function LoginForm() {
+export function LoginForm(): React.ReactElement {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const router = useRouter();
 
-  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+  async function handleSubmit(
+    event: React.FormEvent<HTMLFormElement>,
+  ): Promise<void> {
     event.preventDefault();
     setSubmitting(true);
+    setErrorMessage(null);
 
     const formData = new FormData(event.currentTarget);
     const result = await login(formData);
@@ -31,21 +32,29 @@ export function LoginForm() {
   }
 
   return (
-    <div className="login-container">
-      <h1>Login</h1>
-
-      <form onSubmit={handleSubmit}>
-        <div>
-          <input id="name" name="name" placeholder="Name" />
-        </div>
-        <div className="submitButton-container">
-          <button type="submit" disabled={submitting}>
-            {submitting ? "Authenticating..." : "Authenticate"}
-          </button>
-        </div>
-      </form>
-
-      <Toast message={errorMessage} onClose={() => setErrorMessage(null)} />
-    </div>
+    <form className="auth-form" onSubmit={handleSubmit}>
+      <div className="field">
+        <label htmlFor="name" className="field-label">
+          Seu nome
+        </label>
+        <input
+          id="name"
+          name="name"
+          type="text"
+          className="input"
+          placeholder="Maria Souza"
+          aria-invalid={errorMessage ? true : undefined}
+          aria-describedby={errorMessage ? "name-error" : undefined}
+        />
+        {errorMessage && (
+          <p id="name-error" className="form-error" role="alert">
+            {errorMessage}
+          </p>
+        )}
+      </div>
+      <button type="submit" className="button" disabled={submitting}>
+        {submitting ? "Entrando…" : "Entrar"}
+      </button>
+    </form>
   );
 }

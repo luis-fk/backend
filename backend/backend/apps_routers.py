@@ -5,7 +5,7 @@ from django.db.models import Model
 
 
 class AppsRouter:
-    DJANGO_AUTH_APPS = {"auth", "admin", "contenttypes", "sessions"}
+    DEFAULT_DB_APPS = {"auth", "admin", "contenttypes", "sessions", "api_keys"}
 
     def _db_for_app(self, app_label: str) -> str | None:
         name = f"{app_label}_db"
@@ -14,7 +14,7 @@ class AppsRouter:
     def db_for_read(self, model: Type[Model], **hints: Any) -> str | None:
         return (
             "default"
-            if model._meta.app_label in self.DJANGO_AUTH_APPS
+            if model._meta.app_label in self.DEFAULT_DB_APPS
             else self._db_for_app(model._meta.app_label)
         )
 
@@ -31,7 +31,7 @@ class AppsRouter:
     def allow_migrate(
         self, db: str, app_label: str, model_name: str | None = None, **hints: Any
     ) -> bool | None:
-        if app_label in self.DJANGO_AUTH_APPS:
+        if app_label in self.DEFAULT_DB_APPS:
             return db == "default"
 
         target = self._db_for_app(app_label)

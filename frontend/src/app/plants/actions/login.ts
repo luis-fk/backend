@@ -1,4 +1,11 @@
 "use server";
+import { createLoginToken } from "@/app/actions/api-token";
+import {
+  isBlocked,
+  recordFailure,
+  undoFailure,
+  visitorIp,
+} from "@/app/actions/login-limit";
 import { createSession } from "@/app/actions/session";
 import axios from "axios";
 
@@ -9,30 +16,36 @@ export async function login(
   const serverUrl = process.env.NEXT_PUBLIC_SERVER_URL;
 
   if (!name || typeof name !== "string" || !name.trim()) {
-    return { message: "Name is required." };
+    return { message: "Digite seu nome." };
   }
+
+  const ip = await visitorIp();
+  if (isBlocked(ip)) {
+    console.warn(`[plants] Too many wrong names from ${ip}`);
+    return { message: "Muitas tentativas. Tente de novo em até 1 hora." };
+  }
+  // Counted up front, so parallel attempts can't get past the limit.
+  recordFailure(ip);
 
   try {
     console.log(`[plants] Logging in as ${name}`);
-    const result = await axios.get(`${serverUrl}/api/plants/users/${name}`);
-    await createSession(result.data.id as number, "session-plants");
+    const token = await createLoginToken("plants");
+    const result = await axios.get(
+      `${serverUrl}/api/plants/users/${encodeURIComponent(name.trim())}/`,
+      { headers: { Authorization: `Bearer ${token}` } },
+    );
+    undoFailure(ip);
+    await createSession(result.data.id as number, "plants");
     return;
   } catch (error) {
-    if (axios.isAxiosError(error)) {
-      if (error.response?.status === 404) {
-        console.error(`[plants] User ${name} not found`);
-        return {
-          message:
-            error.response.data?.error ?? "User not found.",
-        };
-      }
-      console.error(`[plants] Login error for user ${name}`);
-      return {
-        message:
-          error.response?.data?.error ?? "An error occurred. Please try again.",
-      };
+    // The backend's messages are in English, so the page uses its own.
+    if (axios.isAxiosError(error) && error.response?.status === 404) {
+      console.error(`[plants] User ${name} not found (${ip})`);
+      return { message: "Nome não encontrado." };
     }
-    console.error(`[plants] Unknown login error for user ${name}`);
-    return { message: "An unknown error occurred." };
+    // Only wrong names count.
+    undoFailure(ip);
+    console.error(`[plants] Login error for user ${name}`);
+    return { message: "Não foi possível entrar. Tente de novo." };
   }
 }

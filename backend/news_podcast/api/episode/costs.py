@@ -1,21 +1,12 @@
-from collections.abc import Iterable
-from datetime import date
+from collections.abc import Iterable, Mapping
 
-from news_podcast.api.episode.config import PRICE_CHANGE_DAY, PRICES
 from news_podcast.api.episode.schemas import ModelPrice, Usage
 
 TOKENS_PER_MILLION = 1_000_000
 
 
-def price_for(model: str, day: date) -> ModelPrice | None:
-    prices = PRICES.get(model)
-    if prices is None:
-        return None
-    return prices[1] if day >= PRICE_CHANGE_DAY else prices[0]
-
-
-def usage_cost_usd(usage: Usage, day: date) -> float:
-    price = price_for(usage.model, day)
+def usage_cost_usd(usage: Usage, prices: Mapping[str, ModelPrice]) -> float:
+    price = prices.get(usage.model)
     if price is None:
         return 0.0
     return (
@@ -24,8 +15,8 @@ def usage_cost_usd(usage: Usage, day: date) -> float:
     ) / TOKENS_PER_MILLION
 
 
-def total_cost_usd(usages: Iterable[Usage], day: date) -> float:
-    return sum(usage_cost_usd(usage, day) for usage in usages)
+def total_cost_usd(usages: Iterable[Usage], prices: Mapping[str, ModelPrice]) -> float:
+    return sum(usage_cost_usd(usage, prices) for usage in usages)
 
 
 def format_brl(value: float) -> str:

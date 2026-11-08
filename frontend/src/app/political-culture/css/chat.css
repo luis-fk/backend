@@ -1,102 +1,185 @@
-.chat-container {
+/* Political-culture chat.
+   Every class starts with "political-chat": Next.js does not remove a stylesheet
+   when you navigate to another route, so a generic name like .message would also
+   match the plants chat, which has similar markup. */
+
+/* The shell that holds the chat is exactly as tall as the viewport (it is only a
+   minimum elsewhere), so the message list scrolls on its own and the composer
+   stays at the bottom. Two classes in the selector make it win over .app-shell
+   whatever order the stylesheets load in. */
+.app-shell:has(.political-chat) {
+  height: 100dvh;
+  min-height: 0;
+}
+
+.political-chat {
+  flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
-  background: #292929;
-  border-radius: 8px;
-  overflow: hidden;
 }
 
-.message-list {
+.political-chat-log {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
-  padding: 1rem;
 }
 
-.message {
+/* Keyboard users can focus the scrolling list; draw its ring inside the edges. */
+.political-chat-log:focus-visible {
+  outline-offset: -3px;
+}
+
+/* Used by the messages and by the composer, so both line up. */
+.political-chat-column {
+  width: 100%;
+  max-width: 760px;
+  margin: 0 auto;
+  padding-inline: clamp(16px, 4vw, 24px);
+}
+
+.political-chat-messages {
   display: flex;
-  margin-bottom: 0.75rem;
+  flex-direction: column;
+  gap: 28px;
+  padding-block: clamp(24px, 5vw, 40px) 24px;
 }
 
-.message.human {
-  justify-content: flex-end;
+/* Messages: answers are plain text, the user's messages sit in a bubble. */
+
+.political-chat-message {
+  line-height: 1.65;
+  overflow-wrap: anywhere;
 }
 
-.message.ai {
-  justify-content: flex-start;
-}
-
-.bubble {
+.political-chat-message[data-role="human"] {
+  align-self: flex-end;
   max-width: 75%;
-  padding: 0.4rem 0.8rem;
-  height: auto;
-  font-size: 1.05rem;
-  line-height: 1.4;
-  border-radius: 1rem;
-  background: #3e3e3e;
-  color: white;
+  padding: 10px 16px;
+  border-radius: 18px 18px 6px 18px;
+  background: light-dark(
+    color-mix(in srgb, var(--accent) 12%, var(--bg)),
+    color-mix(in srgb, var(--accent) 22%, var(--bg))
+  );
+  color: var(--ink);
+  line-height: 1.5;
+  white-space: pre-wrap;
 }
 
-.message.human .bubble {
-  background: #0078d4;
-  border-bottom-right-radius: 0;
+/* Markdown inside a message */
+
+.political-chat-message > * {
+  margin: 0;
 }
 
-.message.ai .bubble {
-  background: #444;
-  border-bottom-left-radius: 0;
+.political-chat-message > * + * {
+  margin-top: 12px;
 }
 
-.bubble ul,
-.bubble ol,
-.bubble blockquote {
-  margin: 0.2em 0;
+.political-chat-message > * + :is(h1, h2, h3, h4) {
+  margin-top: 20px;
 }
 
-.bubble p {
-  margin: 0.2em 0;
-  line-height: 1.5rem;
+.political-chat-message :is(h1, h2, h3, h4) {
+  font-size: 18px;
+  line-height: 1.3;
 }
-.input-area {
+
+.political-chat-message :is(ul, ol) {
+  padding-left: 22px;
+}
+
+.political-chat-message li + li {
+  margin-top: 4px;
+}
+
+.political-chat-message strong {
+  font-weight: 700;
+}
+
+.political-chat-message a {
+  color: var(--accent);
+  text-underline-offset: 3px;
+}
+
+.political-chat-message blockquote {
+  padding-left: 14px;
+  border-left: 3px solid var(--line);
+  color: var(--muted);
+}
+
+.political-chat-message table {
+  border-collapse: collapse;
+}
+
+.political-chat-message :is(th, td) {
+  padding: 6px 12px;
+  border: 1px solid var(--line);
+  text-align: left;
+}
+
+/* Composer */
+
+.political-chat-footer {
+  padding-bottom: clamp(16px, 4vw, 28px);
+}
+
+.political-chat-composer {
   display: flex;
-  padding: 0.5rem;
-  background: #292929;
+  align-items: flex-end;
+  gap: 10px;
+  padding: 10px 10px 10px 18px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--surface);
 }
 
-.chat-input {
+/* The focus ring goes around the whole box instead of the bare textarea inside it. */
+.political-chat-composer:has(.political-chat-input:focus-visible) {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.political-chat-input {
   flex: 1;
+  min-width: 0;
+  /* Six lines of 24px plus the padding; longer text scrolls. */
+  max-height: 160px;
+  padding: 8px 0;
+  border: 0;
+  background: transparent;
+  line-height: 1.5;
   resize: none;
-  border: none;
-  border-radius: 10px;
-  padding: 0.5rem 1rem;
-  margin-right: 0.5rem;
-  background: #3e3e3e;
-  color: white;
-  font-size: 1rem;
-  line-height: 1.4;
-  overflow-y: hidden;
-  height: auto;
-  max-height: 150px;
+  overflow-y: auto;
 }
 
-.chat-input:focus {
+.political-chat-input::placeholder {
+  color: var(--muted);
+}
+
+.political-chat-input:focus-visible {
   outline: none;
 }
 
-.input-area button {
-  border: none;
-  border-radius: 10px;
-  padding: 0 1.2rem;
-  background: #0078d4;
-  color: white;
-  font-size: 1rem;
+.political-chat-send {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--accent);
+  color: var(--on-accent);
   cursor: pointer;
 }
 
-.input-area button:disabled {
-  opacity: 0.5;
-  cursor: default;
+.political-chat-send:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 88%, var(--ink));
 }
 
-.chat-input[rows] {
-  height: auto;
+.political-chat-send:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }

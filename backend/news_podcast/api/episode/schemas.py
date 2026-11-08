@@ -1,4 +1,4 @@
-from datetime import datetime, time
+from datetime import datetime
 from pathlib import Path
 from typing import NamedTuple
 
@@ -8,7 +8,6 @@ from pydantic import BaseModel, ConfigDict, Field
 class EpisodeOptions(NamedTuple):
     min_minutes: int
     max_minutes: int
-    send_at: time
     speech_speed: float
 
 

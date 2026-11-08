@@ -24,11 +24,14 @@ migrate:
 	uv run python manage.py migrate --database=plants_db
 	uv run python manage.py migrate --database=political_culture_db
 	uv run python manage.py migrate --database=cfflch_db
+	uv run python manage.py migrate --database=news_podcast_db
 
 makemigrations:
 	uv run python manage.py makemigrations plants
 	uv run python manage.py makemigrations political_culture
 	uv run python manage.py makemigrations cfflch
+	uv run python manage.py makemigrations api_keys
+	uv run python manage.py makemigrations news_podcast
 
 shell:
 	uv run python manage.py shell

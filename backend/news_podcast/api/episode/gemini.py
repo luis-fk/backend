@@ -11,11 +11,7 @@ from typing import Any
 
 import httpx
 
-from news_podcast.api.episode.config import (
-    AUDIO_TOKENS_PER_SECOND,
-    HEADLINE_TTS_STYLE,
-    TTS_STYLE,
-)
+from news_podcast.api.episode.config import AUDIO_TOKENS_PER_SECOND
 from news_podcast.api.episode.schemas import Host, Turn, Usage
 
 logger = logging.getLogger(__name__)
@@ -66,7 +62,10 @@ class GeminiClient:
         user_prompt: str,
         step: str,
         thinking_level: str | None = None,
-    ) -> tuple[Any, Usage]:
+    ) -> tuple[dict[str, Any], Usage]:
+        """Returns the raw answer and its usage. The caller reads the JSON with
+        answer_json() after counting the usage, because a broken answer is billed
+        too."""
         generation_config: dict[str, Any] = {
             "responseMimeType": "application/json",
             "maxOutputTokens": MAX_OUTPUT_TOKENS,
@@ -85,14 +84,21 @@ class GeminiClient:
             TEXT_TIMEOUT_SECONDS,
             f"{model} ({step})",
         )
-        return parse_json_text(extract_text(data)), text_usage(data, step, model)
+        return data, text_usage(data, step, model)
 
     async def synthesize_dialogue(
-        self, model: str, turns: list[Turn], hosts: Sequence[Host], step: str
+        self,
+        model: str,
+        turns: list[Turn],
+        hosts: Sequence[Host],
+        step: str,
+        *,
+        style: str,
+        headline_style: str,
     ) -> tuple[bytes, Usage]:
         data = await self._post(
             f"{API_ROOT}/interactions",
-            build_tts_body(model, turns, hosts),
+            build_tts_body(model, turns, hosts, style, headline_style),
             TTS_TIMEOUT_SECONDS,
             f"{model} ({step})",
         )
@@ -207,6 +213,10 @@ def error_message(status: int, error: dict[str, Any]) -> str:
     return f"Gemini respondeu {status}: {message}".strip()
 
 
+def answer_json(data: dict[str, Any]) -> Any:
+    return parse_json_text(extract_text(data))
+
+
 def extract_text(data: dict[str, Any]) -> str:
     candidates = data.get("candidates") or []
     if not candidates:
@@ -255,7 +265,11 @@ def text_usage(data: dict[str, Any], step: str, model: str) -> Usage:
 
 
 def build_tts_body(
-    model: str, turns: list[Turn], hosts: Sequence[Host]
+    model: str,
+    turns: list[Turn],
+    hosts: Sequence[Host],
+    style: str,
+    headline_style: str,
 ) -> dict[str, Any]:
     speaker_ids = {host.name: host.speaker_id for host in hosts}
     content = [
@@ -266,7 +280,7 @@ def build_tts_body(
                 {
                     "type": "speech_metadata",
                     "speaker": speaker_ids.get(turn.speaker, hosts[0].speaker_id),
-                    "style": HEADLINE_TTS_STYLE if turn.headline else TTS_STYLE,
+                    "style": headline_style if turn.headline else style,
                 }
             ],
         }

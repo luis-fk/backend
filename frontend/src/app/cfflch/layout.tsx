@@ -1,9 +1,7 @@
 import type { Metadata } from "next";
 
-import "@/cfflch/css/layout.css";
-
 export const metadata: Metadata = {
-  title: "CFFLCH",
+  title: { default: "CFFLCH", template: "%s | CFFLCH" },
 };
 
 export default function CfflchLayout({

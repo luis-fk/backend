@@ -1,27 +1,14 @@
-"use client";
-import MuiDrawer from "@/app/plants/components/MuiDrawer";
-import { Box } from "@mui/material";
-import "@/plants/css/layout.css";
+import AppHeader from "@/app/components/AppHeader";
 
-export default function RootLayout({
+export default function RoutesLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
-}>) {
+}>): React.ReactElement {
   return (
-    <>
-      <Box
-        sx={{
-          display: "flex",
-          flexDirection: { xs: "column", sm: "row" },
-          overflow: "hidden",
-        }}
-      >
-        <MuiDrawer></MuiDrawer>
-        <Box sx={{ display: "flex", justifyContent: "center", width: "100%" }}>
-          {children}
-        </Box>
-      </Box>
-    </>
+    <div className="app-shell" data-project="plants">
+      <AppHeader project="plants" />
+      {children}
+    </div>
   );
 }

@@ -5,6 +5,7 @@ from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from backend.api_auth import require_same_user, require_user_token
 from plants.api.chatbot.chatbot import LLM
 from plants.api.chatbot.serializers import MessageSerializer
 
@@ -18,11 +19,13 @@ class ChatBotApi(APIView):
     def post(self, request: Any, *args: Any, **kwargs: Any) -> Response:
         logger.info("Receiving message from user to be processed by LLM")
 
+        token_user_id = require_user_token(request, "plants")
         serializer = MessageSerializer(data=request.data)
 
         if serializer.is_valid():
             user_id = serializer.validated_data["user_id"]
             message = serializer.validated_data["message"]
+            require_same_user(token_user_id, user_id)
 
             logger.info(f"Processing user message {message} for user {user_id}")
 

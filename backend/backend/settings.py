@@ -13,6 +13,7 @@ https://docs.djangoproject.com/en/5.1/ref/settings/
 from pathlib import Path
 
 import dj_database_url
+from django.core.exceptions import ImproperlyConfigured
 from environ import Env
 
 env = Env()
@@ -27,14 +28,23 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = env("SECRET_KEY")
+# Shared with the frontend, which signs the API tokens checked in backend/api_auth.py.
+# A short secret would make the tokens easy to forge.
+API_TOKEN_SECRET = env("API_TOKEN_SECRET")
+if len(API_TOKEN_SECRET) < 32:
+    raise ImproperlyConfigured("API_TOKEN_SECRET must have at least 32 characters.")
+ESP32_DEVICE_KEY = env("ESP32_DEVICE_KEY")
+# The API checks only its own tokens. DRF's default session and basic
+# authentication would otherwise test Django admin passwords sent to any endpoint.
+REST_FRAMEWORK = {"DEFAULT_AUTHENTICATION_CLASSES": []}
 OPEN_WEATHER_API_KEY = env("OPEN_WEATHER_API_KEY")
 TAVILY_API_KEY = env("TAVILY_API_KEY", default=None)
 GEMINI_API_KEY = env("GEMINI_API_KEY", default=None)
 TELEGRAM_BOT_TOKEN = env("TELEGRAM_BOT_TOKEN", default=None)
 TELEGRAM_CHAT_ID = env("TELEGRAM_CHAT_ID", default=None)
-NEWS_PODCAST_SEND_AT = env("NEWS_PODCAST_SEND_AT", default=None)
-NEWS_PODCAST_MINUTES = env("NEWS_PODCAST_MINUTES", default=None)
-NEWS_PODCAST_SPEECH_SPEED = env("NEWS_PODCAST_SPEECH_SPEED", default=None)
+# Where the news podcast reports errors and chat ids, so they stay out of the group
+# in TELEGRAM_CHAT_ID. Without it, they go to TELEGRAM_CHAT_ID too.
+TELEGRAM_ADMIN_CHAT_ID = env("TELEGRAM_ADMIN_CHAT_ID", default=None)
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = env("ENVIRONMENT") == "development"
@@ -91,6 +101,7 @@ INSTALLED_APPS = [
     "pgvector.django",
     "corsheaders",
     "rest_framework",
+    "api_keys",
     "plants",
     "political_culture",
     "cfflch",
@@ -143,6 +154,9 @@ DATABASES = {
         )
     ),
     "cfflch_db": dj_database_url.config(default=env("CFFLCH_DATABASE_URL")),
+    "news_podcast_db": dj_database_url.config(
+        default=env("NEWS_PODCAST_DATABASE_URL")
+    ),
 }
 
 DATABASE_ROUTERS = ["backend.apps_routers.AppsRouter"]

@@ -1,20 +1,155 @@
-.cs-message--outgoing .cs-message__content {
-  background-color: #545454 !important;
-  color: white;
+/* Plants chat. Plain CSS is global and stays on the page after switching
+   apps, so every class here starts with "plants-chat": the political-culture
+   chat has its own copy of this design and must not pick these rules up. */
+
+/* The shell is exactly as tall as the viewport, so only the message list
+   scrolls and the composer stays visible at the bottom. */
+.app-shell:has(.plants-chat) {
+  height: 100vh;
+  height: 100dvh;
+  min-height: 0;
 }
 
-.cs-message--incoming .cs-message__content {
-  background-color: #292929 !important;
-  color: white;
+.plants-chat {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
 }
 
-.cs-message-input__content-editor-wrapper,
-.cs-message-input__content-editor {
-  position: relative;
-  background-color: #3e3e3e;
-  color: white;
+/* The centered column used by the messages and the composer. */
+.plants-chat-column {
+  width: 100%;
+  max-width: 760px;
+  margin: 0 auto;
+  padding-inline: clamp(16px, 4vw, 24px);
 }
 
-.cs-button {
-  color: white;
+/* Full width, so the scrollbar sits at the edge of the window. */
+.plants-chat-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+/* Chrome can focus a scroller; keep its ring inside, off the header and composer. */
+.plants-chat-scroll:focus-visible {
+  outline-offset: -3px;
+}
+
+.plants-chat-messages {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  padding-block: clamp(24px, 5vw, 40px) 18px;
+}
+
+/* The user's messages: a bubble on the right. */
+.plants-chat-user {
+  align-self: flex-end;
+  max-width: 75%;
+  padding: 10px 16px;
+  border-radius: 18px 18px 6px 18px;
+  background: light-dark(
+    color-mix(in srgb, var(--accent) 12%, var(--bg)),
+    color-mix(in srgb, var(--accent) 22%, var(--bg))
+  );
+  color: var(--ink);
+  /* Keeps the line breaks typed with Shift+Enter. */
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* The assistant's answers: plain text with markdown styles, no bubble.
+   The gap spaces paragraphs and lists (globals.css removes the p margins). */
+.plants-chat-assistant {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+}
+
+.plants-chat-assistant ul,
+.plants-chat-assistant ol {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding-left: 22px;
+}
+
+.plants-chat-assistant strong {
+  font-weight: 700;
+}
+
+.plants-chat-assistant a {
+  color: var(--accent);
+  text-underline-offset: 3px;
+}
+
+/* The composer: a rounded box with the textarea and the send button.
+   The 6px on top leave room for its focus ring above the message list. */
+.plants-chat-footer {
+  padding-block: 6px clamp(16px, 4vw, 28px);
+}
+
+.plants-chat-composer {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  padding: 10px 10px 10px 18px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--surface);
+}
+
+/* The focus ring goes around the whole box instead of the bare textarea. */
+.plants-chat-composer:has(.plants-chat-input:focus-visible) {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.plants-chat-input {
+  flex: 1;
+  min-width: 0;
+  /* Six lines of 24px plus the padding, then it scrolls. */
+  max-height: 160px;
+  padding: 8px 0;
+  border: 0;
+  background: transparent;
+  line-height: 1.5;
+  resize: none;
+  overflow-y: auto;
+}
+
+.plants-chat-input::placeholder {
+  color: var(--muted);
+}
+
+.plants-chat-input:focus-visible {
+  outline: none;
+}
+
+.plants-chat-send {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--accent);
+  color: var(--on-accent);
+  cursor: pointer;
+}
+
+.plants-chat-send:hover {
+  background: color-mix(in srgb, var(--accent) 88%, var(--ink));
+}
+
+.plants-chat-send:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }

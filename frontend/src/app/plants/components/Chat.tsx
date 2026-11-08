@@ -1,165 +1,240 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import {
-  ChatContainer,
-  MessageList,
-  Message,
-  MessageInput,
-} from "@chatscope/chat-ui-kit-react";
-import "@chatscope/chat-ui-kit-styles/dist/default/styles.min.css";
-import "@/plants/css/chat.css";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import axios from "axios";
 import { useSession } from "@/app/actions/useSession";
-import { useMediaQuery } from "@mui/material";
 import { logger } from "@/app/api/log/client-logger";
 import Toast from "@/app/components/Toast";
+import "@/plants/css/chat.css";
+
+// The backend answers 401 once the session's token has expired (or the secrets
+// changed); only a reload, which leads to the login page, fixes it.
+const SESSION_EXPIRED = "Sua sessão expirou. Recarregue a página.";
+
+function expired(error: unknown): boolean {
+  return axios.isAxiosError(error) && error.response?.status === 401;
+}
 
 export interface MessageType {
   message: string;
   role: string;
 }
 
-export default function Chat() {
-  const [messages, setMessages] = useState<MessageType[]>([
-    {
-      message: "Hello! How can I help you today?",
-      role: "ai",
-    },
-  ]);
-  const [activeSendButton, setActivateSendButton] = useState(false);
+// POST /api/chatbot/message answers with { user_id, response: { role, message } }.
+interface ChatbotResponse {
+  response: MessageType;
+}
+
+const GREETING: MessageType = {
+  message: "Olá! Como posso ajudar você hoje?",
+  role: "ai",
+};
+
+export default function Chat(): React.ReactElement {
+  const [messages, setMessages] = useState<MessageType[]>([GREETING]);
+  const [loadingHistory, setLoadingHistory] = useState(true);
+  const [sending, setSending] = useState(false);
   const [messageInput, setMessageInput] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const session = useSession("plants");
+  const userId = session?.userId;
+  const token = session?.token;
   const serverUrl = process.env.NEXT_PUBLIC_SERVER_URL;
 
-  const isMobile = useMediaQuery("(max-width: 800px)");
-  const chatWidth = isMobile ? "90vw" : "50vw";
-  const chatHeight = isMobile ? "85vh" : "90vh";
+  // Without a session (null) there is no history to wait for.
+  const showLoading = loadingHistory && session !== null;
 
   useEffect(() => {
-    if (session?.userId) {
-      async function fetchChatHistory() {
-        try {
-          const response = await axios.get(
-            `${serverUrl}/api/chat-history/${session?.userId}`,
-          );
+    // loadingHistory starts as true, so there is nothing to set until the session arrives.
+    if (!userId || !token) return;
 
-          if (response.status === 200) {
-            setMessages(response.data);
-          } else if (response.status === 204) {
-            setMessages([
-              {
-                message: "Hello! How can I help you today?",
-                role: "ai",
-              },
-            ]);
-          }
-        } catch (error) {
-          logger.error("Failed to fetch chat history", {
-            userId: session?.userId,
-            error,
-          });
-          setErrorMessage("Não foi possível carregar o histórico de mensagens.");
-        }
-      }
-      fetchChatHistory();
-    }
-  }, [session?.userId, serverUrl]);
-
-  async function handleSendMessage() {
-    if (messages[messages.length - 1]["role"] === "ai") {
-      setActivateSendButton(true);
-
-      const userMessage = messageInput;
-
-      setMessages((prevMessages) => [
-        ...prevMessages,
-        { message: userMessage, role: "human" },
-      ]);
-
-      setMessageInput("");
+    async function fetchChatHistory(): Promise<void> {
       try {
-        const response = await axios.post(`${serverUrl}/api/chatbot/message`, {
-          user_id: session?.userId,
-          message: userMessage,
-        });
+        const response = await axios.get<MessageType[]>(
+          `${serverUrl}/api/chat-history/${userId}/`,
+          { headers: { Authorization: `Bearer ${token}` } },
+        );
 
-        setMessages((prevMessages) => [
-          ...prevMessages,
-          { message: response.data.response.message, role: "ai" },
-        ]);
-      } catch (error) {
-        logger.error("Failed to send chat message", {
-          userId: session?.userId,
-          error,
-        });
-        setErrorMessage("Falha ao enviar a mensagem. Tente novamente.");
+        // A 204, or a 200 with an empty list, means there is no history yet.
+        if (response.status === 200 && response.data.length > 0) {
+          setMessages(response.data);
+        } else {
+          setMessages([GREETING]);
+        }
+      } catch (error: unknown) {
+        logger.error("Failed to fetch chat history", { userId, error });
+        setErrorMessage(
+          expired(error)
+            ? SESSION_EXPIRED
+            : "Não foi possível carregar o histórico de mensagens.",
+        );
       } finally {
-        setActivateSendButton(false);
+        setLoadingHistory(false);
       }
-    } else {
-      setMessageInput(messageInput);
+    }
+
+    fetchChatHistory();
+  }, [userId, token, serverUrl]);
+
+  // Keep the latest message in view, also when the history replaces the loading
+  // text. A layout effect runs before the browser paints, so a long history
+  // never flashes at the top before the jump.
+  useLayoutEffect(() => {
+    const list = scrollRef.current;
+    if (list) list.scrollTop = list.scrollHeight;
+  }, [messages, showLoading]);
+
+  async function handleSendMessage(): Promise<void> {
+    const userMessage = messageInput.trim();
+
+    // One message at a time: send only after the assistant has answered.
+    if (!userMessage || messages[messages.length - 1]?.role !== "ai") return;
+    // No token yet, or no session (the chat shows the session error).
+    if (!token) return;
+
+    setSending(true);
+    setMessages((previous) => [
+      ...previous,
+      { message: userMessage, role: "human" },
+    ]);
+    setMessageInput("");
+    // The text is gone, so the textarea goes back to a single line.
+    if (textareaRef.current) textareaRef.current.style.height = "";
+
+    try {
+      const response = await axios.post<ChatbotResponse>(
+        `${serverUrl}/api/chatbot/message`,
+        { user_id: userId, message: userMessage },
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
+
+      setMessages((previous) => [
+        ...previous,
+        { message: response.data.response.message, role: "ai" },
+      ]);
+    } catch (error: unknown) {
+      logger.error("Failed to send chat message", { userId, error });
+      // Take the message back into the input, so the last message is the
+      // assistant's again and the user can retry.
+      setMessages((previous) => previous.slice(0, -1));
+      setMessageInput((current) => current || userMessage);
+      setErrorMessage(
+        expired(error)
+          ? SESSION_EXPIRED
+          : "Falha ao enviar a mensagem. Tente de novo.",
+      );
+    } finally {
+      setSending(false);
     }
   }
 
+  function handleInputChange(
+    event: React.ChangeEvent<HTMLTextAreaElement>,
+  ): void {
+    setMessageInput(event.target.value);
+    // Grow with the text; the CSS max-height stops it at about six lines.
+    const textarea = event.target;
+    textarea.style.height = "auto";
+    textarea.style.height = `${textarea.scrollHeight}px`;
+  }
+
+  function handleKeyDown(
+    event: React.KeyboardEvent<HTMLTextAreaElement>,
+  ): void {
+    // Enter sends and Shift+Enter breaks the line.
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      handleSendMessage();
+    }
+  }
+
+  function handleSubmit(event: React.FormEvent<HTMLFormElement>): void {
+    event.preventDefault();
+    handleSendMessage();
+  }
+
   return (
-    <>
-      <ChatContainer
-        suppressHydrationWarning
-        style={{
-          paddingTop: "30px",
-          width: chatWidth,
-          height: chatHeight,
-          backgroundColor: "#292929",
-        }}
-      >
-        <MessageList
-          style={{
-            padding: "10px",
-            backgroundColor: "#292929",
-          }}
+    <main className="plants-chat">
+      <div ref={scrollRef} className="plants-chat-scroll">
+        <div
+          className="plants-chat-column plants-chat-messages"
+          role="log"
+          aria-label="Conversa"
         >
-          {messages.map((msg, index) => (
-            <Message
-              style={{
-                marginBottom: "10px",
-                padding: "8px 12px",
-                fontSize: "18px",
-              }}
-              key={index}
-              type="html"
-              model={{
-                message: msg.message,
-                sentTime: "just now",
-                sender: msg.role,
-                direction: msg.role === "human" ? "outgoing" : "incoming",
-                position: "single",
-              }}
+          {session === null ? (
+            <p className="muted">
+              Não foi possível carregar a sua sessão. Recarregue a página.
+            </p>
+          ) : showLoading ? (
+            <p className="muted">Carregando o histórico…</p>
+          ) : (
+            messages.map((msg, index) =>
+              msg.role === "human" ? (
+                <p key={index} className="plants-chat-user">
+                  {msg.message}
+                </p>
+              ) : (
+                <div key={index} className="plants-chat-assistant">
+                  <ReactMarkdown
+                    remarkPlugins={[remarkGfm]}
+                    disallowedElements={["pre", "code"]}
+                    unwrapDisallowed={true}
+                  >
+                    {msg.message}
+                  </ReactMarkdown>
+                </div>
+              ),
+            )
+          )}
+        </div>
+      </div>
+
+      <div className="plants-chat-column plants-chat-footer">
+        <form className="plants-chat-composer" onSubmit={handleSubmit}>
+          <label htmlFor="plants-chat-message" className="visually-hidden">
+            Mensagem
+          </label>
+          <textarea
+            id="plants-chat-message"
+            ref={textareaRef}
+            className="plants-chat-input"
+            rows={1}
+            value={messageInput}
+            placeholder="Escreva sua mensagem"
+            enterKeyHint="send"
+            onChange={handleInputChange}
+            onKeyDown={handleKeyDown}
+          />
+          <button
+            type="submit"
+            className="plants-chat-send"
+            aria-label="Enviar"
+            disabled={sending}
+          >
+            <svg
+              aria-hidden="true"
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
             >
-              {msg.message}
-            </Message>
-          ))}
-        </MessageList>
-        <MessageInput
-          style={{
-            padding: "5px 10px",
-            borderRadius: "15px",
-            border: "none",
-            color: "white",
-            backgroundColor: "#3e3e3e",
-          }}
-          value={messageInput}
-          autoFocus={true}
-          sendDisabled={activeSendButton}
-          onChange={(value) => setMessageInput(value)}
-          onSend={handleSendMessage}
-          attachButton={false}
-        />
-      </ChatContainer>
+              <path d="M12 19V5" />
+              <path d="M5 12l7-7 7 7" />
+            </svg>
+          </button>
+        </form>
+      </div>
 
       <Toast message={errorMessage} onClose={() => setErrorMessage(null)} />
-    </>
+    </main>
   );
 }
