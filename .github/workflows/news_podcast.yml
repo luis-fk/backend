@@ -2,9 +2,16 @@ name: News podcast
 
 on:
   schedule:
-    # 06:10 in Brasília; NEWS_CUTOFF and SEND_AT in config.py depend on it.
     - cron: "10 9 * * *"
   workflow_dispatch:
+    inputs:
+      action:
+        description: "O que rodar"
+        type: choice
+        options:
+          - episode
+          - chat-id
+        default: episode
 
 concurrency:
   group: news-podcast
@@ -35,6 +42,12 @@ jobs:
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
       TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
       TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      # Fixed to match the cron above (09:10 UTC is 06:10 in Brasília), because GitHub
+      # schedules cannot read variables. Change both together.
+      NEWS_PODCAST_SEND_AT: "07:00"
+      NEWS_PODCAST_MINUTES: ${{ vars.NEWS_PODCAST_MINUTES }}
+      NEWS_PODCAST_SPEECH_SPEED: ${{ vars.NEWS_PODCAST_SPEECH_SPEED }}
+      ACTION: ${{ inputs.action || 'episode' }}
       SCHEDULED_FLAG: ${{ github.event_name == 'schedule' && '--scheduled' || '' }}
     steps:
       - uses: actions/checkout@v4
@@ -50,7 +63,7 @@ jobs:
         run: uv sync --no-dev
 
       - name: Run
-        run: uv run python manage.py news_podcast $SCHEDULED_FLAG
+        run: uv run python manage.py news_podcast "$ACTION" $SCHEDULED_FLAG
 
       - name: Keep debug files
         if: failure()

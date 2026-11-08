@@ -1,8 +1,15 @@
-from datetime import datetime
+from datetime import datetime, time
 from pathlib import Path
 from typing import NamedTuple
 
 from pydantic import BaseModel, ConfigDict, Field
+
+
+class EpisodeOptions(NamedTuple):
+    min_minutes: int
+    max_minutes: int
+    send_at: time
+    speech_speed: float
 
 
 class Host(NamedTuple):
@@ -14,6 +21,12 @@ class Host(NamedTuple):
 class ModelPrice(NamedTuple):
     input_per_million: float
     output_per_million: float
+
+
+class TelegramChat(NamedTuple):
+    id: str
+    name: str
+    is_group: bool
 
 
 class FeedSource(BaseModel):

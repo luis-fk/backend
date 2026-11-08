@@ -66,7 +66,7 @@ def test_brazilian_number_formats() -> None:
 
 
 def test_caption_is_only_the_title_and_the_date() -> None:
-    assert episode_caption(NOVEMBER) == (
+    assert episode_caption("Resumo das 7", NOVEMBER) == (
         "🎙️ <b>Resumo das 7 · sexta-feira, 6 de novembro</b>"
     )
 

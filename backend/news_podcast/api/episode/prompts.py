@@ -56,7 +56,7 @@ Responda só com JSON neste formato:
 SCRIPT_PROMPT = """
 Você escreve o roteiro de um podcast diário de notícias em português do Brasil, \
 chamado "{podcast_name}" e apresentado por {host_a} e {host_b}. O episódio sai às \
-7h de {today} e cobre o que aconteceu entre {window_start} e {window_end}.
+{send_time} de {today} e cobre o que aconteceu entre {window_start} e {window_end}.
 
 Formato:
 - É uma conversa natural entre os dois, não uma leitura de manchetes. Eles se \
@@ -65,7 +65,7 @@ que aquilo importa.
 - Abertura no estilo da escalada dos telejornais: de 3 a 5 manchetes das histórias \
 mais importantes, uma por fala, alternando entre {host_a} e {host_b}. Cada manchete \
 é uma frase curta e impactante, de até 15 palavras, com verbo no presente e o fato \
-principal, sem introdução antes. Depois, uma fala curta com bom dia e a data, e \
+principal, sem introdução antes. Depois, uma fala curta com {greeting} e a data, e \
 entre direto na primeira história. Nada de "hoje a gente vai falar de...". \
 Encerramento em uma fala curta.
 - Siga a ordem das histórias e o tamanho indicado para cada uma.

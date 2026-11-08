@@ -9,22 +9,23 @@ OPML_PATH = APP_DIR / "feeds.opml"
 OUTPUT_DIR = APP_DIR.parent / "news_podcast_output"
 LOCAL_TZ = ZoneInfo("America/Sao_Paulo")
 
-# The scheduled run starts at 06:10 (cron in news_podcast.yml). To change the time,
-# edit the cron, these, PODCAST_NAME and the "7h"/"bom dia" in SCRIPT_PROMPT together.
-NEWS_CUTOFF = time(6, 0)
-SEND_AT = time(7, 0)
 NEWS_WINDOW_HOURS = 24
+# The workflow starts at :10 of the hour before the send time, so the scheduled
+# news window closes at :00 of that hour.
+NEWS_CUTOFF_HOURS_BEFORE_SEND = 1
 MAX_WAIT_SECONDS = 3 * 60 * 60
 
-PODCAST_NAME = "Resumo das 7"
-MIN_MINUTES = 12
-MAX_MINUTES = 18
-WORDS_PER_MINUTE = 170
+DEFAULT_SEND_AT = time(7, 0)
+DEFAULT_MIN_MINUTES = 12
+DEFAULT_MAX_MINUTES = 18
+DEFAULT_SPEECH_SPEED = 1.0
+SHORTEST_EPISODE_MINUTES = 5
+# Each voice request covers about 4 minutes of speech and the free tier allows 10
+# requests a day, so 30 minutes (about 8 requests) leaves room for a retry.
+MAX_SPEECH_MINUTES = 30
+SPEECH_SPEED_LIMITS = (0.5, 2.0)
+NATURAL_WORDS_PER_MINUTE = 170
 MINUTES_PER_STORY = 1.5
-MIN_STORIES = round(MIN_MINUTES / MINUTES_PER_STORY)
-MAX_STORIES = round(MAX_MINUTES / MINUTES_PER_STORY)
-MIN_WORDS = MIN_MINUTES * WORDS_PER_MINUTE
-MAX_WORDS = MAX_MINUTES * WORDS_PER_MINUTE
 SHORT_SCRIPT_RATIO = 0.85
 
 HOSTS = (

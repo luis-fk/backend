@@ -32,6 +32,9 @@ TAVILY_API_KEY = env("TAVILY_API_KEY", default=None)
 GEMINI_API_KEY = env("GEMINI_API_KEY", default=None)
 TELEGRAM_BOT_TOKEN = env("TELEGRAM_BOT_TOKEN", default=None)
 TELEGRAM_CHAT_ID = env("TELEGRAM_CHAT_ID", default=None)
+NEWS_PODCAST_SEND_AT = env("NEWS_PODCAST_SEND_AT", default=None)
+NEWS_PODCAST_MINUTES = env("NEWS_PODCAST_MINUTES", default=None)
+NEWS_PODCAST_SPEECH_SPEED = env("NEWS_PODCAST_SPEECH_SPEED", default=None)
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = env("ENVIRONMENT") == "development"
