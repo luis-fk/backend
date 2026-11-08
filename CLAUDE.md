@@ -13,7 +13,7 @@ Until November 2026 they were separate repositories: this one was `luis-fk/backe
 ## Layout
 ```
 .github/workflows/   backend-ci.yml, frontend-ci.yml, news_podcast.yml (GitHub only reads workflows here)
-.claude/ _bmad/ _bmad-output/ docs/   Claude Code skills and BMAD, shared by both parts
+.claude/ _bmad/      Claude Code skills and BMAD, shared by both parts (BMAD writes its working files to _bmad-output/, which is git-ignored)
 backend/             Django project: manage.py, pyproject.toml, uv.lock, the apps, tests/
 frontend/            Next.js app: package.json, src/
 ```

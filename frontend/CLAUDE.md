@@ -1,9 +1,9 @@
 # Frontend context
 
 ## What this part does
-A personal Next.js frontend that serves multiple independent apps backed by a Django backend. Currently hosts two apps — **plants** (AI chatbot for plant data) and **political-culture** (political text chatbot with WebSocket streaming) — with a third app **cfflch** (college admission checker) missing from the frontend and needing to be built.
+A personal Next.js frontend that serves the UIs of three independent apps backed by the Django backend: **plants** (AI chatbot for plant data), **political-culture** (political chatbot with WebSocket streaming) and **cfflch** (college admission checker: searches admission PDFs over WebSocket and manages the saved results by year).
 
-It lives in `frontend/` of the monorepo, next to the Django backend in `../backend`; the root `CLAUDE.md` has the repository layout and the rules shared with the backend. Paths below are relative to `frontend/`. It is deployed as its own Railway service, with Root Directory `/frontend`. It exists to learn and experiment — correctness and understanding over speed.
+It lives in `frontend/` of the monorepo, next to the Django backend in `../backend`; the root `CLAUDE.md` has the repository layout and the rules shared with the backend. Paths below are relative to `frontend/`, and `README.md` covers setup, scripts and environment variables. It is deployed as its own Railway service, with Root Directory `/frontend`. It exists to learn and experiment — correctness and understanding over speed.
 
 ## Tech stack
 - **Framework:** Next.js 16 (App Router, Turbopack for dev and build). Next 16 changed APIs and conventions, so read the relevant guide in `node_modules/next/dist/docs/` (the docs of the installed version) before writing Next-specific code; `AGENTS.md`, which `next dev` writes, says the same for other agents.
@@ -15,9 +15,9 @@ It lives in `frontend/` of the monorepo, next to the Django backend in `../backe
 - **Logging:** Client-side logger (`/src/app/api/log/client-logger.ts`) that sends log entries to a Next.js API route (`/api/log`) via Beacon API
 - **Markdown:** `react-markdown` + `remark-gfm` for chat message rendering
 - **Chat UI:** `@chatscope/chat-ui-kit-react` (used in `plants` only)
-- **Linting:** ESLint 9 flat config (`eslint.config.mjs` with `eslint-config-next`, run by `npm run lint` = `eslint .`; `next lint` no longer exists) + Prettier 3 with `@trivago/prettier-plugin-sort-imports`. `react-hooks/set-state-in-effect`, new in `eslint-plugin-react-hooks` 7, is a warning until the existing effects that set state on mount are refactored.
+- **Linting:** ESLint 9 flat config (`eslint.config.mjs` with `eslint-config-next`, run by `npm run lint` = `eslint .`; `next lint` no longer exists) + Prettier 3 with `@trivago/prettier-plugin-sort-imports`. `react-hooks/set-state-in-effect` (new in `eslint-plugin-react-hooks` 7) is an error: derive the value or set state in callbacks and event handlers, never synchronously in the effect body.
 - **Package manager:** npm. Exact versions live in `package.json`.
-- **Node.js:** 22, pinned in `engines.node` in `package.json`. Railway's Nixpacks builder and the CI (`node-version-file`) both read it; without it Nixpacks falls back to Node 18, which Next 16 refuses (it needs 20.9 or newer).
+- **Node.js:** 22, pinned in `engines.node` in `package.json`. Railway's Nixpacks builder and the CI (`node-version-file`) both read it; without it Nixpacks falls back to Node 18, which Next 16 refuses (it needs 20.9 or newer). Locally, `nvm use 22`.
 - **Security overrides:** Railway's build scanner blocks lockfiles with vulnerable dependencies (confirmed for Next.js advisories rated high or critical; the full rule is not documented), so keep `npm audit --audit-level=high` clean. `overrides` in `package.json` forces a patched `minimatch` inside `prettier-eslint` → `@typescript-eslint/typescript-estree@6`, which pins 9.0.3. Drop it when `prettier-eslint` moves to 17, which is ESM-only and not yet supported by the VS Code extension `rvest.vs-code-prettier-eslint` (it expects ^16).
 
 ## Architecture
@@ -27,53 +27,67 @@ Each app lives under `src/app/<app-name>/` and is fully self-contained for UI lo
 
 ```
 src/
-├── proxy.ts                     # Auth routing for all projects
-├── app/
-│   ├── layout.tsx               # Root layout
-│   ├── page.tsx                 # Landing page (links to each app)
-│   ├── actions/                 # Shared server actions
-│   │   ├── login.ts             # Login logic (calls backend /api/user/{name})
-│   │   ├── session.ts           # JWT encrypt/decrypt/create/delete
-│   │   └── useSession.ts        # Client-side session hook
-│   ├── components/              # Shared infrastructure components
-│   │   └── Toast.tsx            # MUI Snackbar/Alert toast (top-right, 5s, severity prop)
-│   ├── api/log/                 # Server-side log endpoint
-│   │   ├── route.ts
-│   │   └── client-logger.ts
-│   ├── plants/                  # Plants app
-│   │   ├── components/
-│   │   ├── css/
-│   │   └── (routes)/chat/
-│   └── political-culture/       # Political-culture app
-│       ├── components/
-│       ├── css/
-│       ├── hooks/
-│       └── (routes)/chat/
+├── proxy.ts                     # Auth routing for all apps
+├── types.d.ts                   # Lets TypeScript import .css files
+└── app/
+    ├── layout.tsx               # Root layout
+    ├── page.tsx                 # Landing page (links to each app), styled by main-page.css
+    ├── actions/                 # Shared session code
+    │   ├── session.ts           # "use server": JWT sign/verify, getSession, createSession
+    │   └── useSession.ts        # Client hook that reads the app's session through getSession
+    ├── components/              # Shared infrastructure components
+    │   └── Toast.tsx            # MUI Snackbar/Alert toast (top-right, 5s, severity prop)
+    ├── api/log/                 # Client log endpoint
+    │   ├── route.ts
+    │   └── client-logger.ts
+    ├── plants/
+    │   ├── page.tsx             # Login page
+    │   ├── actions/login.ts     # Login server action
+    │   ├── components/          # Chat, LoginForm, MuiDrawer
+    │   ├── css/
+    │   └── (routes)/chat/
+    ├── political-culture/
+    │   ├── page.tsx
+    │   ├── actions/login.ts
+    │   ├── components/          # Chat, LoginForm
+    │   ├── css/
+    │   ├── hooks/useChatSocket.ts
+    │   └── (routes)/chat/
+    └── cfflch/
+        ├── page.tsx
+        ├── actions/login.ts
+        ├── components/          # login-form, mui-drawer, search-form, results-table, result-card
+        ├── css/
+        ├── hooks/use-admission-search.ts
+        ├── types.ts
+        └── (routes)/search/ and (routes)/results/
 ```
 
 ### Shared vs app-specific
-- **Shared:** auth actions (`session.ts`, `login.ts`, `useSession.ts`), the logger, the proxy, and infrastructure UI components (`src/app/components/`). These live in `src/app/actions/`, `src/app/api/`, and `src/app/components/`.
-- **App-specific:** all feature components, CSS, and hooks. Do not create shared feature UI across apps — duplication is preferred over coupling. Exception: pure infrastructure components with no app-specific logic (e.g. `ErrorToast`) may live in `src/app/components/`.
+- **Shared:** session code (`src/app/actions/`), the logger (`src/app/api/log/`), the proxy, and infrastructure UI components (`src/app/components/`).
+- **App-specific:** everything else, including each app's login server action, feature components, CSS, and hooks. Do not create shared feature UI across apps — duplication is preferred over coupling. Exception: pure infrastructure components with no app-specific logic (e.g. `Toast`) may live in `src/app/components/`.
 
 ### Proxy
-`src/proxy.ts` handles auth routing for all apps. It is what Next.js called middleware before version 16, and it runs on the Node.js runtime (the Edge runtime is not available in a proxy). The `PROJECTS` map must be updated when a new app is added — add the app name, its `publicPaths`, `protectedPaths`, and `defaultProtectedPath`.
+`src/proxy.ts` handles auth routing for all apps. It is what Next.js called middleware before version 16, and it runs on the Node.js runtime (the Edge runtime is not available in a proxy). The `PROJECTS` map must be updated when a new app is added — add the app name, its `publicPaths`, `protectedPaths`, and `defaultProtectedPath`. Each app has its own session cookie, `session-<app>`.
 
 ### Auth flow
-1. User submits login form → server action `login()` calls backend `POST /api/user/{name}`
-2. On success: `createSession(userId)` encrypts a JWT with Jose (HS256) and sets an `httpOnly` cookie
-3. The proxy reads the cookie on every request and redirects unauthenticated users to `/<app>` (login page)
-4. Client components read the session via `useSession()` hook to get `userId`
+1. User submits the app's login form → the app's server action `login()` (`src/app/<app>/actions/login.ts`) calls the backend `GET /api/<app>/users/{name}`
+2. On success: `createSession(userId, "session-<app>")` signs a JWT with Jose (HS256, 7 days) and sets it as an `httpOnly` cookie
+3. The proxy reads the cookie on every request: it redirects unauthenticated users from protected pages to `/<app>` (login page), and logged-in users from the login page to the app's default page
+4. Client components read the session via the `useSession("<app>")` hook to get `userId`; it is `undefined` while loading and `null` when there is no valid session
+5. There is no logout yet (no UI and no action)
+
+`session.ts` is a `"use server"` file, so every export is a Server Action that can be called with a POST request: export only what other modules need.
 
 ### WebSocket pattern
-- Used in `political-culture` for streaming chat responses
-- Custom hook in `hooks/useChatSocket.ts` manages the connection lifecycle
-- **The WebSocket is established on component mount** (when the chat page loads), so it is always connected before a message is sent — this matches the backend constraint that the client must connect before the POST
-- URL pattern: `ws(s)://<server>/<app>/ws/chat/<userId>`
+- **political-culture:** `hooks/useChatSocket.ts` connects on mount to `ws(s)://<server>/ws/chat/<userId>`, so it is open before any message is sent.
+- **cfflch:** `hooks/use-admission-search.ts` opens `ws(s)://<server>/ws/cfflch/admission-status/<requestId>` for each search and waits for `onopen` before the POST.
+- The backend does not re-deliver messages, so the socket must be open before the POST.
 
 ## Coding conventions
 
 ### Naming
-- Files and folders: `kebab-case`
+- Files and folders: `kebab-case` (cfflch follows it; plants and political-culture predate the rule and still use `PascalCase` component files and `camelCase` hook files)
 - Components: `PascalCase`
 - Hooks: `camelCase` with `use` prefix
 - Server actions: `camelCase`
@@ -88,44 +102,53 @@ src/
 - `components/` — React components
 - `css/` — component-specific CSS files (one per component)
 - `hooks/` — custom hooks (only if needed; short hooks can live in the component file)
+- `actions/` — the app's server actions (`login.ts`)
 - `(routes)/<route>/page.tsx` — page components (route group with parentheses keeps routes clean)
 
 ### CSS
 - App-specific CSS in `<app>/css/`, written as plain CSS (Tailwind was removed with the Next 16 upgrade; it was configured but no CSS file loaded it)
 
 ### Environment variables
-- `NEXT_PUBLIC_SERVER_URL` — the Django backend URL (available client-side)
+- `NEXT_PUBLIC_SERVER_URL` — the Django backend URL (available client-side). It is inlined at build time, and `next.config.ts` throws when it is missing.
 - `SESSION_SECRET` — JWT signing key (server-only, never exposed to client)
 
 ## Backend API contract
-The Django backend runs at `NEXT_PUBLIC_SERVER_URL`. Key endpoints:
+The Django backend runs at `NEXT_PUBLIC_SERVER_URL`. The endpoints the frontend calls (`../backend/README.md` lists all of them):
 
 | App | Endpoint | Method | Notes |
 |---|---|---|---|
-| Auth | `/api/user/{name}` | GET | Returns user object with `id` on success |
-| plants | `/api/plants/chatbot/message` | POST | Sends a chat message |
-| plants | `/api/plants/chat-history/{userId}` | GET | Returns chat history |
-| political-culture | `/api/political-culture/chatbot/message` | POST | Sends chat message; response comes via WebSocket |
+| plants | `/api/plants/users/{name}/` | GET | Login lookup; returns the user with its `id` |
+| plants | `/api/chatbot/message` | POST | Sends a chat message; the answer comes in the response |
+| plants | `/api/chat-history/{userId}/` | GET | Returns chat history |
+| political-culture | `/api/political-culture/users/{name}` | GET | Login lookup |
+| political-culture | `/api/political-culture/chatbot/message` | POST | Sends a chat message; the answer comes via WebSocket |
 | political-culture | `/api/political-culture/chat-history/{userId}` | GET | Returns chat history |
-| cfflch | `/api/cfflch/admission-status/` | POST | Triggers admission search; results come via WebSocket |
-| cfflch | WebSocket | WS | `ws(s)://<server>/ws/cfflch/<userId>` — connect BEFORE POST |
+| cfflch | `/api/cfflch/users/{name}` | GET | Login lookup |
+| cfflch | `/api/cfflch/admission-status/` | POST | Starts an admission search; results come via WebSocket |
+| cfflch | `/api/cfflch/admission-results/` | GET | Saved results for a `year` |
+| cfflch | `/api/cfflch/admission-results/{id}/` | PATCH, DELETE | Updates `approved` or `class_room_id`, or deletes the result |
+| cfflch | `/api/cfflch/class-rooms/` | GET | Class rooms, used by the filters and the result cards |
 
-### cfflch API notes (for when this is built)
+The plants chat endpoints have no `/plants` prefix in the backend. The plants GET calls leave out the trailing slash, and Django redirects them (301).
+
+### cfflch API notes
 - **WebSocket must be connected before POST** — results are not re-delivered if the client connects late. This is a known backend constraint, not a bug to work around.
-- The POST returns `pdf_urls` as `list[dict]` with `url` and `search_title` keys — read `item.url`, not the element directly.
+- `pdf_urls` is a `list[dict]` with `url` and `search_title` keys — read `item.url`, not the element directly.
 
 ## Current state
 
 ### Complete (stable)
 - `plants`: login, session, chat UI (Chatscope), chat history, message sending
 - `political-culture`: login, session, custom chat UI, WebSocket streaming, chat history, React Markdown rendering
+- `cfflch`: login, session, search form (names, year, optional class) with results streamed over WebSocket, results page by year with PDF and class filters, and approve, class change and delete on each result
 
-### Missing (not yet built)
-- `cfflch`: the backend is fully implemented (admission status checker via web search + PDF parsing + WebSocket). The frontend app does not exist yet.
+### Known gaps
+- No logout in any app; sessions last 7 days.
+- No tests (see below).
 
 ## Non-negotiables
 The shared ones (learning-first, git managed by the user) are in the root `CLAUDE.md`.
 - **App isolation.** No shared UI components across apps. Each app owns its full component tree.
-- **Backend contract matters.** When building the cfflch frontend, the WS-before-POST timing constraint is non-negotiable — the component must establish the WebSocket connection on mount, not when the user submits.
+- **Backend contract matters.** The WebSocket-before-POST constraint is non-negotiable: political-culture connects on mount, and cfflch waits for `onopen` before each POST.
 - **No tests yet.** Vitest or Jest is not installed. Do not write tests unless explicitly asked.
 - **TypeScript strict.** All new code must pass `tsc --noEmit` cleanly.
