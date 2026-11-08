@@ -22,10 +22,7 @@ configurações e o histórico. O resto é um management command.
 | Áudio | `api/episode/audio.py` | O ffmpeg junta os trechos, normaliza o volume e gera um OGG/Opus de 32 kbps (cerca de 4 MB para 15 minutos), o formato das mensagens de voz do Telegram. |
 | Envio | `api/episode/telegram.py` | `sendVoice` com o título e a data na legenda (por ser mensagem de voz, o Telegram mostra o botão de velocidade 1x, 1,5x, 2x). Na execução agendada, espera a hora cheia seguinte ao início (7h, com o cron das 6h10). Se algo falhar, chega uma mensagem dizendo em qual etapa. |
 
-O episódio diário roda num serviço Cron do Railway (veja *Agendamento*). Ele rodava no
-GitHub Actions, mas o GitHub atrasava os agendamentos em horas ou os descartava. O
-workflow que ficou para rodar na mão saiu quando as configurações foram para o banco, que
-o GitHub não alcança.
+O episódio diário roda num serviço Cron do Railway (veja *Agendamento*).
 
 ## Configuração (uma vez só)
 
