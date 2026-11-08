@@ -11,6 +11,8 @@ The two parts share no code. The frontend talks to the backend over HTTP and Web
 
 ## Running locally
 
+You need [uv](https://docs.astral.sh/uv/) and Docker for the backend, and Node.js 22 for the frontend (`nvm use 22`). The READMEs of [`backend/`](backend/README.md) and [`frontend/`](frontend/README.md) list the environment variables and the other commands.
+
 Backend, from `backend/` (settings come from `backend/backend/.env`):
 
 ```
@@ -31,5 +33,5 @@ The daily news podcast runs on GitHub Actions; see [`backend/news_podcast/README
 
 ## CI and deployment
 
-- `.github/workflows/backend-ci.yml` and `frontend-ci.yml` run on pull requests that touch their folder.
+- `.github/workflows/backend-ci.yml` (Ruff, mypy, pytest) and `frontend-ci.yml` (lint, typecheck) run on pull requests that touch their folder. `news_podcast.yml` is the daily podcast run, not CI.
 - Both parts deploy to Railway from `main`, as two services of the same project. Each service uses its folder as Root Directory.
