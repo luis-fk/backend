@@ -86,11 +86,14 @@ class NewsPodcastService:
         telegram: TelegramClient | None,
         chat_id: str | None,
         options: EpisodeOptions,
+        admin_chat_id: str | None = None,
     ) -> None:
         self.http_client = http_client
         self.gemini = gemini
         self.telegram = telegram
         self.chat_id = chat_id
+        # Errors and the chat list go here, not to the episode's chat.
+        self.admin_chat_id = admin_chat_id or chat_id
         self.options = options
         self.step = "início"
         self.unavailable_models: set[str] = set()
@@ -108,7 +111,9 @@ class NewsPodcastService:
         except Exception as error:
             logger.exception(f"Episode failed during '{self.step}'")
             if send:
-                await notify_failure(self.telegram, self.chat_id, self.step, error)
+                await notify_failure(
+                    self.telegram, self.admin_chat_id, self.step, error
+                )
             raise
 
         if send:
@@ -127,8 +132,10 @@ class NewsPodcastService:
                 "Nenhuma conversa encontrada. Mande /start para o bot ou adicione ele "
                 "a um grupo no Telegram e rode de novo."
             )
-        if self.chat_id:
-            await self.telegram.send_message(self.chat_id, chat_list_message(chats))
+        if self.admin_chat_id:
+            await self.telegram.send_message(
+                self.admin_chat_id, chat_list_message(chats)
+            )
             return len(chats)
 
         for chat in chats:

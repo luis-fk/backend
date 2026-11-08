@@ -1,8 +1,9 @@
 name: News podcast
 
+# Runs by hand only. The daily episode runs on a Railway cron service (see
+# backend/news_podcast/README.md), because GitHub delays scheduled runs by hours or
+# drops them.
 on:
-  schedule:
-    - cron: "10 9 * * *"
   workflow_dispatch:
     inputs:
       action:
@@ -44,13 +45,12 @@ jobs:
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
       TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
       TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-      # Fixed to match the cron above (09:10 UTC is 06:10 in Brasília), because GitHub
-      # schedules cannot read variables. Change both together.
+      TELEGRAM_ADMIN_CHAT_ID: ${{ secrets.TELEGRAM_ADMIN_CHAT_ID }}
+      # The same as on Railway. A manual run sends right away; this only names it.
       NEWS_PODCAST_SEND_AT: "07:00"
       NEWS_PODCAST_MINUTES: ${{ vars.NEWS_PODCAST_MINUTES }}
       NEWS_PODCAST_SPEECH_SPEED: ${{ vars.NEWS_PODCAST_SPEECH_SPEED }}
-      ACTION: ${{ inputs.action || 'episode' }}
-      SCHEDULED_FLAG: ${{ github.event_name == 'schedule' && '--scheduled' || '' }}
+      ACTION: ${{ inputs.action }}
     steps:
       - uses: actions/checkout@v4
 
@@ -65,7 +65,7 @@ jobs:
         run: uv sync --no-dev
 
       - name: Run
-        run: uv run python manage.py news_podcast "$ACTION" $SCHEDULED_FLAG
+        run: uv run python manage.py news_podcast "$ACTION"
 
       - name: Keep debug files
         if: failure()
