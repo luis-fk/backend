@@ -45,7 +45,6 @@ TELEGRAM_CHAT_ID = env("TELEGRAM_CHAT_ID", default=None)
 # Where the news podcast reports errors and chat ids, so they stay out of the group
 # in TELEGRAM_CHAT_ID. Without it, they go to TELEGRAM_CHAT_ID too.
 TELEGRAM_ADMIN_CHAT_ID = env("TELEGRAM_ADMIN_CHAT_ID", default=None)
-NEWS_PODCAST_SEND_AT = env("NEWS_PODCAST_SEND_AT", default=None)
 NEWS_PODCAST_MINUTES = env("NEWS_PODCAST_MINUTES", default=None)
 NEWS_PODCAST_SPEECH_SPEED = env("NEWS_PODCAST_SPEECH_SPEED", default=None)
 

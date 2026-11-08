@@ -44,7 +44,6 @@ def configure_logging() -> None:
 def resolve_episode_options() -> EpisodeOptions:
     return parse_episode_options(
         minutes=getattr(settings, "NEWS_PODCAST_MINUTES", None),
-        send_at=getattr(settings, "NEWS_PODCAST_SEND_AT", None),
         speech_speed=getattr(settings, "NEWS_PODCAST_SPEECH_SPEED", None),
     )
 

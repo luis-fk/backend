@@ -6,7 +6,6 @@ from news_podcast.api.episode import config
 from news_podcast.api.episode.schemas import EpisodeOptions
 
 MINUTES_PATTERN = re.compile(r"([0-9]+)\s*[-–]\s*([0-9]+)")
-SEND_AT_PATTERN = re.compile(r"([01]?[0-9]|2[0-3]):([0-5][0-9])")
 SPEED_PATTERN = re.compile(r"([0-9]+(?:[.,][0-9]+)?)x?", re.IGNORECASE)
 PODCAST_NAMES = {
     0: "Resumo da meia-noite",
@@ -20,7 +19,7 @@ class InvalidOptionError(Exception):
 
 
 def parse_episode_options(
-    minutes: str | None, send_at: str | None, speech_speed: str | None
+    minutes: str | None, speech_speed: str | None
 ) -> EpisodeOptions:
     min_minutes, max_minutes = parse_minutes(minutes)
     speed = parse_speech_speed(speech_speed)
@@ -31,7 +30,7 @@ def parse_episode_options(
             f"fala, e o limite é {config.MAX_SPEECH_MINUTES}. Diminua o máximo de "
             "NEWS_PODCAST_MINUTES ou a NEWS_PODCAST_SPEECH_SPEED"
         )
-    return EpisodeOptions(min_minutes, max_minutes, parse_send_at(send_at), speed)
+    return EpisodeOptions(min_minutes, max_minutes, speed)
 
 
 def parse_minutes(raw: str | None) -> tuple[int, int]:
@@ -56,20 +55,6 @@ def parse_minutes(raw: str | None) -> tuple[int, int]:
             f"{config.SHORTEST_EPISODE_MINUTES} minutos (veio {value!r})"
         )
     return shortest, longest
-
-
-def parse_send_at(raw: str | None) -> time:
-    value = (raw or "").strip()
-    if not value:
-        return config.DEFAULT_SEND_AT
-
-    match = SEND_AT_PATTERN.fullmatch(value)
-    if not match:
-        raise InvalidOptionError(
-            "NEWS_PODCAST_SEND_AT precisa ser um horário no formato HH:MM, como 07:00 "
-            f"ou 21:30 (veio {value!r})"
-        )
-    return time(int(match.group(1)), int(match.group(2)))
 
 
 def parse_speech_speed(raw: str | None) -> float:
@@ -126,12 +111,8 @@ def spoken_time(send_at: time) -> str:
     return f"{send_at.hour}h"
 
 
-def nearest_send(now: datetime, send_at: time, local_tz: ZoneInfo) -> datetime:
+def next_send(now: datetime, local_tz: ZoneInfo) -> datetime:
+    """The next full hour, in local time: a run that starts at 6h10 sends at 7h, so
+    the Railway cron alone sets the send time."""
     local_now = now.astimezone(local_tz)
-    same_day = datetime.combine(local_now.date(), send_at, tzinfo=local_tz)
-    candidates = (
-        same_day - timedelta(days=1),
-        same_day,
-        same_day + timedelta(days=1),
-    )
-    return min(candidates, key=lambda moment: abs(moment - local_now))
+    return local_now.replace(minute=0, second=0, microsecond=0) + timedelta(hours=1)

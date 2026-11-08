@@ -30,7 +30,7 @@ from news_podcast.api.episode.service import (
 from news_podcast.api.episode.telegram import TelegramClient
 
 TURNS = [Turn(speaker="Bia", text="Bom dia")]
-DEFAULT_OPTIONS = EpisodeOptions(12, 18, time(7, 0), 1.0)
+DEFAULT_OPTIONS = EpisodeOptions(12, 18, 1.0)
 CHATS = [
     TelegramChat(id="11", name="Felipe", is_group=False),
     TelegramChat(id="-22", name="Resumo & cia", is_group=True),
@@ -148,12 +148,12 @@ def test_voice_does_not_wait_when_the_daily_quota_is_over(
 
 
 def test_prompts_follow_the_configured_options() -> None:
-    options = EpisodeOptions(20, 30, time(21, 0), 1.0)
+    options = EpisodeOptions(20, 30, 1.0)
     start = datetime(2026, 11, 6, 20, 0, tzinfo=config.LOCAL_TZ)
     end = datetime(2026, 11, 7, 20, 0, tzinfo=config.LOCAL_TZ)
 
     selection = selection_prompt(options, start, end)
-    script = script_prompt(options, date(2026, 11, 7), start, end)
+    script = script_prompt(options, date(2026, 11, 7), start, end, time(21, 0))
 
     assert "em 20 a 30 minutos" in selection
     assert "Escolha de 13 a 20 histórias" in selection
@@ -168,7 +168,7 @@ def test_default_prompts_keep_the_morning_episode() -> None:
     end = datetime(2026, 11, 6, 6, 0, tzinfo=config.LOCAL_TZ)
 
     selection = selection_prompt(DEFAULT_OPTIONS, start, end)
-    script = script_prompt(DEFAULT_OPTIONS, date(2026, 11, 6), start, end)
+    script = script_prompt(DEFAULT_OPTIONS, date(2026, 11, 6), start, end, time(7, 0))
 
     assert "Escolha de 8 a 12 histórias" in selection
     assert 'chamado "Resumo das 7"' in script

@@ -3,7 +3,7 @@ import json
 import logging
 import tempfile
 from collections.abc import Callable, Sequence
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, time
 from pathlib import Path
 from typing import Any, TypeVar
 
@@ -34,7 +34,7 @@ from news_podcast.api.episode.messages import (
 )
 from news_podcast.api.episode.options import (
     greeting,
-    nearest_send,
+    next_send,
     podcast_name,
     spoken_time,
     story_range,
@@ -101,13 +101,11 @@ class NewsPodcastService:
 
     async def generate_episode(self, *, scheduled: bool, send: bool) -> EpisodeReport:
         now = datetime.now(UTC)
-        scheduled_for = (
-            nearest_send(now, self.options.send_at, config.LOCAL_TZ)
-            if scheduled
-            else None
-        )
+        send_at = next_send(now, config.LOCAL_TZ)
+        # A scheduled run waits for send_at; one run by hand sends when ready.
+        scheduled_for = send_at if scheduled else None
         try:
-            report = await self._generate(now, scheduled_for)
+            report = await self._generate(now, send_at, scheduled_for)
         except Exception as error:
             logger.exception(f"Episode failed during '{self.step}'")
             if send:
@@ -143,7 +141,7 @@ class NewsPodcastService:
         return len(chats)
 
     async def _generate(
-        self, now: datetime, scheduled_for: datetime | None
+        self, now: datetime, send_at: datetime, scheduled_for: datetime | None
     ) -> EpisodeReport:
         day = (scheduled_for or now).astimezone(config.LOCAL_TZ).date()
         start, end = news_window(
@@ -154,7 +152,7 @@ class NewsPodcastService:
         )
         logger.info(
             f"Episode of {self.options.min_minutes}-{self.options.max_minutes} min "
-            f"at {self.options.speech_speed:g}x, sent at {self.options.send_at:%H:%M}"
+            f"at {self.options.speech_speed:g}x, sent at {send_at:%H:%M}"
         )
         config.OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -174,7 +172,9 @@ class NewsPodcastService:
         )
 
         self.step = "roteiro"
-        script, script_usages = await self._write_script(briefs, start, end, day)
+        script, script_usages = await self._write_script(
+            briefs, start, end, day, send_at.time()
+        )
         usages.extend(script_usages)
         save_debug("script.json", script.model_dump())
 
@@ -190,7 +190,7 @@ class NewsPodcastService:
                 parts, audio_path, self.options.speech_speed, workdir
             )
 
-        caption = episode_caption(podcast_name(self.options.send_at), day)
+        caption = episode_caption(podcast_name(send_at.time()), day)
         details = episode_details(day=day, briefs=briefs, usages=usages)
         logger.info(f"Episode ready: {duration:.0f}s\n{caption}\n{details}")
         return EpisodeReport(
@@ -222,10 +222,15 @@ class NewsPodcastService:
         return stories, usages
 
     async def _write_script(
-        self, briefs: list[StoryBrief], start: datetime, end: datetime, day: date
+        self,
+        briefs: list[StoryBrief],
+        start: datetime,
+        end: datetime,
+        day: date,
+        send_at: time,
     ) -> tuple[Script, list[Usage]]:
         min_words, max_words = word_range(self.options)
-        system_prompt = script_prompt(self.options, day, start, end)
+        system_prompt = script_prompt(self.options, day, start, end, send_at)
         user_prompt = format_briefs(briefs, words_per_minute(self.options))
         script, usages = await self._ask_json(
             system_prompt, user_prompt, "script", parse_script
@@ -392,15 +397,15 @@ def selection_prompt(options: EpisodeOptions, start: datetime, end: datetime) ->
 
 
 def script_prompt(
-    options: EpisodeOptions, day: date, start: datetime, end: datetime
+    options: EpisodeOptions, day: date, start: datetime, end: datetime, send_at: time
 ) -> str:
     min_words, max_words = word_range(options)
     return SCRIPT_PROMPT.format(
-        podcast_name=podcast_name(options.send_at),
+        podcast_name=podcast_name(send_at),
         host_a=config.HOSTS[0].name,
         host_b=config.HOSTS[1].name,
-        send_time=spoken_time(options.send_at),
-        greeting=greeting(options.send_at),
+        send_time=spoken_time(send_at),
+        greeting=greeting(send_at),
         today=long_date(day),
         window_start=local_label(start),
         window_end=local_label(end),

@@ -46,8 +46,6 @@ jobs:
       TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
       TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
       TELEGRAM_ADMIN_CHAT_ID: ${{ secrets.TELEGRAM_ADMIN_CHAT_ID }}
-      # The same as on Railway. A manual run sends right away; this only names it.
-      NEWS_PODCAST_SEND_AT: "07:00"
       NEWS_PODCAST_MINUTES: ${{ vars.NEWS_PODCAST_MINUTES }}
       NEWS_PODCAST_SPEECH_SPEED: ${{ vars.NEWS_PODCAST_SPEECH_SPEED }}
       ACTION: ${{ inputs.action }}

@@ -20,7 +20,7 @@ O app não tem models nem banco de dados, então não precisa de um `news_podcas
 | Roteiro | `service.py` + `prompts.py` | O Gemini escreve o diálogo com 170 palavras por minuto de episódio, vezes a velocidade (de 2.040 a 3.060 palavras no padrão), abrindo com uma escalada de 3 a 5 manchetes curtas, como nos telejornais. Se vier curto demais, pede uma versão mais longa uma vez. |
 | Voz | `api/episode/gemini.py` | O Gemini 3.8 Flash-Lite TTS gera o diálogo com as duas vozes, em blocos de cerca de 650 palavras. Se o Gemini estiver fora do ar, o código espera e tenta de novo (veja *Bom saber*). |
 | Áudio | `api/episode/audio.py` | O ffmpeg junta os trechos, normaliza o volume e gera um OGG/Opus de 32 kbps (cerca de 4 MB para 15 minutos), o formato das mensagens de voz do Telegram. |
-| Envio | `api/episode/telegram.py` | `sendVoice` com o título e a data na legenda (por ser mensagem de voz, o Telegram mostra o botão de velocidade 1x, 1,5x, 2x). Na execução agendada, espera dar 7h para enviar. Se algo falhar, chega uma mensagem dizendo em qual etapa. |
+| Envio | `api/episode/telegram.py` | `sendVoice` com o título e a data na legenda (por ser mensagem de voz, o Telegram mostra o botão de velocidade 1x, 1,5x, 2x). Na execução agendada, espera a hora cheia seguinte ao início (7h, com o cron das 6h10). Se algo falhar, chega uma mensagem dizendo em qual etapa. |
 
 O episódio diário roda num serviço Cron do Railway (veja *Agendamento*). Ele rodava no
 GitHub Actions, mas o GitHub atrasava os agendamentos em horas ou os descartava. O
@@ -52,13 +52,15 @@ Um serviço Cron no projeto do Railway, a partir do mesmo repositório:
    --scheduled` e Cron Schedule `10 9 * * *` (6h10 em Brasília; o Railway usa UTC).
 2. Em *Variables*: `RAILPACK_DEPLOY_APT_PACKAGES=ffmpeg` (instala o ffmpeg só neste
    serviço; com o builder Nixpacks, é `NIXPACKS_APT_PKGS=ffmpeg`), `GEMINI_API_KEY`,
-   `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, `TELEGRAM_ADMIN_CHAT_ID`,
-   `NEWS_PODCAST_SEND_AT=07:00`, as opcionais de *Variáveis* e os valores fictícios que o
-   Django exige: copie os do `env` do `.github/workflows/news_podcast.yml` (o app não usa
+   `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, `TELEGRAM_ADMIN_CHAT_ID`, as opcionais de
+   *Variáveis* e os valores fictícios que o Django exige: copie os do `env` do `.github/workflows/news_podcast.yml` (o app não usa
    banco).
 
-O cron e o `NEWS_PODCAST_SEND_AT` andam juntos: a execução começa uma hora antes e espera
-dar o horário para enviar. Uma execução só começa se a anterior já terminou.
+O episódio sai na hora cheia seguinte ao início da execução: com o cron às 6h10, ele é
+gerado e enviado às 7h, e o nome ("Resumo das 7") e o bom dia acompanham. Para mudar o
+horário ou a frequência, mude só o Cron Schedule, em UTC e no minuto 10 da hora anterior
+ao envio (`10 21 * * *` envia às 19h de Brasília). Uma execução só começa se a anterior já
+terminou. Rodando na mão, o episódio sai assim que fica pronto.
 
 ## Mandar para um grupo
 
@@ -92,9 +94,8 @@ em silêncio: o episódio falha e chega no Telegram uma mensagem dizendo o que c
 | `NEWS_PODCAST_MINUTES` | `12-18` | `8-12` | Duração do áudio que chega no Telegram, em minutos (mínimo-máximo, a partir de 5). |
 | `NEWS_PODCAST_SPEECH_SPEED` | `1` | `1.25` | Velocidade do arquivo, de 0.5 a 2 (também aceita `1,25` e `1.25x`). |
 
-- **Horário:** para mudar, ajuste juntos o Cron Schedule do serviço no Railway (uma
-  hora antes, em UTC) e o `NEWS_PODCAST_SEND_AT`. O nome do podcast e o bom dia
-  acompanham o horário.
+- **Horário:** vem do Cron Schedule do serviço no Railway (veja *Agendamento*); não há
+  variável para ele.
 - **Duração e velocidade:** a duração vale para o arquivo, já na velocidade escolhida.
   Com `1.25`, o roteiro fica 25% maior para caber no mesmo tempo, e a voz custa 25% a
   mais. O número de histórias acompanha a duração (uma a cada minuto e meio).
