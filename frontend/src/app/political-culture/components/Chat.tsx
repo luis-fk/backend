@@ -28,46 +28,49 @@ export default function Chat() {
   const [sending, setSending] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
-  const [isClient, setIsClient] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const session = useSession("political-culture");
+  const userId = session?.userId;
   const serverUrl = process.env.NEXT_PUBLIC_SERVER_URL;
 
+  // MUI returns false until hydration ends, so no isClient flag is needed.
   const isMobile = useMediaQuery("(max-width: 800px)");
-
-  useEffect(() => {
-    setIsClient(true);
-  }, []);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
   useEffect(() => {
-    if (!session?.userId || !serverUrl) {
-      setLoadingHistory(false);
-      return;
-    }
+    // loadingHistory starts as true, so there is nothing to set until the session arrives.
+    if (!userId || !serverUrl) return;
 
+    const controller = new AbortController();
     axios
-      .get(`${serverUrl}/api/political-culture/chat-history/${session.userId}`)
+      .get<MessageType[]>(
+        `${serverUrl}/api/political-culture/chat-history/${userId}`,
+        { signal: controller.signal },
+      )
       .then((res) => {
         if (res.status === 200 && res.data.length > 0) {
           setMessages(res.data);
         }
       })
-      .catch((err) => {
+      .catch((err: unknown) => {
+        if (axios.isCancel(err)) return;
         logger.error("Failed to fetch chat history", {
-          userId: session.userId,
+          userId,
           error: err,
         });
         setErrorMessage("Não foi possível carregar o histórico de mensagens.");
       })
       .finally(() => {
-        setLoadingHistory(false);
+        // Ignore runs that were cleaned up.
+        if (!controller.signal.aborted) setLoadingHistory(false);
       });
-  }, [session?.userId, serverUrl]);
+
+    return () => controller.abort();
+  }, [userId, serverUrl]);
 
   const handleNewMessage = useCallback((message: MessageType) => {
     setMessages((previous) => [...previous, message]);
@@ -78,7 +81,7 @@ export default function Chat() {
   }, []);
 
   useChatSocket({
-    userId: session?.userId?.toString(),
+    userId: userId?.toString(),
     serverUrl,
     onMessage: handleNewMessage,
     setSending,
@@ -93,8 +96,6 @@ export default function Chat() {
       ta.style.height = `${ta.scrollHeight}px`;
     }
   };
-
-  const userId = session?.userId;
 
   const send = useCallback(async () => {
     if (sending || !input.trim()) return;
@@ -120,16 +121,20 @@ export default function Chat() {
 
   const containerStyle = useMemo(
     () => ({
-      width: isClient && isMobile ? "90vw" : "60vw",
-      height: isClient && isMobile ? "85vh" : "95vh",
+      width: isMobile ? "90vw" : "60vw",
+      height: isMobile ? "85vh" : "95vh",
     }),
-    [isClient, isMobile],
+    [isMobile],
   );
 
   return (
     <div className="chat-container" style={containerStyle}>
       <div className="message-list">
-        {loadingHistory ? (
+        {session === null ? (
+          <div className="loading-history">
+            Não foi possível carregar a sua sessão. Recarregue a página.
+          </div>
+        ) : loadingHistory ? (
           <div className="loading-history">Loading chat history...</div>
         ) : (
           messages.map((msg, i) => (
