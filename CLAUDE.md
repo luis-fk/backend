@@ -12,7 +12,7 @@ Until November 2026 they were separate repositories: this one was `luis-fk/backe
 
 ## Layout
 ```
-.github/workflows/   backend-ci.yml, frontend-ci.yml, news_podcast.yml (GitHub only reads workflows here)
+.github/workflows/   backend-ci.yml, frontend-ci.yml (GitHub only reads workflows here)
 .claude/ _bmad/      Claude Code skills and BMAD, shared by both parts (BMAD writes its working files to _bmad-output/, which is git-ignored)
 backend/             Django project: manage.py, pyproject.toml, uv.lock, the apps, tests/
 frontend/            Next.js app: package.json, src/
@@ -21,7 +21,7 @@ frontend/            Next.js app: package.json, src/
 ## Working in the repository
 - Run backend commands from `backend/` (uv) and frontend commands from `frontend/` (npm). The root has no tooling of its own.
 - The two parts share no code. The frontend talks to the backend only over HTTP and WebSocket (`NEXT_PUBLIC_SERVER_URL`); do not add shared packages or imports across the two folders.
-- CI runs on pull requests and is filtered by path: `backend-ci.yml` (ruff, format, mypy, pytest) when `backend/` changes and `frontend-ci.yml` (lint, typecheck) when `frontend/` changes. `news_podcast.yml` is the daily podcast run, not CI.
+- CI runs on pull requests and is filtered by path: `backend-ci.yml` (ruff, format, mypy, pytest) when `backend/` changes and `frontend-ci.yml` (lint, typecheck) when `frontend/` changes.
 - Deployment: one Railway project (`projects`) with one service per part. Each service uses its folder as Root Directory, watches only that folder, and deploys from `main`. Both services need the same `API_TOKEN_SECRET`: the frontend signs the tokens that the backend checks on every call.
 - The two parts are versioned separately: the backend version lives in `backend/pyproject.toml` and the frontend version in `frontend/package.json`, and a release bumps only the part that changed.
 

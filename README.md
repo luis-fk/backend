@@ -29,9 +29,9 @@ npm ci
 npm run dev       # http://localhost:3000
 ```
 
-The daily news podcast runs on GitHub Actions; see [`backend/news_podcast/README.md`](backend/news_podcast/README.md).
+The daily news podcast runs on a Railway cron service, with its settings and cost history in the Django admin; see [`backend/news_podcast/README.md`](backend/news_podcast/README.md).
 
 ## CI and deployment
 
-- `.github/workflows/backend-ci.yml` (Ruff, mypy, pytest) and `frontend-ci.yml` (lint, typecheck) run on pull requests that touch their folder. `news_podcast.yml` is the daily podcast run, not CI.
+- `.github/workflows/backend-ci.yml` (Ruff, mypy, pytest) and `frontend-ci.yml` (lint, typecheck) run on pull requests that touch their folder.
 - Both parts deploy to Railway from `main`, as two services of the same project. Each service uses its folder as Root Directory.

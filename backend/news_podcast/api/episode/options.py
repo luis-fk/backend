@@ -1,76 +1,14 @@
-import re
 from datetime import datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
 from news_podcast.api.episode import config
 from news_podcast.api.episode.schemas import EpisodeOptions
 
-MINUTES_PATTERN = re.compile(r"([0-9]+)\s*[-–]\s*([0-9]+)")
-SPEED_PATTERN = re.compile(r"([0-9]+(?:[.,][0-9]+)?)x?", re.IGNORECASE)
 PODCAST_NAMES = {
     0: "Resumo da meia-noite",
     1: "Resumo da 1",
     12: "Resumo do meio-dia",
 }
-
-
-class InvalidOptionError(Exception):
-    pass
-
-
-def parse_episode_options(
-    minutes: str | None, speech_speed: str | None
-) -> EpisodeOptions:
-    min_minutes, max_minutes = parse_minutes(minutes)
-    speed = parse_speech_speed(speech_speed)
-    speech_minutes = max_minutes * speed
-    if speech_minutes > config.MAX_SPEECH_MINUTES:
-        raise InvalidOptionError(
-            f"{max_minutes} minutos em {speed:g}x são {speech_minutes:g} minutos de "
-            f"fala, e o limite é {config.MAX_SPEECH_MINUTES}. Diminua o máximo de "
-            "NEWS_PODCAST_MINUTES ou a NEWS_PODCAST_SPEECH_SPEED"
-        )
-    return EpisodeOptions(min_minutes, max_minutes, speed)
-
-
-def parse_minutes(raw: str | None) -> tuple[int, int]:
-    value = (raw or "").strip()
-    if not value:
-        return config.DEFAULT_MIN_MINUTES, config.DEFAULT_MAX_MINUTES
-
-    match = MINUTES_PATTERN.fullmatch(value)
-    if not match:
-        raise InvalidOptionError(
-            "NEWS_PODCAST_MINUTES precisa ter o mínimo e o máximo, como 12-18 "
-            f"(veio {value!r})"
-        )
-    shortest, longest = int(match.group(1)), int(match.group(2))
-    if shortest > longest:
-        raise InvalidOptionError(
-            f"NEWS_PODCAST_MINUTES tem o mínimo maior que o máximo (veio {value!r})"
-        )
-    if shortest < config.SHORTEST_EPISODE_MINUTES:
-        raise InvalidOptionError(
-            "NEWS_PODCAST_MINUTES precisa começar em pelo menos "
-            f"{config.SHORTEST_EPISODE_MINUTES} minutos (veio {value!r})"
-        )
-    return shortest, longest
-
-
-def parse_speech_speed(raw: str | None) -> float:
-    value = (raw or "").strip()
-    if not value:
-        return config.DEFAULT_SPEECH_SPEED
-
-    match = SPEED_PATTERN.fullmatch(value)
-    speed = float(match.group(1).replace(",", ".")) if match else None
-    slowest, fastest = config.SPEECH_SPEED_LIMITS
-    if speed is None or not slowest <= speed <= fastest:
-        raise InvalidOptionError(
-            f"NEWS_PODCAST_SPEECH_SPEED precisa ser um número de {slowest:g} a "
-            f"{fastest:g}, como 1.25 (veio {value!r})"
-        )
-    return speed
 
 
 def target_minutes(options: EpisodeOptions) -> float:

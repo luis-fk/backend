@@ -2,16 +2,24 @@ from datetime import date
 
 import pytest
 
-from news_podcast.api.episode.costs import format_brl, price_for, usage_cost_usd
+from news_podcast.api.episode.costs import format_brl, usage_cost_usd
 from news_podcast.api.episode.messages import (
     episode_caption,
     episode_details,
     long_date,
 )
-from news_podcast.api.episode.schemas import SourceText, StoryBrief, Usage
+from news_podcast.api.episode.schemas import (
+    ModelPrice,
+    SourceText,
+    StoryBrief,
+    Usage,
+)
 
 NOVEMBER = date(2026, 11, 6)
-JANUARY = date(2027, 1, 4)
+PRICES = {
+    "gemini-3.6-flash": ModelPrice(0.75, 3.75),
+    "gemini-3.8-flash-lite-tts": ModelPrice(0.50, 6.00),
+}
 USAGES = [
     Usage(
         step="selection",
@@ -34,14 +42,6 @@ USAGES = [
 ]
 
 
-def test_prices_double_in_january_2027() -> None:
-    november = price_for("gemini-3.8-flash-lite-tts", NOVEMBER)
-    january = price_for("gemini-3.8-flash-lite-tts", JANUARY)
-
-    assert november is not None and january is not None
-    assert january.output_per_million == 2 * november.output_per_million
-
-
 def test_voice_cost_follows_audio_tokens() -> None:
     eighteen_minutes = Usage(
         step="voice",
@@ -50,13 +50,11 @@ def test_voice_cost_follows_audio_tokens() -> None:
         output_tokens=18 * 60 * 25,
     )
 
-    assert usage_cost_usd(eighteen_minutes, NOVEMBER) == pytest.approx(0.162)
+    assert usage_cost_usd(eighteen_minutes, PRICES) == pytest.approx(0.162)
 
 
 def test_unknown_models_cost_nothing() -> None:
-    assert (
-        usage_cost_usd(Usage(step="voice", model="x", output_tokens=10), NOVEMBER) == 0
-    )
+    assert usage_cost_usd(Usage(step="voice", model="x", output_tokens=10), PRICES) == 0
 
 
 def test_brazilian_number_formats() -> None:
@@ -86,7 +84,7 @@ def test_details_show_the_sources_and_a_short_cost_summary() -> None:
         for index in range(3)
     ]
 
-    details = episode_details(day=NOVEMBER, briefs=briefs, usages=USAGES)
+    details = episode_details(briefs=briefs, usages=USAGES, prices=PRICES)
 
     assert details.splitlines() == [
         "<b>Fontes:</b> CNN Brasil (3), g1 (3)",
