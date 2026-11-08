@@ -1,9 +1,11 @@
 import Link from "next/link";
+import ThemeToggle from "@/app/components/ThemeToggle";
 import LoginForm from "@/cfflch/components/login-form";
 
 export default function Home(): React.ReactElement {
   return (
     <main className="auth" data-project="cfflch">
+      <ThemeToggle />
       <div className="auth-panel">
         <div className="auth-intro">
           <div className="auth-brand">

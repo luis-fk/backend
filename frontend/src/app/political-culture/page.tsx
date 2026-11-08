@@ -1,4 +1,5 @@
 import Link from "next/link";
+import ThemeToggle from "@/app/components/ThemeToggle";
 import { LoginForm } from "@/app/political-culture/components/LoginForm";
 import { PROJECTS } from "@/app/projects";
 
@@ -9,6 +10,7 @@ const projectName = PROJECTS.find(
 export default function Home(): React.ReactElement {
   return (
     <main className="auth" data-project="political-culture">
+      <ThemeToggle />
       <div className="auth-panel">
         <div className="auth-intro">
           <div className="auth-brand">

@@ -8,7 +8,7 @@ It lives in `frontend/` of the monorepo, next to the Django backend in `../backe
 ## Tech stack
 - **Framework:** Next.js 16 (App Router, Turbopack for dev and build). Next 16 changed APIs and conventions, so read the relevant guide in `node_modules/next/dist/docs/` (the docs of the installed version) before writing Next-specific code; `AGENTS.md`, which `next dev` writes, says the same for other agents.
 - **UI Library:** React 19 + TypeScript 5 (strict mode)
-- **Styling:** plain CSS and native HTML elements, no component library (MUI was removed in the redesign), no Tailwind and no PostCSS config. `src/app/globals.css` holds the design tokens (light theme with automatic dark mode through `prefers-color-scheme`) and the shared patterns; `data-project="<key>"` sets the app's accent color. Font: Schibsted Grotesk through `next/font`. UI text is in Portuguese (pt-BR), sentence case.
+- **Styling:** plain CSS and native HTML elements, no component library (MUI was removed in the redesign), no Tailwind and no PostCSS config. `src/app/globals.css` holds the design tokens and the shared patterns; `data-project="<key>"` sets the app's accent color. Each color token is a `light-dark()` pair, picked by `color-scheme`: it follows the system until the theme switch (`ThemeToggle`) saves a choice in the `theme` cookie (through the `saveTheme` Server Action), which the root layout turns into `<html data-theme>`. Reading that cookie makes every page render on demand. Font: Schibsted Grotesk through `next/font`. UI text is in Portuguese (pt-BR), sentence case.
 - **Auth:** Jose 5 for JWT encryption (HS256), stored in `httpOnly` cookies, managed via Next.js server actions and the proxy
 - **HTTP:** Axios for REST calls to the Django backend
 - **WebSocket:** Native browser `WebSocket` API (no library), managed via custom hooks
@@ -29,16 +29,18 @@ src/
 ├── proxy.ts                     # Auth routing for all apps
 ├── types.d.ts                   # Lets TypeScript import .css files
 └── app/
-    ├── layout.tsx               # Root layout: font, globals.css, pt-BR
+    ├── layout.tsx               # Root layout: font, globals.css, pt-BR, theme cookie
     ├── globals.css              # Design tokens and shared patterns
     ├── projects.ts              # The project list (home page and project switcher)
     ├── page.tsx                 # Home page: the list of projects
     ├── icon.svg                 # Site icon
     ├── actions/                 # Shared session code
     │   ├── session.ts           # "use server": JWT sign/verify, getSession, createSession
+    │   ├── theme.ts             # "use server": saveTheme, which sets the theme cookie
     │   └── useSession.ts        # Client hook that reads the app's session through getSession
     ├── components/              # Shared infrastructure components
-    │   ├── AppHeader.tsx        # App header: project switcher (<details>) and the app's nav
+    │   ├── AppHeader.tsx        # App header: project switcher (<details>), the app's nav, theme switch
+    │   ├── ThemeToggle.tsx      # Light/dark switch, saves the choice in the "theme" cookie
     │   └── Toast.tsx            # Toast (top-right, hides after 5 s, severity prop)
     ├── api/log/                 # Client log endpoint
     │   ├── route.ts
@@ -67,14 +69,14 @@ src/
 ```
 
 ### Shared vs app-specific
-- **Shared:** session code (`src/app/actions/`), the logger (`src/app/api/log/`), the proxy, `globals.css` (tokens; fields, buttons, lists, the login layout, the header, the toast), `projects.ts`, and the infrastructure components `AppHeader` and `Toast` (`src/app/components/`).
-- **App-specific:** everything else, including each app's login server action, feature components, CSS, and hooks. Do not create shared feature UI across apps — duplication is preferred over coupling (each chat keeps its own markup and CSS). Exception: site infrastructure with no app-specific logic, like the header and the toast.
+- **Shared:** session code (`src/app/actions/`), the logger (`src/app/api/log/`), the proxy, `globals.css` (tokens; fields, buttons, lists, the login layout, the header, the theme switch, the toast), `projects.ts`, and the infrastructure components `AppHeader`, `ThemeToggle` and `Toast` (`src/app/components/`).
+- **App-specific:** everything else, including each app's login server action, feature components, CSS, and hooks. Do not create shared feature UI across apps — duplication is preferred over coupling (each chat keeps its own markup and CSS). Exception: site infrastructure with no app-specific logic, like the header, the theme switch and the toast.
 
 ### Adding a project
 1. An entry in `src/app/projects.ts` (and its key in `ProjectKey`).
 2. An accent color in `globals.css` (light and dark) and its `[data-project="<key>"]` rule.
 3. Its routes in the `PROJECTS` map of `src/proxy.ts`.
-4. The app folder: a login page with the shared `.auth` classes and `(routes)/layout.tsx` with `<div className="app-shell" data-project="<key>">` and `<AppHeader project="<key>" />`.
+4. The app folder: a login page with the shared `.auth` classes and `<ThemeToggle />` as the first child of `main.auth`, and `(routes)/layout.tsx` with `<div className="app-shell" data-project="<key>">` and `<AppHeader project="<key>" />`.
 
 ### Proxy
 `src/proxy.ts` handles auth routing for all apps. It is what Next.js called middleware before version 16, and it runs on the Node.js runtime (the Edge runtime is not available in a proxy). The `PROJECTS` map must be updated when a new app is added — add the app name, its `publicPaths`, `protectedPaths`, and `defaultProtectedPath`. Each app has its own session cookie, `session-<app>`.
@@ -96,7 +98,7 @@ src/
 ## Coding conventions
 
 ### Naming
-- Files and folders: `kebab-case` (cfflch follows it; plants and political-culture predate the rule and still use `PascalCase` component files and `camelCase` hook files)
+- Files and folders: `kebab-case` (cfflch follows it; plants, political-culture and the shared `components/` and `actions/` use `PascalCase` component files and `camelCase` hook files)
 - Components: `PascalCase`
 - Hooks: `camelCase` with `use` prefix
 - Server actions: `camelCase`
@@ -116,6 +118,7 @@ src/
 
 ### CSS
 - App-specific CSS in `<app>/css/`, written as plain CSS with the tokens from `globals.css` (`var(--...)`); reuse the shared classes before writing new ones.
+- A color that changes with the theme uses a token or `light-dark()`. A `prefers-color-scheme` query would ignore the choice saved by the theme switch.
 - Prefix app class names with the app (`plants-chat-…`, `political-chat-…`, `results-…`): Next.js keeps route stylesheets loaded after client-side navigation, so generic names from one app would style another.
 
 ### Environment variables
@@ -158,7 +161,7 @@ The plants chat endpoints have no `/plants` prefix in the backend. The plants GE
 
 ## Non-negotiables
 The shared ones (learning-first, git managed by the user) are in the root `CLAUDE.md`.
-- **App isolation.** No shared feature components across apps. Each app owns its full component tree; only site infrastructure (`AppHeader`, `Toast`, `globals.css`) is shared.
+- **App isolation.** No shared feature components across apps. Each app owns its full component tree; only site infrastructure (`AppHeader`, `ThemeToggle`, `Toast`, `globals.css`) is shared.
 - **Backend contract matters.** The WebSocket-before-POST constraint is non-negotiable: political-culture connects on mount, and cfflch waits for `onopen` before each POST.
 - **No tests yet.** Vitest or Jest is not installed. Do not write tests unless explicitly asked.
 - **TypeScript strict.** All new code must pass `tsc --noEmit` cleanly.

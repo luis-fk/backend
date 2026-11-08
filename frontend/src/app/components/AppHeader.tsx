@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef } from "react";
+import ThemeToggle from "@/app/components/ThemeToggle";
 import { PROJECTS, type ProjectKey } from "@/app/projects";
 
 type NavLink = { href: string; label: string };
@@ -112,19 +113,22 @@ export default function AppHeader({
           </Link>
         </nav>
       </details>
-      {links.length > 0 && (
-        <nav aria-label={name} className="app-nav">
-          {links.map((link) => (
-            <Link
-              key={link.href}
-              href={link.href}
-              aria-current={pathname === link.href ? "page" : undefined}
-            >
-              {link.label}
-            </Link>
-          ))}
-        </nav>
-      )}
+      <div className="app-header-end">
+        {links.length > 0 && (
+          <nav aria-label={name} className="app-nav">
+            {links.map((link) => (
+              <Link
+                key={link.href}
+                href={link.href}
+                aria-current={pathname === link.href ? "page" : undefined}
+              >
+                {link.label}
+              </Link>
+            ))}
+          </nav>
+        )}
+        <ThemeToggle />
+      </div>
     </header>
   );
 }

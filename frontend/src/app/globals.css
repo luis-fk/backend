@@ -1,48 +1,40 @@
 /* Design tokens and shared patterns. App-specific styles live in each app's css/ folder. */
 
+/* Each color has a light and a dark value, and light-dark() picks one from
+   color-scheme: the system preference, unless the theme switch saved a choice
+   (<html data-theme>, set by the root layout from the "theme" cookie). */
 :root {
   color-scheme: light dark;
-  --bg: #ffffff;
-  --surface: #f2f3f1;
-  --line: #e2e4e0;
-  --field-line: #d3d6d0;
-  --ink: #17191c;
-  --muted: #5f646b;
-  --danger: #a1281f;
-  --success: #2e7d4f;
-  --warning: #8a5a00;
-  --plants: #2e7d4f;
-  --politics: #3a4ba0;
-  --cfflch: #8a5a00;
-  --on-accent: #ffffff;
+  --bg: light-dark(#ffffff, #141618);
+  --surface: light-dark(#f2f3f1, #1e2124);
+  --line: light-dark(#e2e4e0, #2e3236);
+  --field-line: light-dark(#d3d6d0, #3a3f44);
+  --ink: light-dark(#17191c, #ecedee);
+  --muted: light-dark(#5f646b, #a0a6ad);
+  --danger: light-dark(#a1281f, #f08a80);
+  --success: light-dark(#2e7d4f, #6cc08f);
+  --warning: light-dark(#8a5a00, #e9b949);
+  --plants: light-dark(#2e7d4f, #6cc08f);
+  --politics: light-dark(#3a4ba0, #9aa8f0);
+  --cfflch: light-dark(#8a5a00, #e9b949);
+  --on-accent: light-dark(#ffffff, #141618);
   /* Surfaces that float above the page: the project menu and the toast. */
-  --elevated: #ffffff;
-  --elevated-hover: #f2f3f1;
-  --shadow-menu: 0 12px 32px rgb(23 25 28 / 0.12);
+  --elevated: light-dark(#ffffff, #1e2124);
+  --elevated-hover: light-dark(#f2f3f1, #2b2f34);
+  --shadow-menu: 0 12px 32px light-dark(rgb(23 25 28 / 0.12), rgb(0 0 0 / 0.4));
   --radius: 10px;
   /* Each app sets its own accent with data-project (below). */
   --accent: var(--ink);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #141618;
-    --surface: #1e2124;
-    --line: #2e3236;
-    --field-line: #3a3f44;
-    --ink: #ecedee;
-    --muted: #a0a6ad;
-    --danger: #f08a80;
-    --success: #6cc08f;
-    --warning: #e9b949;
-    --plants: #6cc08f;
-    --politics: #9aa8f0;
-    --cfflch: #e9b949;
-    --on-accent: #141618;
-    --elevated: #1e2124;
-    --elevated-hover: #2b2f34;
-    --shadow-menu: 0 12px 32px rgb(0 0 0 / 0.4);
-  }
+/* "only" keeps Chrome's automatic dark mode for websites from darkening a page
+   where the user picked light. */
+:root[data-theme="light"] {
+  color-scheme: only light;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
 }
 
 [data-project="plants"] {
@@ -369,6 +361,13 @@ textarea {
   border-bottom: 1px solid var(--line);
 }
 
+.app-header-end {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+  margin-left: auto;
+}
+
 .app-nav {
   display: flex;
   gap: 28px;
@@ -483,6 +482,111 @@ textarea {
 
 .project-menu .all-projects {
   color: var(--muted);
+}
+
+/* On phones the app's links move to a row of their own below, like tabs, so the
+   project and the theme switch keep the first row. */
+@media (max-width: 480px) {
+  /* Centers the 40px switcher in a 63px first row (the 64px header minus its
+     border), as on desktop. */
+  .project-switcher {
+    margin-block: 11.5px;
+  }
+
+  .app-header-end {
+    display: contents;
+  }
+
+  .app-header .theme-toggle {
+    margin-left: auto;
+  }
+
+  .app-nav {
+    order: 1;
+    width: 100%;
+  }
+
+  .app-nav a {
+    padding: 10px 0 8px;
+  }
+
+  /* Below the two rows (106.5px), not over the links. */
+  .app-shell:has(.app-nav) .toast {
+    top: 122px;
+  }
+}
+
+/* Theme switch */
+
+/* The transparent borders don't show, except in Windows high contrast mode,
+   which drops backgrounds and shadows and draws borders instead. */
+.theme-toggle {
+  position: relative;
+  flex-shrink: 0;
+  width: 52px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 14px;
+  background: var(--line);
+  cursor: pointer;
+}
+
+.theme-toggle:hover {
+  background: var(--field-line);
+}
+
+.theme-toggle-knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border: 1px solid transparent;
+  border-radius: 50%;
+  background: var(--bg);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.25);
+  transition: translate 0.2s ease;
+}
+
+/* Both icons share the knob, and light-dark() hides the one that doesn't apply. */
+.theme-toggle-knob svg {
+  grid-area: 1 / 1;
+}
+
+.theme-toggle-sun {
+  color: light-dark(var(--warning), transparent);
+}
+
+.theme-toggle-moon {
+  color: light-dark(transparent, var(--warning));
+}
+
+/* CSS can't read color-scheme, so the knob repeats the two ways the page turns
+   dark: a saved choice, or the system with no choice saved. */
+:root[data-theme="dark"] .theme-toggle-knob {
+  translate: 24px 0;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .theme-toggle-knob {
+    translate: 24px 0;
+  }
+}
+
+/* Pages without the app header (home, login, 404) put the switch where the
+   header would: top right, centered in the first 64px. */
+.home,
+.auth {
+  position: relative;
+}
+
+:is(.home, .auth) > .theme-toggle {
+  position: absolute;
+  top: 18px;
+  right: clamp(16px, 4vw, 40px);
 }
 
 /* Home */
@@ -619,7 +723,8 @@ textarea {
 
 /* Toast */
 
-/* Below the 64px app header, so it never covers the navigation. */
+/* Below the 64px app header, so it never covers the navigation (the phone rules
+   move it lower when the header has two rows). */
 .toast {
   position: fixed;
   top: 80px;

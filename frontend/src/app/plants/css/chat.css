@@ -50,17 +50,14 @@
   max-width: 75%;
   padding: 10px 16px;
   border-radius: 18px 18px 6px 18px;
-  background: color-mix(in srgb, var(--accent) 12%, var(--bg));
+  background: light-dark(
+    color-mix(in srgb, var(--accent) 12%, var(--bg)),
+    color-mix(in srgb, var(--accent) 22%, var(--bg))
+  );
   color: var(--ink);
   /* Keeps the line breaks typed with Shift+Enter. */
   white-space: pre-wrap;
   overflow-wrap: anywhere;
-}
-
-@media (prefers-color-scheme: dark) {
-  .plants-chat-user {
-    background: color-mix(in srgb, var(--accent) 22%, var(--bg));
-  }
 }
 
 /* The assistant's answers: plain text with markdown styles, no bubble.

@@ -1,9 +1,11 @@
 import Link from "next/link";
+import ThemeToggle from "@/app/components/ThemeToggle";
 import { LoginForm } from "@/app/plants/components/LoginForm";
 
 export default function Home(): React.ReactElement {
   return (
     <main className="auth" data-project="plants">
+      <ThemeToggle />
       <div className="auth-panel">
         <div className="auth-intro">
           <div className="auth-brand">
