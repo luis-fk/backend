@@ -1,23 +1,22 @@
 import time
-from datetime import timedelta
 from typing import Any
 
 import jwt
 import pytest
 from django.http import HttpRequest
 from django.test import RequestFactory
-from pytest_django import Settings
+from pytest_django import DjangoAssertNumQueries, Settings
 from rest_framework.exceptions import PermissionDenied
 
+from api_keys.models import ApiKey
 from backend.api_auth import (
     InvalidToken,
     has_valid_device_key,
-    make_user_token,
     require_same_user,
     require_user_token,
     websocket_user_id,
 )
-from tests.api_tokens import bearer, make_token, user_token
+from tests.api_tokens import api_key, bearer, make_token, user_token
 
 
 def request_with(headers: dict[str, str]) -> HttpRequest:
@@ -75,10 +74,13 @@ def test_a_token_issued_a_few_seconds_ahead_is_accepted() -> None:
     assert require_user_token(request_with(bearer(token)), "plants") == "7"
 
 
-def test_make_user_token_signs_a_token_the_api_accepts() -> None:
-    token = make_user_token("7", "plants", timedelta(minutes=5))
+@pytest.mark.django_db
+def test_an_api_key_gives_its_user_id_and_records_its_use() -> None:
+    request = request_with(bearer(api_key("plants", 7)))
+    assert ApiKey.objects.get().last_used_at is None
 
-    assert require_user_token(request_with(bearer(token)), "plants") == "7"
+    assert require_user_token(request, "plants") == "7"
+    assert ApiKey.objects.get().last_used_at is not None
 
 
 def test_another_users_id_gets_403() -> None:
@@ -112,3 +114,13 @@ def test_websocket_tokens_come_as_the_bearer_subprotocols() -> None:
     assert websocket_user_id({"subprotocols": [token]}, "cfflch") is None
     assert websocket_user_id({"subprotocols": ["bearer", token, "x"]}, "cfflch") is None
     assert websocket_user_id({"subprotocols": []}, "cfflch") is None
+
+
+@pytest.mark.django_db
+def test_websockets_refuse_api_keys_without_a_query(
+    django_assert_num_queries: DjangoAssertNumQueries,
+) -> None:
+    scope = {"subprotocols": ["bearer", api_key("cfflch", 7)]}
+
+    with django_assert_num_queries(0):
+        assert websocket_user_id(scope, "cfflch") is None

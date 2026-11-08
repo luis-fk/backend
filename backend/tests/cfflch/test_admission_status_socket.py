@@ -7,7 +7,7 @@ from channels.testing import WebsocketCommunicator
 from pytest_django import Settings
 
 from cfflch.api.admission_status.routing import websocket_urlpatterns
-from tests.api_tokens import login_token, user_token
+from tests.api_tokens import api_key, login_token, user_token
 
 
 @pytest.fixture(autouse=True)
@@ -55,5 +55,12 @@ def test_the_status_socket_rejects_another_apps_token() -> None:
 
 def test_the_status_socket_rejects_a_login_token() -> None:
     connected, _ = open_status_socket(["bearer", login_token("cfflch")])
+
+    assert not connected
+
+
+@pytest.mark.django_db
+def test_the_status_socket_rejects_an_api_key() -> None:
+    connected, _ = open_status_socket(["bearer", api_key("cfflch")])
 
     assert not connected

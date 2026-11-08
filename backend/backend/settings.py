@@ -101,6 +101,7 @@ INSTALLED_APPS = [
     "pgvector.django",
     "corsheaders",
     "rest_framework",
+    "api_keys",
     "plants",
     "political_culture",
     "cfflch",

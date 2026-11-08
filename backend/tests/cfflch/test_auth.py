@@ -8,7 +8,14 @@ from django.test import Client
 
 from cfflch.api.admission_status.routes import AdmissionStatusApi
 from cfflch.models import AdmissionResult, ClassRoom
-from tests.api_tokens import bearer, login_token, make_token, user_token
+from tests.api_tokens import (
+    api_key,
+    bearer,
+    login_token,
+    make_token,
+    unknown_api_key,
+    user_token,
+)
 
 Send = Callable[[Client, dict[str, str]], HttpResponseBase]
 
@@ -48,6 +55,14 @@ def find_user(client: Client, headers: dict[str, str]) -> HttpResponseBase:
 
 
 REQUESTS = [list_class_rooms, list_results, update_result, delete_result, start_search]
+# What each request answers a cfflch user, with the empty_database fixture.
+STATUSES = [
+    (list_class_rooms, 200),
+    (list_results, 200),
+    (update_result, 404),
+    (delete_result, 404),
+    (start_search, 202),
+]
 
 
 @pytest.fixture
@@ -74,19 +89,38 @@ def test_tokens_for_another_app_get_401(client: Client, send: Send) -> None:
 
 
 @pytest.mark.usefixtures("empty_database")
-@pytest.mark.parametrize(
-    ("send", "status"),
-    [
-        (list_class_rooms, 200),
-        (list_results, 200),
-        (update_result, 404),
-        (delete_result, 404),
-        (start_search, 202),
-    ],
-)
+@pytest.mark.parametrize(("send", "status"), STATUSES)
 def test_any_cfflch_user_gets_in(client: Client, send: Send, status: int) -> None:
     """The results have no owner: every cfflch user shares them."""
     assert send(client, bearer(user_token("cfflch", "8"))).status_code == status
+
+
+@pytest.mark.django_db
+@pytest.mark.usefixtures("empty_database")
+@pytest.mark.parametrize(("send", "status"), STATUSES)
+def test_any_cfflch_api_key_gets_in(client: Client, send: Send, status: int) -> None:
+    """start_search is an async view: it looks the key up through sync_to_async."""
+    assert send(client, bearer(api_key("cfflch", 8))).status_code == status
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("send", REQUESTS)
+def test_api_keys_for_another_app_get_401(client: Client, send: Send) -> None:
+    assert send(client, bearer(api_key("plants"))).status_code == 401
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("send", REQUESTS)
+def test_inactive_api_keys_get_401(client: Client, send: Send) -> None:
+    headers = bearer(api_key("cfflch", active=False))
+
+    assert send(client, headers).status_code == 401
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("send", REQUESTS)
+def test_unknown_api_keys_get_401(client: Client, send: Send) -> None:
+    assert send(client, bearer(unknown_api_key())).status_code == 401
 
 
 def test_the_login_lookup_without_a_token_gets_401(client: Client) -> None:

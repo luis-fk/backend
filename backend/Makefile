@@ -29,6 +29,7 @@ makemigrations:
 	uv run python manage.py makemigrations plants
 	uv run python manage.py makemigrations political_culture
 	uv run python manage.py makemigrations cfflch
+	uv run python manage.py makemigrations api_keys
 
 shell:
 	uv run python manage.py shell

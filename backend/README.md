@@ -23,14 +23,14 @@ Settings come from `backend/backend/.env`. Required: `SECRET_KEY`, `API_TOKEN_SE
 
 Users are created in the Django admin (`/admin/`).
 
-Other commands: `make lint`, `make type-check`, `uv run pytest`, `make requirements` (regenerates `requirements.txt`, which Railway installs from).
+Other commands: `make lint`, `make type-check`, `uv run pytest` (with `make db-up` running), `make requirements` (regenerates `requirements.txt`, which Railway installs from).
 
 ## API access
 Every API endpoint checks a token ([`backend/api_auth.py`](backend/api_auth.py)); `/admin/` keeps Django's login. The frontend signs JWTs (HS256) with `API_TOKEN_SECRET`, so both services need the same value, with at least 32 characters (`openssl rand -base64 32`). The browser sends the logged-in user's token as `Authorization: Bearer <token>`, or as the WebSocket subprotocols `bearer` and `<token>`, and the login Server Actions send a 60-second login token to `/api/<app>/users/<name>`.
 
 The ESP32 sends the header `X-Device-Key: <ESP32_DEVICE_KEY>` to `/api/esp32/humidity-data`.
 
-To call the word counter from Bruno, print a political-culture token with `uv run python manage.py api_token <user id>` (valid for 30 days, or `--days N`) and use it as the Bearer token. The token only works on a server with the same `API_TOKEN_SECRET` as the shell that printed it (for Railway, run the command with Railway's value). The user id is the `id` in political_culture's Users table (Django admin).
+To call the API from Bruno, or to give someone access, create an API key in the Django admin (**API keys → Add**, in production too): a name saying who or what it is for, the app, and the user id (the `id` in that app's Users table). The admin shows the key once and stores only its hash, so a lost key is replaced with a new one. Send it as `Authorization: Bearer <key>`: it works like that user's token in that app, except on the WebSockets. To revoke it, uncheck **Active** (in the list or on its page) and save; it stops working at once.
 
 ## Deployment
 Railway deploys `main` (Root Directory `/backend`). Pull requests run Ruff, mypy and pytest in CI.

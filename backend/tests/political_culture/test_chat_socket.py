@@ -7,7 +7,7 @@ from channels.testing import WebsocketCommunicator
 from pytest_django import Settings
 
 from political_culture.api.messages.routing import websocket_urlpatterns
-from tests.api_tokens import make_token, user_token
+from tests.api_tokens import api_key, make_token, user_token
 
 APP = "political-culture"
 
@@ -60,5 +60,12 @@ def test_the_chat_socket_rejects_a_connection_without_a_token() -> None:
 )
 def test_the_chat_socket_rejects_other_tokens(claims: dict[str, str]) -> None:
     connected, _ = open_chat_socket(7, ["bearer", make_token(**claims)])
+
+    assert not connected
+
+
+@pytest.mark.django_db
+def test_the_chat_socket_rejects_an_api_key() -> None:
+    connected, _ = open_chat_socket(7, ["bearer", api_key(APP, 7)])
 
     assert not connected

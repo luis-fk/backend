@@ -1,20 +1,26 @@
-"""Token and device key checks for the plants, political_culture and cfflch APIs.
+"""Token, API key and device key checks for plants, political_culture and cfflch.
 
 The frontend signs HS256 JWTs with API_TOKEN_SECRET:
 - a user token, {sub: the app's user id, app, purpose: "user"}, for a logged-in user;
 - a login token, {app, purpose: "login"}, for the login lookup by name.
 The app keys are "plants", "political-culture" and "cfflch".
+
+Over HTTP, an active API key (the api_keys app) works wherever a user token does, as
+its user in its app. The WebSockets take only user tokens.
 """
 
 import hmac
-from datetime import UTC, datetime, timedelta
+from datetime import timedelta
 from typing import Any
 
 import jwt
 from django.conf import settings
 from django.http import HttpRequest
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.exceptions import APIException, PermissionDenied
+
+from api_keys.models import KEY_START, ApiKey, hash_key
 
 ALGORITHM = "HS256"
 # The frontend's clock may run a little ahead, and PyJWT rejects a token issued in
@@ -36,8 +42,9 @@ class InvalidToken(APIException):
 
 
 def require_user_token(request: HttpRequest, app: str) -> str:
-    """For DRF views: the user id of the request's user token for app, or a 401."""
-    user_id = _user_id(_bearer_token(request), app)
+    """For DRF views: the user id of the request's user token or API key for app,
+    or a 401."""
+    user_id = _request_user_id(request, app)
     if user_id is None:
         raise InvalidToken()
     return user_id
@@ -56,8 +63,12 @@ def require_login_token(request: HttpRequest, app: str) -> None:
 
 
 def has_valid_user_token(request: HttpRequest, app: str) -> bool:
-    """For plain Django views, which don't turn DRF errors into responses."""
-    return _user_id(_bearer_token(request), app) is not None
+    """For plain Django views, which don't turn DRF errors into responses.
+
+    An API key takes a database query, so an async view calls this through
+    sync_to_async.
+    """
+    return _request_user_id(request, app) is not None
 
 
 def has_valid_device_key(request: HttpRequest) -> bool:
@@ -83,22 +94,28 @@ def websocket_user_id(scope: dict[str, Any], app: str) -> str | None:
             return None
 
 
-def make_user_token(user_id: str, app: str, lifetime: timedelta) -> str:
-    """A user token like the ones the frontend signs."""
-    now = datetime.now(UTC)
-    claims = {
-        "sub": user_id,
-        "app": app,
-        "purpose": "user",
-        "iat": now,
-        "exp": now + lifetime,
-    }
-    return jwt.encode(claims, settings.API_TOKEN_SECRET, algorithm=ALGORITHM)
-
-
 def _bearer_token(request: HttpRequest) -> str:
     scheme, _, token = request.headers.get("Authorization", "").partition(" ")
     return token if scheme.lower() == "bearer" else ""
+
+
+def _request_user_id(request: HttpRequest, app: str) -> str | None:
+    token = _bearer_token(request)
+    if token.startswith(KEY_START):
+        return _api_key_user_id(token, app)
+    return _user_id(token, app)
+
+
+def _api_key_user_id(key: str, app: str) -> str | None:
+    """The user id of an active API key for app, or None. Records the key's use."""
+    api_key = ApiKey.objects.filter(
+        key_hash=hash_key(key), app=app, active=True
+    ).first()
+    if api_key is None:
+        return None
+    api_key.last_used_at = timezone.now()
+    api_key.save(update_fields=["last_used_at"])
+    return str(api_key.user_id)
 
 
 def _user_id(token: str, app: str) -> str | None:

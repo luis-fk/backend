@@ -4,6 +4,7 @@ import logging
 from typing import Any
 
 import httpx
+from asgiref.sync import sync_to_async
 from channels.layers import get_channel_layer
 from django.http import JsonResponse
 from django.utils.decorators import method_decorator
@@ -22,7 +23,8 @@ logger = logging.getLogger(__name__)
 @method_decorator(csrf_exempt, name="dispatch")
 class AdmissionStatusApi(View):
     async def post(self, request: Any) -> JsonResponse:
-        if not has_valid_user_token(request, "cfflch"):
+        # An API key takes a database query, which can't run in the event loop.
+        if not await sync_to_async(has_valid_user_token)(request, "cfflch"):
             return JsonResponse(
                 {"error": "Missing or invalid token."},
                 status=status.HTTP_401_UNAUTHORIZED,
