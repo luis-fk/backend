@@ -2,29 +2,30 @@
 
 Todo dia chega no Telegram uma mensagem de voz com dois apresentadores (Bia e Léo)
 contando o que aconteceu nas 24 horas anteriores, a partir dos feeds do `feeds.opml`. Ela
-chega às 7h e, no padrão, tem de 12 a 18 minutos (de 8 a 12 em 1,5x). Duração e
-velocidade mudam por variáveis (veja *Variáveis*). O episódio é só essa mensagem de voz:
-as fontes usadas e o custo do dia ficam no log da execução, no Railway (ou no Actions,
-quando roda na mão).
+chega às 7h e, no padrão, tem de 12 a 18 minutos (de 8 a 12 em 1,5x). Duração,
+velocidade, modelos, preços e prompts mudam no admin do Django (veja *Configurações*). O
+episódio é só essa mensagem de voz: o custo e o resultado de cada execução ficam no
+histórico do admin, e as fontes usadas, no log da execução no Railway.
 
-O app não tem models nem banco de dados, então não precisa de um `news_podcast_db` no
-`DATABASES` nem de mudanças no Makefile. Ele só expõe um management command.
+O app tem banco próprio, o `news_podcast_db` (`NEWS_PODCAST_DATABASE_URL`), com as
+configurações e o histórico. O resto é um management command.
 
 ## Como funciona
 
 | Etapa | Arquivo | O que acontece |
 |---|---|---|
 | Feeds | `api/episode/feeds.py` | Lê o OPML exportado do Feeder, baixa os 9 feeds em paralelo e mantém só o que saiu entre 6h de ontem e 6h de hoje. |
-| Seleção | `service.py` + `prompts.py` | O Gemini 3.8 Flash recebe todas as manchetes, junta as que falam do mesmo fato, aplica as regras editoriais e escolhe uma história para cada minuto e meio de episódio (de 8 a 12 no padrão), com o tempo de cada uma. |
+| Seleção | `service.py` + prompt de seleção | O modelo de texto recebe todas as manchetes, junta as que falam do mesmo fato, aplica as regras editoriais e escolhe uma história para cada minuto e meio de episódio (de 8 a 12 no padrão), com o tempo de cada uma. |
 | Leitura | `api/episode/articles.py` | Para cada história, lê o texto completo de até 3 veículos (o ICL vem primeiro). Os demais veículos que deram a notícia entram como manchete. Todos os feeds são de sites sem paywall. |
-| Roteiro | `service.py` + `prompts.py` | O Gemini escreve o diálogo com 170 palavras por minuto de episódio, vezes a velocidade (de 2.040 a 3.060 palavras no padrão), abrindo com uma escalada de 3 a 5 manchetes curtas, como nos telejornais. Se vier curto demais, pede uma versão mais longa uma vez. |
-| Voz | `api/episode/gemini.py` | O Gemini 3.8 Flash-Lite TTS gera o diálogo com as duas vozes, em blocos de cerca de 650 palavras. Se o Gemini estiver fora do ar, o código espera e tenta de novo (veja *Bom saber*). |
+| Roteiro | `service.py` + prompt do roteiro | O modelo de texto escreve o diálogo com 170 palavras por minuto de episódio, vezes a velocidade (de 2.040 a 3.060 palavras no padrão), abrindo com uma escalada de 3 a 5 manchetes curtas, como nos telejornais. Se vier curto demais, pede uma versão mais longa uma vez. |
+| Voz | `api/episode/gemini.py` | O modelo de voz gera o diálogo com as duas vozes, em blocos de cerca de 650 palavras. Se o Gemini estiver fora do ar, o código espera e tenta de novo (veja *Bom saber*). |
 | Áudio | `api/episode/audio.py` | O ffmpeg junta os trechos, normaliza o volume e gera um OGG/Opus de 32 kbps (cerca de 4 MB para 15 minutos), o formato das mensagens de voz do Telegram. |
 | Envio | `api/episode/telegram.py` | `sendVoice` com o título e a data na legenda (por ser mensagem de voz, o Telegram mostra o botão de velocidade 1x, 1,5x, 2x). Na execução agendada, espera a hora cheia seguinte ao início (7h, com o cron das 6h10). Se algo falhar, chega uma mensagem dizendo em qual etapa. |
 
 O episódio diário roda num serviço Cron do Railway (veja *Agendamento*). Ele rodava no
 GitHub Actions, mas o GitHub atrasava os agendamentos em horas ou os descartava. O
-workflow do GitHub ficou para rodar na mão (*Actions → News podcast → Run workflow*).
+workflow que ficou para rodar na mão saiu quando as configurações foram para o banco, que
+o GitHub não alcança.
 
 ## Configuração (uma vez só)
 
@@ -32,16 +33,17 @@ workflow do GitHub ficou para rodar na mão (*Actions → News podcast → Run w
    nome e guarde o token que ele devolve. Depois abra o seu bot e mande `/start`.
 2. **Chave do Gemini:** em [aistudio.google.com](https://aistudio.google.com), clique em
    *Get API key* e crie uma chave. O plano grátis não pede cartão.
-3. **Secrets no GitHub:** em *Settings → Secrets and variables → Actions → New
-   repository secret*, crie `GEMINI_API_KEY` e `TELEGRAM_BOT_TOKEN`. Eles servem para as
-   execuções na mão; o Railway tem as suas próprias variáveis (veja *Agendamento*).
-4. **Descobrir o seu chat:** em *Actions → News podcast → Run workflow*, escolha a ação
-   `chat-id`. O bot te manda um número no Telegram; salve como o secret
-   `TELEGRAM_CHAT_ID`. Para mandar para um grupo, veja *Mandar para um grupo*.
-5. **Escolher (opcional):** na aba *Variables* da mesma tela, crie só as variáveis que
-   quiser mudar (veja *Variáveis*), como a duração em `NEWS_PODCAST_MINUTES`.
-6. **Testar:** rode com a ação `episode`. Depois, configure o *Agendamento*: daí em
-   diante ele roda sozinho, começa às 6h10 e envia às 7h.
+3. **Banco:** crie o banco `news_podcast_db` no Postgres do Railway, como os outros,
+   ponha a `NEWS_PODCAST_DATABASE_URL` também no serviço do backend (o admin usa o
+   banco) e rode as migrations (`make migrate` com as URLs de produção).
+4. **Descobrir o seu chat:** com o `TELEGRAM_BOT_TOKEN` no `.env`, rode na pasta
+   `backend/` `uv run python manage.py news_podcast chat-id`. O bot te manda um número no
+   Telegram: ele vai na variável `TELEGRAM_CHAT_ID` do serviço (veja *Agendamento*). Para
+   mandar para um grupo, veja *Mandar para um grupo*.
+5. **Agendamento:** crie o serviço no Railway (abaixo). Daí em diante ele roda sozinho,
+   começa às 6h10 e envia às 7h.
+6. **Testar:** no Railway, abra o serviço e clique em *Run now*, ou rode
+   `railway cron run` na CLI.
 
 ## Agendamento (Railway)
 
@@ -51,16 +53,23 @@ Um serviço Cron no projeto do Railway, a partir do mesmo repositório:
    branch `main`, Custom Start Command `python manage.py news_podcast episode
    --scheduled` e Cron Schedule `10 9 * * *` (6h10 em Brasília; o Railway usa UTC).
 2. Em *Variables*: `RAILPACK_DEPLOY_APT_PACKAGES=ffmpeg` (instala o ffmpeg só neste
-   serviço; com o builder Nixpacks, é `NIXPACKS_APT_PKGS=ffmpeg`), `GEMINI_API_KEY`,
-   `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, `TELEGRAM_ADMIN_CHAT_ID`, as opcionais de
-   *Variáveis* e os valores fictícios que o Django exige: copie os do `env` do `.github/workflows/news_podcast.yml` (o app não usa
-   banco).
+   serviço), `GEMINI_API_KEY`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`,
+   `TELEGRAM_ADMIN_CHAT_ID` e `NEWS_PODCAST_DATABASE_URL`. O Django também exige, para
+   subir, `SECRET_KEY`, `API_TOKEN_SECRET` (32 caracteres ou mais), `ESP32_DEVICE_KEY`,
+   `OPEN_WEATHER_API_KEY`, `SERVER_URL`, `NGROK_URL`, `FRONT_END_URL`,
+   `ENVIRONMENT=development` (assim ele não pede o `REDIS_URL`) e as outras quatro
+   `*_DATABASE_URL`. Para essas, valores fictícios servem (as URLs de banco podem ser
+   `sqlite:///dummy.db`), porque o podcast só usa o banco dele.
 
 O episódio sai na hora cheia seguinte ao início da execução: com o cron às 6h10, ele é
 gerado e enviado às 7h, e o nome ("Resumo das 7") e o bom dia acompanham. Para mudar o
 horário ou a frequência, mude só o Cron Schedule, em UTC e no minuto 10 da hora anterior
 ao envio (`10 21 * * *` envia às 19h de Brasília). Uma execução só começa se a anterior já
-terminou. Rodando na mão, o episódio sai assim que fica pronto.
+terminou.
+
+Para rodar na mão, use o *Run now* do serviço ou `railway cron run`. Como é o mesmo
+comando do cron, o episódio sai na hora cheia seguinte e respeita a pausa. Rodando local
+sem `--scheduled`, ele sai assim que fica pronto.
 
 ## Mandar para um grupo
 
@@ -68,34 +77,28 @@ O bot só envia para a conversa do `TELEGRAM_CHAT_ID`. Quem só abre o bot e man
 `/start` não recebe nada. Para mais gente ouvir, use um grupo:
 
 1. No Telegram, crie um grupo com as pessoas e adicione o bot (procure pelo @ dele).
-2. Em *Actions → News podcast → Run workflow*, rode a ação `chat-id`. Como o
-   `TELEGRAM_CHAT_ID` já existe, o bot manda só para essa conversa a lista das conversas
-   que viu nas últimas 24 horas, com o número de cada uma. O grupo aparece com 👥 e um
-   número negativo.
-3. Troque `TELEGRAM_CHAT_ID` pelo número do grupo, no GitHub e no Railway. Daí em diante
-   o resumo vai para o grupo. Os avisos de erro e a lista de conversas vão para o
-   `TELEGRAM_ADMIN_CHAT_ID` (o número da sua conversa com o bot), para não aparecerem no
-   grupo; sem ele, vão para o grupo também.
+2. Rode o `chat-id` (veja *Configuração*). Com o `TELEGRAM_CHAT_ID` ou o
+   `TELEGRAM_ADMIN_CHAT_ID` no `.env`, o bot manda só para essa conversa a lista das
+   conversas que viu nas últimas 24 horas, com o número de cada uma. O grupo aparece com
+   👥 e um número negativo.
+3. Troque `TELEGRAM_CHAT_ID` pelo número do grupo no serviço do Railway. Daí em diante o
+   resumo vai para o grupo. Os avisos de erro vão para o `TELEGRAM_ADMIN_CHAT_ID` (o
+   número da sua conversa com o bot), para não aparecerem no grupo; sem ele, vão para o
+   grupo também.
 
 Se o grupo não aparecer na lista (o Telegram só guarda as últimas 24 horas para o bot),
 mande `/start@nome_do_bot` no grupo e rode de novo. Se o Telegram transformar o grupo em
 supergrupo, o que acontece ao mudar algumas configurações dele, o número muda: repita os
 passos 2 e 3.
 
-## Variáveis
+## Configurações
 
-Todas são opcionais. Crie as mesmas no Railway (execução diária) e no GitHub, em
-*Settings → Secrets and variables → Actions → aba Variables* (execuções na mão). Sem a
-variável, vale o padrão. Um valor em formato errado não cai no padrão
-em silêncio: o episódio falha e chega no Telegram uma mensagem dizendo o que corrigir.
+Ficam no admin do Django, em *News podcast → Settings*. É uma linha só, que começa com os
+valores do `config.py` e do `prompts.py`; depois disso, mudar esses arquivos não muda o
+que está no banco. Cada mudança vale a partir da próxima execução, e um valor inválido
+não salva: o admin mostra o erro no campo.
 
-| Variável | Padrão | Exemplo | O que muda |
-|---|---|---|---|
-| `NEWS_PODCAST_MINUTES` | `12-18` | `8-12` | Duração do áudio que chega no Telegram, em minutos (mínimo-máximo, a partir de 5). |
-| `NEWS_PODCAST_SPEECH_SPEED` | `1` | `1.25` | Velocidade do arquivo, de 0.5 a 2 (também aceita `1,25` e `1.25x`). |
-
-- **Horário:** vem do Cron Schedule do serviço no Railway (veja *Agendamento*); não há
-  variável para ele.
+- **Paused:** as execuções do Railway (o cron e o *Run now*) terminam sem episódio.
 - **Duração e velocidade:** a duração vale para o arquivo, já na velocidade escolhida.
   Com `1.25`, o roteiro fica 25% maior para caber no mesmo tempo, e a voz custa 25% a
   mais. O número de histórias acompanha a duração (uma a cada minuto e meio).
@@ -103,24 +106,36 @@ em silêncio: o episódio falha e chega no Telegram uma mensagem dizendo o que c
   (`MAX_SPEECH_MINUTES` no `config.py`). Cada pedido de voz gera uns 4 minutos e o plano
   grátis permite 10 pedidos por dia, então 30 minutos dão uns 8 pedidos. No plano pago,
   dá para aumentar esse limite.
-- Para rodar localmente, as mesmas variáveis funcionam no `.env`.
+- **Modelos e preços:** o modelo de texto, o reserva (opcional) e o de voz, cada um com
+  o preço em US$ por milhão de tokens de entrada e de saída, da tabela do Google. O custo
+  do histórico usa esses preços, então um modelo novo precisa do preço dele.
+- **Prompts e estilos de voz:** o prompt da seleção, o do roteiro e o de alongamento
+  (pedido uma vez, quando o roteiro vem curto), e os estilos da conversa e das manchetes
+  da escalada. Cada prompt só aceita os `{campos}` listados embaixo dele, sem
+  formatação (`{today}` funciona, `{today:%d}` não); uma chave literal se escreve `{{`
+  ou `}}`. Se mudar o estilo ou a voz, ajuste
+  `NATURAL_WORDS_PER_MINUTE` (palavras por minuto da voz antes do ffmpeg); senão o
+  episódio sai mais curto ou mais longo que o previsto.
+
+## Histórico
+
+Em *News podcast → Episodes*, uma linha por execução: hora de início (de Brasília),
+status (enviado, falhou ou, com `--no-send`, não enviado), duração, custo no plano pago
+em reais e, se falhou, a etapa e o erro. A página de cada execução mostra os tokens de
+cada resposta do Gemini. O áudio não fica guardado. O topo da lista mostra o custo total
+do que está filtrado (por mês ou por status). Uma execução pausada não aparece, e uma
+que falha no meio grava o custo do que já rodou.
 
 ## Ajustes
 
 - **Feeds:** exporte de novo no Feeder e substitua o `feeds.opml`. Use só sites sem
   paywall e confira se o domínio está em `FULL_TEXT_DOMAINS` (`config.py`). Fora dessa
   lista, a matéria entra só com o título e o resumo do RSS.
-- **Apresentadores, vozes, modelos, preços e os padrões das variáveis:**
-  `api/episode/config.py`.
-- **Ritmo e tom da voz:** o estilo pedido ao Gemini fica em `TTS_STYLE` (conversa) e em
-  `HEADLINE_TTS_STYLE` (manchetes da escalada, lidas com mais ênfase). Se mudar o estilo
-  ou a voz, ajuste `NATURAL_WORDS_PER_MINUTE` (palavras por minuto da voz antes do
-  ffmpeg); senão o episódio sai mais curto ou mais longo que o previsto.
-- **Regras editoriais (o que entra e o que não entra):** `api/episode/prompts.py`.
+- **Apresentadores e as vozes deles:** `HOSTS` no `config.py`.
 - **Dólar usado para mostrar os custos em reais:** `BRL_PER_USD` (fixo) no `config.py`.
 
-Para rodar localmente sem enviar, a partir da pasta `backend/`, com ffmpeg instalado e as
-chaves no `.env`:
+Para rodar localmente sem enviar, a partir da pasta `backend/`, com ffmpeg instalado, as
+chaves e o `NEWS_PODCAST_DATABASE_URL` no `.env` e as migrations rodadas:
 
 ```
 uv run python manage.py news_podcast episode --no-send
@@ -131,16 +146,14 @@ está no `.gitignore`.
 
 ## Bom saber
 
-- Os logs do Actions de um repositório público são públicos. Os das execuções na mão
-  mostram as manchetes escolhidas, nunca as chaves, que o GitHub mascara.
-- O custo no log é o do plano pago; no plano grátis, a execução não custa nada. Os preços
-  do Gemini em `PRICES` são promocionais até 31/12/2026 e dobram em 1/1/2027. Se o
-  Google mudar a tabela, é só atualizar ali.
-- `NEWS_PODCAST_SPEECH_SPEED` acelera o próprio arquivo com o filtro `atempo` do
-  ffmpeg. O botão de velocidade do player do Telegram (1x, 1,5x, 2x) continua valendo, e
-  as duas velocidades se multiplicam.
-- Se o Gemini 3.8 Flash estiver sobrecarregado, o texto é feito com o Gemini 3.6 Flash,
-  e o resto da execução já vai direto para ele.
+- O custo do histórico é o do plano pago; no plano grátis, a execução não custa nada. Os
+  preços iniciais são promocionais até 31/12/2026 e dobram em 1/1/2027 (texto 1,50 e
+  7,50; voz 1,00 e 12,00 por milhão de tokens): atualize no admin nesse dia.
+- A velocidade acelera o próprio arquivo com o filtro `atempo` do ffmpeg. O botão de
+  velocidade do player do Telegram (1x, 1,5x, 2x) continua valendo, e as duas
+  velocidades se multiplicam.
+- Se o modelo de texto estiver sobrecarregado, o texto é feito com o reserva, e o resto
+  da execução já vai direto para ele.
 - A voz não tem reserva: se o Gemini estiver fora do ar, o código espera 10 minutos e
   depois 20 e tenta de novo. Se ainda falhar, ou se a cota do dia acabar, o episódio do
   dia não sai e chega uma mensagem de erro no Telegram.

@@ -1,4 +1,3 @@
-from datetime import date
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -15,6 +14,9 @@ NEWS_WINDOW_HOURS = 24
 NEWS_CUTOFF_HOURS_BEFORE_SEND = 1
 MAX_WAIT_SECONDS = 3 * 60 * 60
 
+# The DEFAULT_* values, the models, their prices and the styles only fill the settings
+# row in the Django admin when it is created (news_podcast/models.py); after that,
+# they change in the admin.
 DEFAULT_MIN_MINUTES = 12
 DEFAULT_MAX_MINUTES = 18
 DEFAULT_SPEECH_SPEED = 1.0
@@ -32,11 +34,16 @@ HOSTS = (
     Host(name="Léo", speaker_id="Leo", gemini_voice="Charon"),
 )
 
-TEXT_MODEL = "gemini-3.8-flash"
-TEXT_FALLBACK_MODEL = "gemini-3.6-flash"
 THINKING_LEVEL = "medium"
 
+TEXT_MODEL = "gemini-3.8-flash"
+TEXT_FALLBACK_MODEL = "gemini-3.6-flash"
 TTS_MODEL = "gemini-3.8-flash-lite-tts"
+# US$ per million tokens of input and output, the paid-plan prices. They are
+# promotional until 2026-12-31 and double on 2027-01-01.
+TEXT_MODEL_PRICE = ModelPrice(0.75, 3.75)
+TEXT_FALLBACK_MODEL_PRICE = ModelPrice(0.75, 3.75)
+TTS_MODEL_PRICE = ModelPrice(0.50, 6.00)
 TTS_STYLE = (
     "Warm, conversational news podcast host speaking Brazilian Portuguese "
     "with a neutral Brazilian accent; clear diction; brisk, fast pace."
@@ -50,12 +57,6 @@ TTS_CHUNK_WORDS = 650
 AUDIO_TOKENS_PER_SECOND = 25
 VOICE_RETRY_MINUTES = (10, 20)
 
-PRICE_CHANGE_DAY = date(2027, 1, 1)
-PRICES: dict[str, tuple[ModelPrice, ModelPrice]] = {
-    "gemini-3.8-flash": (ModelPrice(0.75, 3.75), ModelPrice(1.50, 7.50)),
-    "gemini-3.6-flash": (ModelPrice(0.75, 3.75), ModelPrice(1.50, 7.50)),
-    "gemini-3.8-flash-lite-tts": (ModelPrice(0.50, 6.00), ModelPrice(1.00, 12.00)),
-}
 BRL_PER_USD = 5.50
 
 FULL_TEXT_DOMAINS = (

@@ -1,3 +1,4 @@
 CREATE DATABASE plants_db;
 CREATE DATABASE political_culture_db;
 CREATE DATABASE cfflch_db;
+CREATE DATABASE news_podcast_db;

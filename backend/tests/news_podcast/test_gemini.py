@@ -6,13 +6,14 @@ from typing import Any
 import httpx
 import pytest
 
-from news_podcast.api.episode.config import HEADLINE_TTS_STYLE, HOSTS, TTS_STYLE
+from news_podcast.api.episode.config import HOSTS
 from news_podcast.api.episode.gemini import (
     MAX_ATTEMPTS,
     RATE_LIMIT_WAIT_SECONDS,
     GeminiClient,
     GeminiQuotaExhaustedError,
     GeminiUnavailableError,
+    answer_json,
     build_tts_body,
     extract_audio_wav,
     is_daily_quota,
@@ -24,6 +25,8 @@ from news_podcast.api.episode.gemini import (
 from news_podcast.api.episode.schemas import Turn
 
 ONE_SECOND_OF_SILENCE = pcm_to_wav(b"\x00\x00" * 24000)
+STYLE = "Calm conversation."
+HEADLINE_STYLE = "Emphatic headlines."
 
 
 def quota_error(quota_id: str) -> dict[str, Any]:
@@ -59,7 +62,7 @@ def test_daily_quota_is_told_apart_from_per_minute_limits() -> None:
 def test_tts_body_uses_one_annotated_part_per_turn() -> None:
     turns = [Turn(speaker="Bia", text="Oi"), Turn(speaker="Léo", text="Olá")]
 
-    body = build_tts_body("gemini-3.8-flash-tts", turns, HOSTS)
+    body = build_tts_body("gemini-3.8-flash-tts", turns, HOSTS, STYLE, HEADLINE_STYLE)
 
     content = body["input"][0]["content"]
     assert [part["annotations"][0]["speaker"] for part in content] == ["Bia", "Leo"]
@@ -123,7 +126,7 @@ def test_generate_json_retries_after_a_per_minute_limit() -> None:
             data, usage = await GeminiClient(client, "key").generate_json(
                 "gemini-3.8-flash", "system", "user", "selection"
             )
-            return data, usage.output_tokens
+            return answer_json(data), usage.output_tokens
 
     data, output_tokens = asyncio.run(scenario())
 
@@ -141,7 +144,12 @@ def test_daily_quota_stops_without_retrying() -> None:
     async def scenario() -> None:
         async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
             await GeminiClient(client, "key").synthesize_dialogue(
-                "gemini-3.8-flash-tts", [Turn(speaker="Bia", text="Oi")], HOSTS, "voice"
+                "gemini-3.8-flash-tts",
+                [Turn(speaker="Bia", text="Oi")],
+                HOSTS,
+                "voice",
+                style=STYLE,
+                headline_style=HEADLINE_STYLE,
             )
 
     with pytest.raises(GeminiQuotaExhaustedError):
@@ -196,11 +204,13 @@ def test_tts_body_reads_the_headlines_with_an_emphatic_style() -> None:
         Turn(speaker="Léo", text="Bom dia! Hoje é sexta-feira."),
     ]
 
-    body = build_tts_body("gemini-3.8-flash-lite-tts", turns, HOSTS)
+    body = build_tts_body(
+        "gemini-3.8-flash-lite-tts", turns, HOSTS, STYLE, HEADLINE_STYLE
+    )
 
     content = body["input"][0]["content"]
     styles = [part["annotations"][0]["style"] for part in content]
-    assert styles == [HEADLINE_TTS_STYLE, TTS_STYLE]
+    assert styles == [HEADLINE_STYLE, STYLE]
 
 
 def test_rate_limit_without_a_suggested_delay_waits_half_a_minute(
@@ -226,7 +236,7 @@ def test_rate_limit_without_a_suggested_delay_waits_half_a_minute(
             data, _ = await GeminiClient(client, "key").generate_json(
                 "gemini-3.8-flash", "system", "user", "selection"
             )
-            return data
+            return answer_json(data)
 
     monkeypatch.setattr(asyncio, "sleep", record)
 

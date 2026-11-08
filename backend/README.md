@@ -5,7 +5,7 @@ Django API for four independent apps:
 - `plants`: stores ESP32 soil readings with the local weather and runs an AI chatbot.
 - `political_culture`: political chatbot and word counter (pgvector for long texts).
 - `cfflch`: searches college admission lists (PDFs) and streams the results over WebSocket.
-- `news_podcast`: daily news podcast on Telegram, run by GitHub Actions ([README](news_podcast/README.md)).
+- `news_podcast`: daily news podcast on Telegram, run by a Railway cron service, with its settings and cost history in the Django admin ([README](news_podcast/README.md)).
 
 The [frontend](../frontend/README.md) has the UIs of the first three.
 
@@ -13,13 +13,13 @@ The [frontend](../frontend/README.md) has the UIs of the first three.
 Needs [uv](https://docs.astral.sh/uv/) and Docker. From `backend/`:
 
 ```
-make db-up          # PostgreSQL 16 + pgvector, creates the four databases
+make db-up          # PostgreSQL 16 + pgvector, creates the five databases
 make install-dev
 make migrate
 make run            # http://localhost:8000
 ```
 
-Settings come from `backend/backend/.env`. Required: `SECRET_KEY`, `API_TOKEN_SECRET`, `ESP32_DEVICE_KEY`, `ENVIRONMENT=development`, `SERVER_URL`, `NGROK_URL`, `FRONT_END_URL`, `OPEN_WEATHER_API_KEY`, `OPENAI_API_KEY` and the four `*_DATABASE_URL`. cfflch and the plants web search also need `TAVILY_API_KEY`, and production needs `REDIS_URL`.
+Settings come from `backend/backend/.env`. Required: `SECRET_KEY`, `API_TOKEN_SECRET`, `ESP32_DEVICE_KEY`, `ENVIRONMENT=development`, `SERVER_URL`, `NGROK_URL`, `FRONT_END_URL`, `OPEN_WEATHER_API_KEY`, `OPENAI_API_KEY` and the five `*_DATABASE_URL`. cfflch and the plants web search also need `TAVILY_API_KEY`, and production needs `REDIS_URL`.
 
 Users are created in the Django admin (`/admin/`).
 

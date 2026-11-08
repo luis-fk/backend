@@ -4,10 +4,8 @@ from zoneinfo import ZoneInfo
 import pytest
 
 from news_podcast.api.episode.options import (
-    InvalidOptionError,
     greeting,
     next_send,
-    parse_episode_options,
     podcast_name,
     spoken_time,
     story_range,
@@ -17,34 +15,6 @@ from news_podcast.api.episode.schemas import EpisodeOptions
 
 SAO_PAULO = ZoneInfo("America/Sao_Paulo")
 DEFAULTS = EpisodeOptions(12, 18, 1.0)
-
-
-def test_missing_or_empty_variables_keep_the_defaults() -> None:
-    assert parse_episode_options(None, None) == DEFAULTS
-    assert parse_episode_options("", " ") == DEFAULTS
-
-
-def test_variables_accept_the_formats_shown_in_the_readme() -> None:
-    assert parse_episode_options("10-15", "1.25") == EpisodeOptions(10, 15, 1.25)
-    assert parse_episode_options(" 8 – 12 ", "1,5x") == EpisodeOptions(8, 12, 1.5)
-
-
-@pytest.mark.parametrize(
-    ("minutes", "speed", "message"),
-    [
-        ("15", None, "como 12-18"),
-        ("18-12", None, "mínimo maior que o máximo"),
-        ("3-6", None, "pelo menos 5 minutos"),
-        (None, "rápido", "de 0.5 a 2"),
-        (None, "3", "de 0.5 a 2"),
-        (None, "2", "36 minutos de fala"),
-    ],
-)
-def test_invalid_values_say_what_is_wrong(
-    minutes: str | None, speed: str | None, message: str
-) -> None:
-    with pytest.raises(InvalidOptionError, match=message):
-        parse_episode_options(minutes, speed)
 
 
 def test_story_count_follows_the_length() -> None:
