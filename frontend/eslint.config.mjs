@@ -5,13 +5,6 @@ import nextTs from "eslint-config-next/typescript";
 const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
-  {
-    rules: {
-      // New in eslint-plugin-react-hooks 7 (Next 16): a warning until the
-      // existing effects that set state on mount are refactored.
-      "react-hooks/set-state-in-effect": "warn",
-    },
-  },
   globalIgnores([".next/**", "out/**", "build/**", "next-env.d.ts"]),
 ]);
 
