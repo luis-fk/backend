@@ -6,7 +6,7 @@ It hosts four independent apps: **plants** (plant data ingestion and an AI chatb
 The Next.js frontend that serves their UIs lives in `../frontend`. `README.md` covers setup and commands.
 
 ## Tech stack
-- **Runtime:** Python 3.12+ (`runtime.txt` pins 3.12.1 for Railway)
+- **Runtime:** Python 3.12+. `runtime.txt` asks Railway for the latest 3.12: Railpack installs Python with mise, which had no build of an exact old patch like 3.12.1
 - **Frameworks:** Django 6, Django REST Framework, Django Channels (WebSockets)
 - **ASGI server:** Daphne
 - **Databases:** PostgreSQL — one database per app (`default` for auth and the API keys, `plants_db`, `political_culture_db`, `cfflch_db`). Redis for the Django Channels layer outside development; with `ENVIRONMENT=development` the layer is in memory.
