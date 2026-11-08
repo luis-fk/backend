@@ -3,6 +3,8 @@ import logging
 
 from channels.generic.websocket import AsyncWebsocketConsumer
 
+from backend.api_auth import websocket_user_id
+
 logger = logging.getLogger(__name__)
 
 
@@ -11,9 +13,14 @@ class ChatConsumer(AsyncWebsocketConsumer):  # type: ignore[misc]
         self.user_id = self.scope["url_route"]["kwargs"]["userId"]
         self.room_group_name = f"chat_{self.user_id}"
 
+        if websocket_user_id(self.scope, "political-culture") != self.user_id:
+            logger.info(f"WebSocket rejected for user {self.user_id}")
+            await self.close()
+            return
+
         await self.channel_layer.group_add(self.room_group_name, self.channel_name)
 
-        await self.accept()
+        await self.accept(subprotocol="bearer")
         logger.info(f"WebSocket connected for user {self.user_id}")
 
     async def disconnect(self, close_code: int) -> None:

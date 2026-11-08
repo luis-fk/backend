@@ -10,6 +10,14 @@ import { logger } from "@/app/api/log/client-logger";
 import Toast from "@/app/components/Toast";
 import "@/political-culture/css/chat.css";
 
+// The backend answers 401 once the session's token has expired (or the secrets
+// changed); only a reload, which leads to the login page, fixes it.
+const SESSION_EXPIRED = "Sua sessão expirou. Recarregue a página.";
+
+function expired(error: unknown): boolean {
+  return axios.isAxiosError(error) && error.response?.status === 401;
+}
+
 export interface MessageType {
   message: string;
   role: "human" | "ai";
@@ -31,6 +39,7 @@ export default function Chat(): React.ReactElement {
 
   const session = useSession("political-culture");
   const userId = session?.userId;
+  const token = session?.token;
   const serverUrl = process.env.NEXT_PUBLIC_SERVER_URL;
 
   useEffect(() => {
@@ -39,13 +48,16 @@ export default function Chat(): React.ReactElement {
 
   useEffect(() => {
     // loadingHistory starts as true, so there is nothing to set until the session arrives.
-    if (!userId || !serverUrl) return;
+    if (!userId || !token || !serverUrl) return;
 
     const controller = new AbortController();
     axios
       .get<MessageType[]>(
         `${serverUrl}/api/political-culture/chat-history/${userId}`,
-        { signal: controller.signal },
+        {
+          headers: { Authorization: `Bearer ${token}` },
+          signal: controller.signal,
+        },
       )
       .then((res) => {
         if (res.status === 200 && res.data.length > 0) {
@@ -58,7 +70,11 @@ export default function Chat(): React.ReactElement {
           userId,
           error: err,
         });
-        setErrorMessage("Não foi possível carregar o histórico de mensagens.");
+        setErrorMessage(
+          expired(err)
+            ? SESSION_EXPIRED
+            : "Não foi possível carregar o histórico de mensagens.",
+        );
       })
       .finally(() => {
         // Ignore runs that were cleaned up.
@@ -66,7 +82,7 @@ export default function Chat(): React.ReactElement {
       });
 
     return () => controller.abort();
-  }, [userId, serverUrl]);
+  }, [userId, token, serverUrl]);
 
   const handleNewMessage = useCallback((message: MessageType): void => {
     setMessages((previous) => [...previous, message]);
@@ -78,6 +94,7 @@ export default function Chat(): React.ReactElement {
 
   useChatSocket({
     userId: userId?.toString(),
+    token,
     serverUrl,
     onMessage: handleNewMessage,
     setSending,
@@ -97,6 +114,8 @@ export default function Chat(): React.ReactElement {
 
   const send = useCallback(async (): Promise<void> => {
     if (sending || !input.trim()) return;
+    // No token yet, or no session (the chat shows the session error).
+    if (!token) return;
     setSending(true);
     const userMsg = input.trim();
     setMessages((m) => [...m, { message: userMsg, role: "human" }]);
@@ -105,19 +124,24 @@ export default function Chat(): React.ReactElement {
     if (textareaRef.current) textareaRef.current.style.height = "";
 
     try {
-      await axios.post(`${serverUrl}/api/political-culture/chatbot/message`, {
-        user_id: userId,
-        text: userMsg,
-      });
+      await axios.post(
+        `${serverUrl}/api/political-culture/chatbot/message`,
+        { user_id: userId, text: userMsg },
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
     } catch (error) {
       logger.error("Failed to send chat message", {
         userId,
         error,
       });
-      setErrorMessage("Falha ao enviar a mensagem. Tente de novo.");
+      setErrorMessage(
+        expired(error)
+          ? SESSION_EXPIRED
+          : "Falha ao enviar a mensagem. Tente de novo.",
+      );
       setSending(false);
     }
-  }, [sending, input, serverUrl, userId]);
+  }, [sending, input, serverUrl, userId, token]);
 
   return (
     <main className="political-chat">

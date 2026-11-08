@@ -9,9 +9,9 @@ The Next.js frontend that serves their UIs lives in `../frontend`. `README.md` c
 - **Runtime:** Python 3.12+ (`runtime.txt` pins 3.12.1 for Railway)
 - **Frameworks:** Django 6, Django REST Framework, Django Channels (WebSockets)
 - **ASGI server:** Daphne
-- **Databases:** PostgreSQL — one database per app (`default` for auth, `plants_db`, `political_culture_db`, `cfflch_db`). Redis for the Django Channels layer outside development; with `ENVIRONMENT=development` the layer is in memory.
+- **Databases:** PostgreSQL — one database per app (`default` for auth and the API keys, `plants_db`, `political_culture_db`, `cfflch_db`). Redis for the Django Channels layer outside development; with `ENVIRONMENT=development` the layer is in memory.
 - **ORM:** Django ORM, routed via a custom `AppsRouter` in `backend/apps_routers.py`
-- **Auth:** Session-based with basic username authentication. Only the owner can create accounts. No public registration.
+- **Auth:** Users log in to the frontend by name, and the frontend keeps the session. The API checks HS256 JWTs the frontend signs with `API_TOKEN_SECRET` (PyJWT, `backend/api_auth.py`); Bruno and anyone the owner gives access use API keys created in the Django admin (the `api_keys` app stores only their SHA-256 hash); the ESP32 sends `X-Device-Key`. Only the owner can create accounts (Django admin). No public registration.
 - **AI/ML:** LangChain, LangGraph, OpenAI (`gpt-4.1-mini`, `gpt-4o-mini`), Tavily (web search), pgvector (semantic search — used in `political_culture`)
 - **External APIs:** OpenWeather (used in `plants` for weather data)
 - **news_podcast:** Gemini API over raw httpx (text with `generateContent`, TTS with the Interactions API), feedparser, trafilatura, googlenewsdecoder, ffmpeg, Telegram Bot API
@@ -21,8 +21,8 @@ The Next.js frontend that serves their UIs lives in `../frontend`. `README.md` c
 ## Architecture
 - Django monolith; the Next.js frontend in `../frontend` serves the UIs and talks to it only over HTTP and WebSocket
 - Each app follows the structure: `<app>/api/<feature>/routes.py`, `service.py`, `serializers.py`, and additional files as needed (e.g. `consumers.py` for WebSockets, `utils.py`, `prompts.py`)
-- **Parnas decomposition is intentional:** each app owns its full logic stack. Do not extract shared utilities across apps even if code looks duplicated — duplication is preferred over coupling.
-- The `AppsRouter` automatically routes models to their app-specific database. Never use `using=` manually in queries — the router handles it.
+- **Parnas decomposition is intentional:** each app owns its full logic stack. Do not extract shared utilities across apps even if code looks duplicated — duplication is preferred over coupling. The exceptions, approved by the owner, are two pieces of project infrastructure, like `settings.py` and `asgi.py`: `backend/api_auth.py`, with the token, API key and device key checks every app uses, and the `api_keys` app, with the `ApiKey` model and its admin. The apps never import `api_keys`; its admin finds their Users models by name.
+- The `AppsRouter` automatically routes models to their app-specific database; Django's own apps and `api_keys` go to `default` (`DEFAULT_DB_APPS`). Never use `using=` manually in queries — the router handles it.
 - Separation of concerns: routes handle HTTP only, services contain business logic, serializers handle validation. Keep functions small.
 
 ## Coding conventions
@@ -57,18 +57,20 @@ The Next.js frontend that serves their UIs lives in `../frontend`. `README.md` c
 - Name matching uses substring match on normalized text (not fuzzy/per-line matching)
 
 **Planned (no timeline):**
-- Write unit tests for `plants`, `political_culture` and `cfflch` (pytest, in `tests/`)
+- Write unit tests for `plants`, `political_culture` and `cfflch` beyond the API auth (pytest, in `tests/`)
 - Add API documentation
 
 ## Testing
 - Unit tests run in CI (`uv run pytest` in `.github/workflows/backend-ci.yml` at the repository root) on every pull request that changes `backend/`.
 - **Target:** unit tests only, written cleanly and with full understanding — not just for coverage
 - **Location:** `tests/` folder (next to `manage.py`) mirroring the app structure
-- **Coverage:** only `news_podcast` has tests (`tests/news_podcast/`, no network); `plants`, `political_culture` and `cfflch` have none — do not assume coverage there
+- **Coverage:** `news_podcast` has tests (`tests/news_podcast/`, no network). For `plants`, `political_culture` and `cfflch` only the API auth is tested (`tests/<app>/`, plus `tests/backend/test_api_auth.py` and `tests/api_keys/`); do not assume other coverage there
+- **Setup:** pytest-django. Tests mock the app data, the LLMs and the external APIs. Only the `default` database is real, for the API key tests (`@pytest.mark.django_db`): pytest-django creates and drops a `test_` copy of it, on the local PostgreSQL (run `make db-up` first) or on SQLite in CI. The settings need `API_TOKEN_SECRET` and `ESP32_DEVICE_KEY`; CI sets dummies, plus `OPENAI_API_KEY` because the chatbot views build their clients on import
 
 ## Non-negotiables
 The shared ones (learning-first, git managed by the user) are in the root `CLAUDE.md`.
-- **Keep apps isolated.** Each app is self-contained. Do not suggest cross-app imports or shared utility modules.
+- **Keep apps isolated.** Each app is self-contained. Do not suggest cross-app imports or shared utility modules (`backend/api_auth.py` and the `api_keys` app are the only shared code).
+- **Every endpoint checks a token.** A new view or consumer starts with a check from `backend/api_auth.py`: `require_user_token` (and `require_same_user` for one user's data) or `require_login_token` in DRF views, `has_valid_user_token` or `has_valid_device_key` in plain Django views, `websocket_user_id` in consumers, which accept with `subprotocol="bearer"`. Over HTTP, `require_user_token` and `has_valid_user_token` accept a user token or an API key (`Authorization: Bearer pk_...`); a key takes a database query, so async views call `has_valid_user_token` through `sync_to_async`. Consumers take user tokens only. Add 401/403 tests in `tests/<app>/`, with keys too.
 - **PostgreSQL only.** Do not suggest alternative databases.
 - **Multi-DB setup is fixed.** The `AppsRouter` is the source of truth for routing. Adding a new app requires adding a `<app>_db` entry to `DATABASES` and updating the Makefile — but don't do this until explicitly asked.
 - **LangChain APIs change frequently.** Avoid deprecated patterns: `AgentExecutor` is gone, `hub.pull` is not used — prompts live locally in `prompts.py` files. Prefer `llm.bind_tools([...]).invoke(...)`.

@@ -3,6 +3,7 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import axios from "axios";
 import { logger } from "@/app/api/log/client-logger";
+import { errorMessage } from "@/cfflch/api-errors";
 
 export type PdfEntry = { url: string; search_title: string };
 
@@ -32,7 +33,10 @@ export type SearchParams = {
   class_name?: string;
 };
 
-export function useAdmissionSearch(serverUrl: string | undefined): {
+export function useAdmissionSearch(
+  serverUrl: string | undefined,
+  token: string | undefined,
+): {
   results: AdmissionResult[];
   loading: boolean;
   error: string | null;
@@ -53,7 +57,7 @@ export function useAdmissionSearch(serverUrl: string | undefined): {
 
   const search = useCallback(
     async (params: SearchParams): Promise<void> => {
-      if (!serverUrl) return;
+      if (!serverUrl || !token) return;
 
       wsRef.current?.close();
       setResults([]);
@@ -66,7 +70,9 @@ export function useAdmissionSearch(serverUrl: string | undefined): {
       const wsHost = serverUrl.split("://")[1].replace(/\/$/, "");
       const wsUrl = `${wsProtocol}${wsHost}/ws/cfflch/admission-status/${requestId}`;
 
-      const ws = new WebSocket(wsUrl);
+      // A browser can't set headers on a WebSocket, so the token goes as a
+      // subprotocol (in the URL it would end up in access logs).
+      const ws = new WebSocket(wsUrl, ["bearer", token]);
       wsRef.current = ws;
 
       ws.onopen = () => {
@@ -123,7 +129,9 @@ export function useAdmissionSearch(serverUrl: string | undefined): {
 
       ws.onerror = (event: Event) => {
         logger.error("cfflch WebSocket error", { requestId, event });
-        setError("Não foi possível conectar ao servidor. Tente de novo.");
+        setError(
+          "Não foi possível conectar ao servidor. Recarregue a página e tente de novo.",
+        );
         setLoading(false);
       };
 
@@ -147,20 +155,26 @@ export function useAdmissionSearch(serverUrl: string | undefined): {
       });
 
       try {
-        await axios.post(`${serverUrl}/api/cfflch/admission-status/`, {
-          names: params.names,
-          year: params.year,
-          request_id: requestId,
-          ...(params.class_name ? { class_name: params.class_name } : {}),
-        });
+        await axios.post(
+          `${serverUrl}/api/cfflch/admission-status/`,
+          {
+            names: params.names,
+            year: params.year,
+            request_id: requestId,
+            ...(params.class_name ? { class_name: params.class_name } : {}),
+          },
+          { headers: { Authorization: `Bearer ${token}` } },
+        );
       } catch (err) {
         logger.error("cfflch POST failed", { error: err });
-        setError("Não foi possível iniciar a busca. Tente de novo.");
+        setError(
+          errorMessage(err, "Não foi possível iniciar a busca. Tente de novo."),
+        );
         setLoading(false);
         ws.close();
       }
     },
-    [serverUrl],
+    [serverUrl, token],
   );
 
   return {

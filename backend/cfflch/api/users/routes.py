@@ -5,6 +5,7 @@ from django.contrib.auth import get_user_model
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from backend.api_auth import require_login_token
 from cfflch.api.users.serializers import UserSerializer
 from cfflch.models import Users
 
@@ -13,6 +14,7 @@ logger = logging.getLogger(__name__)
 
 class UserApi(APIView):
     def get(self, request: Any, *args: Any, **kwargs: Any) -> Response:
+        require_login_token(request, "cfflch")
         name = kwargs.get("name")
 
         logger.info(f"Fetching user info for {name}")

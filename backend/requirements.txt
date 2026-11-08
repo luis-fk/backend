@@ -254,6 +254,8 @@ pydantic-core==2.46.4
     # via pydantic
 pydantic-settings==2.14.1
     # via langchain-community
+pyjwt==2.15.1
+    # via backend
 pyopenssl==26.2.0
     # via twisted
 pypdf==6.11.0
