@@ -363,5 +363,4 @@ def tts_usage(
         model=model,
         input_tokens=reported_input or estimated_input,
         output_tokens=round(seconds * AUDIO_TOKENS_PER_SECOND),
-        audio_seconds=seconds,
     )

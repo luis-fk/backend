@@ -1,7 +1,7 @@
 import re
 import unicodedata
 from collections.abc import Sequence
-from datetime import datetime, timedelta
+from datetime import datetime, time, timedelta
 
 from news_podcast.api.episode.schemas import (
     Host,
@@ -20,16 +20,11 @@ SENTENCE_END_PATTERN = re.compile(r"(?<=[.!?…])\s+")
 
 
 def news_window(
-    now: datetime,
-    scheduled_for: datetime | None,
-    hours: int,
-    hours_before_send: int,
+    local_now: datetime, cutoff: time | None, hours: int
 ) -> tuple[datetime, datetime]:
-    if scheduled_for is None:
-        return now - timedelta(hours=hours), now
-
-    top_of_send_hour = scheduled_for.replace(minute=0, second=0, microsecond=0)
-    end = top_of_send_hour - timedelta(hours=hours_before_send)
+    end = local_now
+    if cutoff is not None:
+        end = datetime.combine(local_now.date(), cutoff, tzinfo=local_now.tzinfo)
     return end - timedelta(hours=hours), end
 
 
