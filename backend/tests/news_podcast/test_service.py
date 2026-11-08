@@ -1,6 +1,6 @@
 import asyncio
 from collections.abc import Sequence
-from datetime import date, datetime
+from datetime import date, datetime, time
 from pathlib import Path
 from typing import Any
 
@@ -13,7 +13,14 @@ from news_podcast.api.episode.gemini import (
     GeminiQuotaExhaustedError,
     GeminiUnavailableError,
 )
-from news_podcast.api.episode.schemas import EpisodeReport, Host, Turn, Usage
+from news_podcast.api.episode.schemas import (
+    EpisodeOptions,
+    EpisodeReport,
+    Host,
+    TelegramChat,
+    Turn,
+    Usage,
+)
 from news_podcast.api.episode.service import (
     NewsPodcastService,
     script_prompt,
@@ -22,6 +29,11 @@ from news_podcast.api.episode.service import (
 from news_podcast.api.episode.telegram import TelegramClient
 
 TURNS = [Turn(speaker="Bia", text="Bom dia")]
+DEFAULT_OPTIONS = EpisodeOptions(12, 18, time(7, 0), 1.0)
+CHATS = [
+    TelegramChat(id="11", name="Felipe", is_group=False),
+    TelegramChat(id="-22", name="Resumo & cia", is_group=True),
+]
 
 
 class FakeGemini(GeminiClient):
@@ -57,7 +69,11 @@ def make_service(
     http_client: httpx.AsyncClient, gemini: GeminiClient
 ) -> NewsPodcastService:
     return NewsPodcastService(
-        http_client=http_client, gemini=gemini, telegram=None, chat_id=None
+        http_client=http_client,
+        gemini=gemini,
+        telegram=None,
+        chat_id=None,
+        options=DEFAULT_OPTIONS,
     )
 
 
@@ -130,16 +146,30 @@ def test_voice_does_not_wait_when_the_daily_quota_is_over(
     assert waits == []
 
 
-def test_prompts_describe_the_morning_episode() -> None:
+def test_prompts_follow_the_configured_options() -> None:
+    options = EpisodeOptions(20, 30, time(21, 0), 1.0)
+    start = datetime(2026, 11, 6, 20, 0, tzinfo=config.LOCAL_TZ)
+    end = datetime(2026, 11, 7, 20, 0, tzinfo=config.LOCAL_TZ)
+
+    selection = selection_prompt(options, start, end)
+    script = script_prompt(options, date(2026, 11, 7), start, end)
+
+    assert "em 20 a 30 minutos" in selection
+    assert "Escolha de 13 a 20 histórias" in selection
+    assert 'chamado "Resumo das 21"' in script
+    assert "O episódio sai às 21h de sábado, 7 de novembro" in script
+    assert "uma fala curta com boa noite e a data" in script
+    assert "entre 3400 e 5100 palavras" in script
+
+
+def test_default_prompts_keep_the_morning_episode() -> None:
     start = datetime(2026, 11, 5, 6, 0, tzinfo=config.LOCAL_TZ)
     end = datetime(2026, 11, 6, 6, 0, tzinfo=config.LOCAL_TZ)
 
-    selection = selection_prompt(start, end)
-    script = script_prompt(date(2026, 11, 6), start, end)
+    selection = selection_prompt(DEFAULT_OPTIONS, start, end)
+    script = script_prompt(DEFAULT_OPTIONS, date(2026, 11, 6), start, end)
 
-    assert "em 12 a 18 minutos" in selection
     assert "Escolha de 8 a 12 histórias" in selection
-    assert "cerca de 15 minutos" in selection
     assert 'chamado "Resumo das 7"' in script
     assert "O episódio sai às 7h de sexta-feira, 6 de novembro" in script
     assert "uma fala curta com bom dia e a data" in script
@@ -151,6 +181,9 @@ class FakeTelegram(TelegramClient):
         super().__init__(http_client, "TOKEN")
         self.sent: list[tuple[str, str]] = []
 
+    async def recent_chats(self) -> list[TelegramChat]:
+        return CHATS
+
     async def send_message(self, chat_id: str, text: str) -> None:
         self.sent.append((chat_id, text))
 
@@ -158,6 +191,25 @@ class FakeTelegram(TelegramClient):
         self, chat_id: str, voice_path: Path, caption: str, duration_seconds: int
     ) -> None:
         self.sent.append((chat_id, caption))
+
+
+def telegram_service(
+    client: httpx.AsyncClient, telegram: TelegramClient, chat_id: str | None
+) -> NewsPodcastService:
+    return NewsPodcastService(
+        http_client=client,
+        gemini=None,
+        telegram=telegram,
+        chat_id=chat_id,
+        options=DEFAULT_OPTIONS,
+    )
+
+
+async def report_chats(chat_id: str | None) -> list[tuple[str, str]]:
+    async with httpx.AsyncClient() as client:
+        telegram = FakeTelegram(client)
+        await telegram_service(client, telegram, chat_id).send_chat_ids()
+        return telegram.sent
 
 
 def test_episode_goes_out_as_a_single_voice_message(tmp_path: Path) -> None:
@@ -170,10 +222,22 @@ def test_episode_goes_out_as_a_single_voice_message(tmp_path: Path) -> None:
     async def scenario() -> list[tuple[str, str]]:
         async with httpx.AsyncClient() as client:
             telegram = FakeTelegram(client)
-            service = NewsPodcastService(
-                http_client=client, gemini=None, telegram=telegram, chat_id="-22"
-            )
-            await service._deliver(report)
+            await telegram_service(client, telegram, "-22")._deliver(report)
             return telegram.sent
 
     assert asyncio.run(scenario()) == [("-22", "🎙️ Resumo das 7")]
+
+
+def test_chat_list_goes_only_to_the_configured_chat() -> None:
+    sent = asyncio.run(report_chats(chat_id="11"))
+
+    assert [chat_id for chat_id, _ in sent] == ["11"]
+    assert "👤 Felipe: <code>11</code>" in sent[0][1]
+    assert "👥 Resumo &amp; cia: <code>-22</code>" in sent[0][1]
+
+
+def test_first_setup_sends_each_chat_its_own_id() -> None:
+    sent = asyncio.run(report_chats(chat_id=None))
+
+    assert [chat_id for chat_id, _ in sent] == ["11", "-22"]
+    assert all(f"<code>{chat_id}</code>" in text for chat_id, text in sent)

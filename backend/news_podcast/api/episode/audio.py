@@ -28,7 +28,9 @@ async def run_tool(*args: str) -> str:
     return stdout.decode()
 
 
-async def build_voice_note(parts: list[Path], output: Path, workdir: Path) -> float:
+async def build_voice_note(
+    parts: list[Path], output: Path, speed: float, workdir: Path
+) -> float:
     if not parts:
         raise AudioError("Nenhum trecho de áudio para juntar")
 
@@ -48,7 +50,7 @@ async def build_voice_note(parts: list[Path], output: Path, workdir: Path) -> fl
         "-i",
         str(playlist),
         "-af",
-        LOUDNESS_FILTER,
+        audio_filters(speed),
         "-ac",
         "1",
         "-c:a",
@@ -60,8 +62,14 @@ async def build_voice_note(parts: list[Path], output: Path, workdir: Path) -> fl
         str(output),
     )
     duration = await audio_duration(output)
-    logger.info(f"Built {output.name} with {len(parts)} parts ({duration:.0f}s)")
+    logger.info(
+        f"Built {output.name} with {len(parts)} parts at {speed:g}x ({duration:.0f}s)"
+    )
     return duration
+
+
+def audio_filters(speed: float) -> str:
+    return f"atempo={speed:g},{LOUDNESS_FILTER}"
 
 
 async def to_wav(source: Path, target: Path) -> Path:

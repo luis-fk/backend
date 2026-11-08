@@ -3,13 +3,13 @@ from collections import Counter
 from collections.abc import Sequence
 from datetime import date
 
-from news_podcast.api.episode.config import BRL_PER_USD, PODCAST_NAME
+from news_podcast.api.episode.config import BRL_PER_USD
 from news_podcast.api.episode.costs import (
     format_brl,
     format_brl_rounded,
     total_cost_usd,
 )
-from news_podcast.api.episode.schemas import StoryBrief, Usage
+from news_podcast.api.episode.schemas import StoryBrief, TelegramChat, Usage
 
 WEEKDAYS = (
     "segunda-feira",
@@ -56,8 +56,8 @@ def sources_line(counts: Counter[str]) -> str:
     return ", ".join(f"{outlet} ({count})" for outlet, count in ranked)
 
 
-def episode_caption(day: date) -> str:
-    return f"🎙️ <b>{PODCAST_NAME} · {long_date(day)}</b>"
+def episode_caption(podcast_name: str, day: date) -> str:
+    return f"🎙️ <b>{podcast_name} · {long_date(day)}</b>"
 
 
 def episode_details(
@@ -95,4 +95,28 @@ def failure_message(step: str, error: Exception) -> str:
         f"<b>Etapa:</b> {html.escape(step)}\n"
         f"<b>Erro:</b> {html.escape(str(error)[:600])}\n"
         "O log completo fica no GitHub Actions."
+    )
+
+
+def chat_list_message(chats: Sequence[TelegramChat]) -> str:
+    lines = [
+        f"{'👥' if chat.is_group else '👤'} {html.escape(chat.name)}: "
+        f"<code>{chat.id}</code>"
+        for chat in chats
+    ]
+    return "\n".join(
+        [
+            "Conversas que o bot viu nas últimas 24 horas:",
+            *lines,
+            "",
+            "Para o resumo ir para outra conversa, troque o secret "
+            "<b>TELEGRAM_CHAT_ID</b> no GitHub pelo número dela.",
+        ]
+    )
+
+
+def chat_id_message(chat_id: str) -> str:
+    return (
+        "Achei esta conversa! Para o resumo chegar aqui, salve este número como o "
+        f"secret <b>TELEGRAM_CHAT_ID</b> no GitHub:\n<code>{chat_id}</code>"
     )

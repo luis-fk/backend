@@ -25,10 +25,22 @@ from news_podcast.api.episode.gemini import (
     GeminiUnavailableError,
 )
 from news_podcast.api.episode.messages import (
+    chat_id_message,
+    chat_list_message,
     episode_caption,
     episode_details,
     failure_message,
     long_date,
+)
+from news_podcast.api.episode.options import (
+    greeting,
+    nearest_send,
+    podcast_name,
+    spoken_time,
+    story_range,
+    target_minutes,
+    word_range,
+    words_per_minute,
 )
 from news_podcast.api.episode.prompts import (
     EXPAND_PROMPT,
@@ -36,6 +48,7 @@ from news_podcast.api.episode.prompts import (
     SELECTION_PROMPT,
 )
 from news_podcast.api.episode.schemas import (
+    EpisodeOptions,
     EpisodeReport,
     NewsItem,
     Script,
@@ -72,20 +85,26 @@ class NewsPodcastService:
         gemini: GeminiClient | None,
         telegram: TelegramClient | None,
         chat_id: str | None,
+        options: EpisodeOptions,
     ) -> None:
         self.http_client = http_client
         self.gemini = gemini
         self.telegram = telegram
         self.chat_id = chat_id
+        self.options = options
         self.step = "início"
         self.unavailable_models: set[str] = set()
         self.voice_retry_minutes = list(config.VOICE_RETRY_MINUTES)
 
     async def generate_episode(self, *, scheduled: bool, send: bool) -> EpisodeReport:
-        now = datetime.now(config.LOCAL_TZ)
-        send_at = datetime.combine(now.date(), config.SEND_AT, tzinfo=config.LOCAL_TZ)
+        now = datetime.now(UTC)
+        scheduled_for = (
+            nearest_send(now, self.options.send_at, config.LOCAL_TZ)
+            if scheduled
+            else None
+        )
         try:
-            report = await self._generate(now, scheduled)
+            report = await self._generate(now, scheduled_for)
         except Exception as error:
             logger.exception(f"Episode failed during '{self.step}'")
             if send:
@@ -93,15 +112,43 @@ class NewsPodcastService:
             raise
 
         if send:
-            if scheduled:
-                await wait_until(send_at)
+            if scheduled_for:
+                await wait_until(scheduled_for)
             await self._deliver(report)
         return report
 
-    async def _generate(self, now: datetime, scheduled: bool) -> EpisodeReport:
-        day = now.date()
-        cutoff = config.NEWS_CUTOFF if scheduled else None
-        start, end = news_window(now, cutoff, config.NEWS_WINDOW_HOURS)
+    async def send_chat_ids(self) -> int:
+        if self.telegram is None:
+            raise EpisodeError("TELEGRAM_BOT_TOKEN não configurado")
+
+        chats = await self.telegram.recent_chats()
+        if not chats:
+            raise EpisodeError(
+                "Nenhuma conversa encontrada. Mande /start para o bot ou adicione ele "
+                "a um grupo no Telegram e rode de novo."
+            )
+        if self.chat_id:
+            await self.telegram.send_message(self.chat_id, chat_list_message(chats))
+            return len(chats)
+
+        for chat in chats:
+            await self.telegram.send_message(chat.id, chat_id_message(chat.id))
+        return len(chats)
+
+    async def _generate(
+        self, now: datetime, scheduled_for: datetime | None
+    ) -> EpisodeReport:
+        day = (scheduled_for or now).astimezone(config.LOCAL_TZ).date()
+        start, end = news_window(
+            now,
+            scheduled_for,
+            config.NEWS_WINDOW_HOURS,
+            config.NEWS_CUTOFF_HOURS_BEFORE_SEND,
+        )
+        logger.info(
+            f"Episode of {self.options.min_minutes}-{self.options.max_minutes} min "
+            f"at {self.options.speech_speed:g}x, sent at {self.options.send_at:%H:%M}"
+        )
         config.OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
         self.step = "leitura dos feeds"
@@ -132,9 +179,11 @@ class NewsPodcastService:
 
             self.step = "montagem do áudio"
             audio_path = config.OUTPUT_DIR / f"resumo-{day:%Y-%m-%d}.ogg"
-            duration = await build_voice_note(parts, audio_path, workdir)
+            duration = await build_voice_note(
+                parts, audio_path, self.options.speech_speed, workdir
+            )
 
-        caption = episode_caption(day)
+        caption = episode_caption(podcast_name(self.options.send_at), day)
         details = episode_details(day=day, briefs=briefs, usages=usages)
         logger.info(f"Episode ready: {duration:.0f}s\n{caption}\n{details}")
         return EpisodeReport(
@@ -145,16 +194,18 @@ class NewsPodcastService:
         self, items: list[NewsItem], start: datetime, end: datetime
     ) -> tuple[list[SelectedStory], list[Usage]]:
         items_by_id = {item.id: item for item in items}
+        system_prompt = selection_prompt(self.options, start, end)
+        _, max_stories = story_range(self.options)
 
         def parse(data: Any) -> list[SelectedStory]:
             selection = StorySelection.model_validate(data)
-            stories = valid_stories(selection, items_by_id, config.MAX_STORIES)
+            stories = valid_stories(selection, items_by_id, max_stories)
             if not stories:
                 raise GeminiError("a seleção veio sem notícias válidas")
             return stories
 
         stories, usages = await self._ask_json(
-            selection_prompt(start, end),
+            system_prompt,
             format_for_selection(items, config.LOCAL_TZ),
             "selection",
             parse,
@@ -166,21 +217,22 @@ class NewsPodcastService:
     async def _write_script(
         self, briefs: list[StoryBrief], start: datetime, end: datetime, day: date
     ) -> tuple[Script, list[Usage]]:
-        system_prompt = script_prompt(day, start, end)
-        user_prompt = format_briefs(briefs, config.WORDS_PER_MINUTE)
+        min_words, max_words = word_range(self.options)
+        system_prompt = script_prompt(self.options, day, start, end)
+        user_prompt = format_briefs(briefs, words_per_minute(self.options))
         script, usages = await self._ask_json(
             system_prompt, user_prompt, "script", parse_script
         )
 
         words = count_words(script.turns)
         logger.info(f"Script has {words} words in {len(script.turns)} turns")
-        if words >= config.SHORT_SCRIPT_RATIO * config.MIN_WORDS:
+        if words >= config.SHORT_SCRIPT_RATIO * min_words:
             return script, usages
 
         expand_prompt = EXPAND_PROMPT.format(
             words=words,
-            min_words=config.MIN_WORDS,
-            max_words=config.MAX_WORDS,
+            min_words=min_words,
+            max_words=max_words,
             script=script.model_dump_json(),
         )
         try:
@@ -319,28 +371,34 @@ async def wait_until(moment: datetime) -> None:
         await asyncio.sleep(delay)
 
 
-def selection_prompt(start: datetime, end: datetime) -> str:
+def selection_prompt(options: EpisodeOptions, start: datetime, end: datetime) -> str:
+    min_stories, max_stories = story_range(options)
     return SELECTION_PROMPT.format(
-        min_minutes=config.MIN_MINUTES,
-        max_minutes=config.MAX_MINUTES,
-        target_minutes=round((config.MIN_MINUTES + config.MAX_MINUTES) / 2),
-        min_stories=config.MIN_STORIES,
-        max_stories=config.MAX_STORIES,
+        min_minutes=options.min_minutes,
+        max_minutes=options.max_minutes,
+        target_minutes=round(target_minutes(options)),
+        min_stories=min_stories,
+        max_stories=max_stories,
         window_start=local_label(start),
         window_end=local_label(end),
     )
 
 
-def script_prompt(day: date, start: datetime, end: datetime) -> str:
+def script_prompt(
+    options: EpisodeOptions, day: date, start: datetime, end: datetime
+) -> str:
+    min_words, max_words = word_range(options)
     return SCRIPT_PROMPT.format(
-        podcast_name=config.PODCAST_NAME,
+        podcast_name=podcast_name(options.send_at),
         host_a=config.HOSTS[0].name,
         host_b=config.HOSTS[1].name,
+        send_time=spoken_time(options.send_at),
+        greeting=greeting(options.send_at),
         today=long_date(day),
         window_start=local_label(start),
         window_end=local_label(end),
-        min_words=config.MIN_WORDS,
-        max_words=config.MAX_WORDS,
+        min_words=min_words,
+        max_words=max_words,
     )
 
 
