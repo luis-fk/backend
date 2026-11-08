@@ -46,12 +46,12 @@ export function LoginForm(): React.ReactElement {
           aria-invalid={errorMessage ? true : undefined}
           aria-describedby={errorMessage ? "name-error" : undefined}
         />
+        {errorMessage && (
+          <p id="name-error" className="form-error" role="alert">
+            {errorMessage}
+          </p>
+        )}
       </div>
-      {errorMessage && (
-        <p id="name-error" className="form-error" role="alert">
-          {errorMessage}
-        </p>
-      )}
       <button type="submit" className="button" disabled={submitting}>
         {submitting ? "Entrando…" : "Entrar"}
       </button>

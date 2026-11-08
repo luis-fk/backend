@@ -115,11 +115,11 @@ export default function ResultsTable({
       classFilter === null ? true : r.class_room_id === classFilter,
     );
 
-  // Counts the rows on screen. While a year loads or after it fails, results still hold
-  // the previous year, so the summary stays empty.
+  // Counts the rows on screen. While a year loads, after it fails, or when nothing
+  // is on screen (the empty message says why), the summary stays empty.
   const approvedCount = filtered.filter((r) => r.approved).length;
   const summary =
-    loading || failed
+    loading || failed || filtered.length === 0
       ? null
       : `${countLabel(filtered.length, "aluno", "alunos")}, ${countLabel(approvedCount, "aprovado", "aprovados")}`;
 
@@ -205,8 +205,10 @@ export default function ResultsTable({
         <p className="muted">
           Não foi possível carregar os resultados de {year}.
         </p>
-      ) : filtered.length === 0 ? (
+      ) : results.length === 0 ? (
         <p className="muted">Nenhum resultado para {year}.</p>
+      ) : filtered.length === 0 ? (
+        <p className="muted">Nenhum resultado com esses filtros.</p>
       ) : (
         <ul className="list">
           {filtered.map((result) => (

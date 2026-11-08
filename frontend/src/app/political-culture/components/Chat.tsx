@@ -114,7 +114,7 @@ export default function Chat(): React.ReactElement {
         userId,
         error,
       });
-      setErrorMessage("Falha ao enviar a mensagem. Tente novamente.");
+      setErrorMessage("Falha ao enviar a mensagem. Tente de novo.");
       setSending(false);
     }
   }, [sending, input, serverUrl, userId]);
@@ -122,7 +122,11 @@ export default function Chat(): React.ReactElement {
   return (
     <main className="political-chat">
       <div className="political-chat-log">
-        <div className="political-chat-column political-chat-messages">
+        <div
+          className="political-chat-column political-chat-messages"
+          role="log"
+          aria-label="Conversa"
+        >
           {session === null ? (
             <p className="muted">
               Não foi possível carregar a sua sessão. Recarregue a página.
@@ -130,21 +134,28 @@ export default function Chat(): React.ReactElement {
           ) : loadingHistory ? (
             <p className="muted">Carregando o histórico…</p>
           ) : (
-            messages.map((msg, i) => (
-              <div
-                key={i}
-                className="political-chat-message"
-                data-role={msg.role}
-              >
-                <ReactMarkdown
-                  remarkPlugins={[remarkGfm]}
-                  disallowedElements={["pre", "code"]}
-                  unwrapDisallowed={true}
-                >
+            messages.map((msg, i) =>
+              // The user's own text is shown as typed; only answers are markdown.
+              msg.role === "human" ? (
+                <p key={i} className="political-chat-message" data-role="human">
                   {msg.message}
-                </ReactMarkdown>
-              </div>
-            ))
+                </p>
+              ) : (
+                <div
+                  key={i}
+                  className="political-chat-message"
+                  data-role={msg.role}
+                >
+                  <ReactMarkdown
+                    remarkPlugins={[remarkGfm]}
+                    disallowedElements={["pre", "code"]}
+                    unwrapDisallowed={true}
+                  >
+                    {msg.message}
+                  </ReactMarkdown>
+                </div>
+              ),
+            )
           )}
         </div>
         {/* Outside the column, so the gap between messages does not add space at the end. */}
@@ -161,7 +172,6 @@ export default function Chat(): React.ReactElement {
             id="chat-message"
             className="political-chat-input"
             value={input}
-            disabled={sending}
             placeholder="Escreva sua mensagem"
             rows={1}
             onChange={handleInputChange}

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "CFFLCH",
+  title: { default: "CFFLCH", template: "%s | CFFLCH" },
 };
 
 export default function CfflchLayout({

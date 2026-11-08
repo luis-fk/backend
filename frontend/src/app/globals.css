@@ -15,6 +15,9 @@
   --politics: #3a4ba0;
   --cfflch: #8a5a00;
   --on-accent: #ffffff;
+  /* Surfaces that float above the page: the project menu and the toast. */
+  --elevated: #ffffff;
+  --elevated-hover: #f2f3f1;
   --shadow-menu: 0 12px 32px rgb(23 25 28 / 0.12);
   --radius: 10px;
   /* Each app sets its own accent with data-project (below). */
@@ -36,6 +39,8 @@
     --politics: #9aa8f0;
     --cfflch: #e9b949;
     --on-accent: #141618;
+    --elevated: #1e2124;
+    --elevated-hover: #2b2f34;
     --shadow-menu: 0 12px 32px rgb(0 0 0 / 0.4);
   }
 }
@@ -207,6 +212,11 @@ textarea {
   cursor: not-allowed;
 }
 
+.input[aria-invalid="true"],
+.textarea[aria-invalid="true"] {
+  border-color: var(--danger);
+}
+
 /* The native arrow looks different in every browser, so draw one that follows the theme. */
 .select {
   appearance: none;
@@ -222,10 +232,19 @@ textarea {
   cursor: pointer;
 }
 
-.input-compact,
 .select-compact {
   min-height: 36px;
   font-size: 14px;
+}
+
+/* iOS zooms into fields with text under 16px when they get focus. */
+@media (max-width: 600px) {
+  .input,
+  .select,
+  .textarea,
+  .select-compact {
+    font-size: 16px;
+  }
 }
 
 .checkbox {
@@ -374,6 +393,11 @@ textarea {
   font-weight: 600;
 }
 
+/* The links fill the header's height, so draw the ring inside them. */
+.app-nav a:focus-visible {
+  outline-offset: -4px;
+}
+
 .dot {
   flex-shrink: 0;
   width: 10px;
@@ -426,7 +450,7 @@ textarea {
   padding: 6px;
   border: 1px solid var(--line);
   border-radius: 12px;
-  background: var(--bg);
+  background: var(--elevated);
   box-shadow: var(--shadow-menu);
 }
 
@@ -443,7 +467,7 @@ textarea {
 
 .project-menu a:hover,
 .project-menu a[aria-current="true"] {
-  background: var(--surface);
+  background: var(--elevated-hover);
 }
 
 .project-menu a[aria-current="true"] {
@@ -595,9 +619,10 @@ textarea {
 
 /* Toast */
 
+/* Below the 64px app header, so it never covers the navigation. */
 .toast {
   position: fixed;
-  top: 16px;
+  top: 80px;
   right: 16px;
   z-index: 50;
   display: flex;
@@ -607,7 +632,7 @@ textarea {
   padding: 12px 8px 12px 16px;
   border: 1px solid var(--line);
   border-radius: 12px;
-  background: var(--bg);
+  background: var(--elevated);
   box-shadow: var(--shadow-menu);
   font-size: 15px;
   animation: toast-in 0.15s ease-out;
@@ -654,7 +679,7 @@ textarea {
 }
 
 .toast-close:hover {
-  background: var(--surface);
+  background: var(--elevated-hover);
   color: var(--ink);
 }
 

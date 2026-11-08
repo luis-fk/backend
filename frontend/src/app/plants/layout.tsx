@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Plantas",
+  title: { default: "Plantas", template: "%s | Plantas" },
 };
 
 export default function PlantsLayout({

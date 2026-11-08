@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
-import { PROJECTS } from "@/app/projects";
 
 export const metadata: Metadata = {
-  title: PROJECTS.find((project) => project.key === "political-culture")?.name,
+  title: { default: "Cultura Política", template: "%s | Cultura Política" },
 };
 
 export default function PoliticalCultureLayout({

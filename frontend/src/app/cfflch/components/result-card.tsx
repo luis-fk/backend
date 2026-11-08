@@ -87,11 +87,14 @@ export default function ResultCard({
   }, [result.id, result.student_name, serverUrl, onDeleted]);
 
   const pdfUrls = result.pdf_urls ?? [];
+  const nameId = `result-name-${result.id}`;
 
   return (
     <li className="result-row">
       <div className="result-main">
-        <span className="result-name">{result.student_name}</span>
+        <span id={nameId} className="result-name">
+          {result.student_name}
+        </span>
         {pdfUrls.length > 0 ? (
           pdfUrls.map((pdf) => (
             <a
@@ -117,6 +120,7 @@ export default function ResultCard({
             type="checkbox"
             checked={approved}
             onChange={handleApprovedToggle}
+            aria-describedby={nameId}
           />
           Aprovado
         </label>
@@ -137,6 +141,7 @@ export default function ResultCard({
           type="button"
           className="text-button text-button-danger"
           onClick={handleDelete}
+          aria-label={`Excluir ${result.student_name}`}
         >
           Excluir
         </button>

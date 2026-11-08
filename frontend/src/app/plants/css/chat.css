@@ -32,11 +32,16 @@
   overflow-y: auto;
 }
 
+/* Chrome can focus a scroller; keep its ring inside, off the header and composer. */
+.plants-chat-scroll:focus-visible {
+  outline-offset: -3px;
+}
+
 .plants-chat-messages {
   display: flex;
   flex-direction: column;
   gap: 28px;
-  padding-block: 40px 18px;
+  padding-block: clamp(24px, 5vw, 40px) 18px;
 }
 
 /* The user's messages: a bubble on the right. */
@@ -89,7 +94,7 @@
 /* The composer: a rounded box with the textarea and the send button.
    The 6px on top leave room for its focus ring above the message list. */
 .plants-chat-footer {
-  padding-block: 6px 28px;
+  padding-block: 6px clamp(16px, 4vw, 28px);
 }
 
 .plants-chat-composer {

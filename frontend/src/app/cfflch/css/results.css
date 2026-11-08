@@ -18,6 +18,13 @@
   font-size: 15px;
 }
 
+/* iOS zooms into fields with text under 16px when they get focus. */
+@media (max-width: 600px) {
+  .results-toolbar .select {
+    font-size: 16px;
+  }
+}
+
 /* Name and lists on the left, actions on the right; the actions wrap below on phones. */
 .result-row {
   display: flex;

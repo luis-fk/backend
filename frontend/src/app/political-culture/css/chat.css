@@ -60,6 +60,7 @@
   background: color-mix(in srgb, var(--accent) 12%, var(--bg));
   color: var(--ink);
   line-height: 1.5;
+  white-space: pre-wrap;
 }
 
 @media (prefers-color-scheme: dark) {

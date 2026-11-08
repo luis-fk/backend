@@ -43,6 +43,11 @@
   font-weight: 650;
 }
 
+/* A name still waiting for its answer. */
+.search-result-pending {
+  color: var(--muted);
+}
+
 .search-result-status,
 .search-result-link {
   font-size: 14px;

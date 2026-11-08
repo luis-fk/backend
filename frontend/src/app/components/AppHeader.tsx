@@ -26,7 +26,10 @@ export default function AppHeader({
       const menu = menuRef.current;
       if (!menu?.open) return;
       if (event instanceof KeyboardEvent) {
-        if (event.key === "Escape") menu.open = false;
+        if (event.key !== "Escape") return;
+        const focusWasInside = menu.contains(document.activeElement);
+        menu.open = false;
+        if (focusWasInside) menu.querySelector("summary")?.focus();
         return;
       }
       if (event.target instanceof Node && !menu.contains(event.target)) {
@@ -42,10 +45,33 @@ export default function AppHeader({
     };
   }, []);
 
+  function closeOnLinkClick(event: React.MouseEvent<HTMLElement>): void {
+    // Picking the current project redirects to the same page, which keeps the
+    // menu mounted, so close it here for every link.
+    if (event.target instanceof Element && event.target.closest("a")) {
+      if (menuRef.current) menuRef.current.open = false;
+    }
+  }
+
+  function closeWhenFocusLeaves(
+    event: React.FocusEvent<HTMLDetailsElement>,
+  ): void {
+    // Tab moved past the last item. A click outside is handled above.
+    const next = event.relatedTarget;
+    if (next instanceof Node && !event.currentTarget.contains(next)) {
+      event.currentTarget.open = false;
+    }
+  }
+
   return (
     <header className="app-header">
       {/* The key remounts the menu on navigation, so it starts closed on each page. */}
-      <details key={pathname} ref={menuRef} className="project-switcher">
+      <details
+        key={pathname}
+        ref={menuRef}
+        className="project-switcher"
+        onBlur={closeWhenFocusLeaves}
+      >
         <summary aria-label={`${name}, trocar de projeto`}>
           <span className="dot" data-project={project} aria-hidden="true" />
           {name}
@@ -64,7 +90,11 @@ export default function AppHeader({
             <path d="M6 9l6 6 6-6" />
           </svg>
         </summary>
-        <nav aria-label="Projetos" className="project-menu">
+        <nav
+          aria-label="Projetos"
+          className="project-menu"
+          onClick={closeOnLinkClick}
+        >
           {PROJECTS.map((item) => (
             <Link
               key={item.key}

@@ -106,7 +106,7 @@ export default function Chat(): React.ReactElement {
       // assistant's again and the user can retry.
       setMessages((previous) => previous.slice(0, -1));
       setMessageInput((current) => current || userMessage);
-      setErrorMessage("Falha ao enviar a mensagem. Tente novamente.");
+      setErrorMessage("Falha ao enviar a mensagem. Tente de novo.");
     } finally {
       setSending(false);
     }
@@ -186,7 +186,6 @@ export default function Chat(): React.ReactElement {
             value={messageInput}
             placeholder="Escreva sua mensagem"
             enterKeyHint="send"
-            autoFocus
             onChange={handleInputChange}
             onKeyDown={handleKeyDown}
           />
