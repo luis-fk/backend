@@ -14,7 +14,8 @@ export const PROJECTS: readonly Project[] = [
   {
     key: "plants",
     name: "Plantas",
-    description: "Converse sobre a sua planta com os dados do sensor e do clima.",
+    description:
+      "Converse sobre a sua planta com os dados do sensor e do clima.",
     href: "/plants",
   },
   {

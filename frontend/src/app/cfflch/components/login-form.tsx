@@ -1,11 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { login } from "@/cfflch/actions/login";
 import { logger } from "@/app/api/log/client-logger";
-import { useRouter } from "next/navigation";
-import Toast from "@/app/components/Toast";
-import "@/cfflch/css/login.css";
 
 export default function LoginForm(): React.ReactElement {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -17,6 +15,7 @@ export default function LoginForm(): React.ReactElement {
   ): Promise<void> {
     event.preventDefault();
     setSubmitting(true);
+    setErrorMessage(null);
 
     const formData = new FormData(event.currentTarget);
     const result = await login(formData);
@@ -33,21 +32,29 @@ export default function LoginForm(): React.ReactElement {
   }
 
   return (
-    <div className="login-container">
-      <h1>Login</h1>
-
-      <form onSubmit={handleSubmit}>
-        <div>
-          <input id="name" name="name" placeholder="Name" />
-        </div>
-        <div className="submitButton-container">
-          <button type="submit" disabled={submitting}>
-            {submitting ? "Authenticating..." : "Authenticate"}
-          </button>
-        </div>
-      </form>
-
-      <Toast message={errorMessage} onClose={() => setErrorMessage(null)} />
-    </div>
+    <form className="auth-form" onSubmit={handleSubmit}>
+      <div className="field">
+        <label htmlFor="name" className="field-label">
+          Seu nome
+        </label>
+        <input
+          id="name"
+          name="name"
+          type="text"
+          className="input"
+          placeholder="Maria Souza"
+          aria-invalid={errorMessage ? true : undefined}
+          aria-describedby={errorMessage ? "name-error" : undefined}
+        />
+      </div>
+      {errorMessage && (
+        <p id="name-error" className="form-error" role="alert">
+          {errorMessage}
+        </p>
+      )}
+      <button type="submit" className="button" disabled={submitting}>
+        {submitting ? "Entrando…" : "Entrar"}
+      </button>
+    </form>
   );
 }

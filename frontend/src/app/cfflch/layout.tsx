@@ -1,7 +1,5 @@
 import type { Metadata } from "next";
 
-import "@/cfflch/css/layout.css";
-
 export const metadata: Metadata = {
   title: "CFFLCH",
 };

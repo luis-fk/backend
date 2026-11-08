@@ -1,15 +1,14 @@
 import type { Metadata } from "next";
-
-import "@/political-culture/css/layout.css";
+import { PROJECTS } from "@/app/projects";
 
 export const metadata: Metadata = {
-  title: "Cultura Política",
+  title: PROJECTS.find((project) => project.key === "political-culture")?.name,
 };
 
 export default function PoliticalCultureLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
-}>) {
+}>): React.ReactElement {
   return <>{children}</>;
 }

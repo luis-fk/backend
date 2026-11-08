@@ -200,6 +200,13 @@ textarea {
   color: var(--muted);
 }
 
+.input:disabled,
+.select:disabled,
+.textarea:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 /* The native arrow looks different in every browser, so draw one that follows the theme. */
 .select {
   appearance: none;
@@ -576,6 +583,7 @@ textarea {
 }
 
 .auth-back {
+  align-self: flex-start;
   color: var(--muted);
   font-size: 15px;
   text-underline-offset: 4px;

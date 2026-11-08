@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import ResultsTable from "@/cfflch/components/results-table";
 
 export const metadata: Metadata = {
-  title: "CFFLCH — Results",
+  title: "CFFLCH — Resultados",
 };
 
 export default function ResultsPage(): React.ReactElement {
