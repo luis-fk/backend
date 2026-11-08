@@ -1,4 +1,4 @@
-from datetime import UTC, datetime
+from datetime import datetime, time
 from zoneinfo import ZoneInfo
 
 from news_podcast.api.episode.config import HOSTS
@@ -20,32 +20,21 @@ SAO_PAULO = ZoneInfo("America/Sao_Paulo")
 
 
 def test_manual_window_ends_now() -> None:
-    now = datetime(2026, 11, 6, 17, 30, tzinfo=UTC)
+    now = datetime(2026, 11, 6, 17, 30, tzinfo=SAO_PAULO)
 
-    start, end = news_window(now, None, 24, 1)
+    start, end = news_window(now, None, 24)
 
     assert end == now
-    assert start == datetime(2026, 11, 5, 17, 30, tzinfo=UTC)
+    assert start == datetime(2026, 11, 5, 17, 30, tzinfo=SAO_PAULO)
 
 
-def test_scheduled_window_closes_at_the_top_of_the_hour_before_sending() -> None:
+def test_scheduled_window_closes_at_the_cutoff() -> None:
     now = datetime(2026, 11, 6, 6, 15, tzinfo=SAO_PAULO)
-    send = datetime(2026, 11, 6, 7, 30, tzinfo=SAO_PAULO)
 
-    start, end = news_window(now, send, 24, 1)
+    start, end = news_window(now, time(6, 0), 24)
 
     assert end == datetime(2026, 11, 6, 6, 0, tzinfo=SAO_PAULO)
     assert start == datetime(2026, 11, 5, 6, 0, tzinfo=SAO_PAULO)
-
-
-def test_evening_window_covers_the_day() -> None:
-    now = datetime(2026, 11, 6, 20, 10, tzinfo=SAO_PAULO)
-    send = datetime(2026, 11, 6, 21, 0, tzinfo=SAO_PAULO)
-
-    start, end = news_window(now, send, 24, 1)
-
-    assert end == datetime(2026, 11, 6, 20, 0, tzinfo=SAO_PAULO)
-    assert start == datetime(2026, 11, 5, 20, 0, tzinfo=SAO_PAULO)
 
 
 def test_valid_stories_drops_unknown_ids_and_empty_stories() -> None:
