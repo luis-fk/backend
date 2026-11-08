@@ -13,13 +13,6 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@chatscope/chat-ui-kit-react": "^2.0.3",
-    "@chatscope/chat-ui-kit-styles": "^1.4.0",
-    "@emotion/react": "^11.14.0",
-    "@emotion/styled": "^11.14.1",
-    "@fontsource/roboto": "^5.1.1",
-    "@mui/icons-material": "^6.4.1",
-    "@mui/material": "^6.4.1",
     "axios": "^1.21.0",
     "jose": "^5.9.6",
     "next": "^16.4.5",

@@ -5,7 +5,7 @@ A sandbox for prototyping ideas and practicing software engineering. One reposit
 | Folder | What it is | Stack |
 |---|---|---|
 | [`backend/`](backend/) | Django API with four apps: plants, political_culture, cfflch and news_podcast | Python, Django, DRF, Channels, PostgreSQL, uv |
-| [`frontend/`](frontend/) | Next.js site with the UIs for plants, political-culture and cfflch | Next.js, React, TypeScript, MUI, npm |
+| [`frontend/`](frontend/) | Next.js site with the UIs for plants, political-culture and cfflch | Next.js, React, TypeScript, plain CSS, npm |
 
 The two parts share no code. The frontend talks to the backend over HTTP and WebSocket, at the URL in `NEXT_PUBLIC_SERVER_URL`.
 

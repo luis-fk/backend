@@ -123,7 +123,7 @@ export function useAdmissionSearch(serverUrl: string | undefined): {
 
       ws.onerror = (event: Event) => {
         logger.error("cfflch WebSocket error", { requestId, event });
-        setError("WebSocket connection error. Please try again.");
+        setError("Não foi possível conectar ao servidor. Tente de novo.");
         setLoading(false);
       };
 
@@ -155,13 +155,7 @@ export function useAdmissionSearch(serverUrl: string | undefined): {
         });
       } catch (err) {
         logger.error("cfflch POST failed", { error: err });
-        if (axios.isAxiosError(err)) {
-          setError(
-            err.response?.data?.error ?? "Failed to start search. Please try again.",
-          );
-        } else {
-          setError("Failed to start search. Please try again.");
-        }
+        setError("Não foi possível iniciar a busca. Tente de novo.");
         setLoading(false);
         ws.close();
       }

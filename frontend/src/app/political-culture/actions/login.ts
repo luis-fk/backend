@@ -9,7 +9,7 @@ export async function login(
   const serverUrl = process.env.NEXT_PUBLIC_SERVER_URL;
 
   if (!name || typeof name !== "string" || !name.trim()) {
-    return { message: "Name is required." };
+    return { message: "Digite seu nome." };
   }
 
   try {
@@ -20,21 +20,12 @@ export async function login(
     await createSession(result.data.id as number, "session-political-culture");
     return;
   } catch (error) {
-    if (axios.isAxiosError(error)) {
-      if (error.response?.status === 404) {
-        console.error(`[political-culture] User ${name} not found`);
-        return {
-          message:
-            error.response.data?.error ?? "User not found.",
-        };
-      }
-      console.error(`[political-culture] Login error for user ${name}`);
-      return {
-        message:
-          error.response?.data?.error ?? "An error occurred. Please try again.",
-      };
+    // The backend's messages are in English, so the page uses its own.
+    if (axios.isAxiosError(error) && error.response?.status === 404) {
+      console.error(`[political-culture] User ${name} not found`);
+      return { message: "Nome não encontrado." };
     }
-    console.error(`[political-culture] Unknown login error for user ${name}`);
-    return { message: "An unknown error occurred." };
+    console.error(`[political-culture] Login error for user ${name}`);
+    return { message: "Não foi possível entrar. Tente de novo." };
   }
 }

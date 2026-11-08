@@ -1,28 +1,14 @@
-"use client";
-import { Box, useMediaQuery } from "@mui/material";
-import "@/political-culture/css/layout.css";
+import AppHeader from "@/app/components/AppHeader";
 
-export default function RootLayout({
+export default function RoutesLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
-}>) {
-  const isMobile = useMediaQuery("(max-width: 800px)");
-  const flexDirection = isMobile ? "column" : "row";
-
+}>): React.ReactElement {
   return (
-    <>
-      <Box
-        sx={{
-          display: "flex",
-          flexDirection: flexDirection,
-          overflow: "hidden",
-        }}
-      >
-        <Box sx={{ display: "flex", justifyContent: "center", width: "100%" }}>
-          {children}
-        </Box>
-      </Box>
-    </>
+    <div className="app-shell" data-project="political-culture">
+      <AppHeader project="political-culture" />
+      {children}
+    </div>
   );
 }

@@ -1,8 +1,9 @@
-"use client";
+import AppHeader from "@/app/components/AppHeader";
 
-import MuiDrawer from "@/cfflch/components/mui-drawer";
-import { Box } from "@mui/material";
-import "@/cfflch/css/layout.css";
+const NAV_LINKS = [
+  { href: "/cfflch/search", label: "Buscar" },
+  { href: "/cfflch/results", label: "Resultados" },
+];
 
 export default function RoutesLayout({
   children,
@@ -10,17 +11,9 @@ export default function RoutesLayout({
   children: React.ReactNode;
 }>): React.ReactElement {
   return (
-    <Box
-      sx={{
-        display: "flex",
-        flexDirection: { xs: "column", sm: "row" },
-        overflow: "hidden",
-      }}
-    >
-      <MuiDrawer />
-      <Box sx={{ display: "flex", justifyContent: "center", width: "100%" }}>
-        {children}
-      </Box>
-    </Box>
+    <div className="app-shell" data-project="cfflch">
+      <AppHeader project="cfflch" links={NAV_LINKS} />
+      {children}
+    </div>
   );
 }

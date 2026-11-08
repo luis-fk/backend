@@ -1,15 +1,13 @@
 import type { Metadata } from "next";
 
-import "@/plants/css/layout.css";
-
 export const metadata: Metadata = {
-  title: "Plants",
+  title: { default: "Plantas", template: "%s | Plantas" },
 };
 
 export default function PlantsLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
-}>) {
+}>): React.ReactElement {
   return <>{children}</>;
 }

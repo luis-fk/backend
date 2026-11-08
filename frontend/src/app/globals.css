@@ -1,0 +1,796 @@
+/* Design tokens and shared patterns. App-specific styles live in each app's css/ folder. */
+
+/* Each color has a light and a dark value, and light-dark() picks one from
+   color-scheme: the system preference, unless the theme switch saved a choice
+   (<html data-theme>, set by the root layout from the "theme" cookie). */
+:root {
+  color-scheme: light dark;
+  --bg: light-dark(#ffffff, #141618);
+  --surface: light-dark(#f2f3f1, #1e2124);
+  --line: light-dark(#e2e4e0, #2e3236);
+  --field-line: light-dark(#d3d6d0, #3a3f44);
+  --ink: light-dark(#17191c, #ecedee);
+  --muted: light-dark(#5f646b, #a0a6ad);
+  --danger: light-dark(#a1281f, #f08a80);
+  --success: light-dark(#2e7d4f, #6cc08f);
+  --warning: light-dark(#8a5a00, #e9b949);
+  --plants: light-dark(#2e7d4f, #6cc08f);
+  --politics: light-dark(#3a4ba0, #9aa8f0);
+  --cfflch: light-dark(#8a5a00, #e9b949);
+  --on-accent: light-dark(#ffffff, #141618);
+  /* Surfaces that float above the page: the project menu and the toast. */
+  --elevated: light-dark(#ffffff, #1e2124);
+  --elevated-hover: light-dark(#f2f3f1, #2b2f34);
+  --shadow-menu: 0 12px 32px light-dark(rgb(23 25 28 / 0.12), rgb(0 0 0 / 0.4));
+  --radius: 10px;
+  /* Each app sets its own accent with data-project (below). */
+  --accent: var(--ink);
+}
+
+/* "only" keeps Chrome's automatic dark mode for websites from darkening a page
+   where the user picked light. */
+:root[data-theme="light"] {
+  color-scheme: only light;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+}
+
+[data-project="plants"] {
+  --accent: var(--plants);
+}
+
+[data-project="political-culture"] {
+  --accent: var(--politics);
+}
+
+[data-project="cfflch"] {
+  --accent: var(--cfflch);
+}
+
+/* Base */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-sans), system-ui, sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3 {
+  margin: 0;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+}
+
+p {
+  margin: 0;
+}
+
+a {
+  color: inherit;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+/* Page layout inside an app */
+
+.app-shell {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.page {
+  width: 100%;
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 48px clamp(16px, 4vw, 24px) 64px;
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+
+.page-narrow {
+  max-width: 720px;
+}
+
+.page-header {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.page-title {
+  font-size: 31px;
+  font-weight: 800;
+}
+
+.section-title {
+  font-size: 20px;
+  font-weight: 700;
+}
+
+/* Form fields */
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.field-label {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.input,
+.select,
+.textarea {
+  min-height: 46px;
+  padding: 0 14px;
+  border: 1px solid var(--field-line);
+  border-radius: var(--radius);
+  background-color: var(--bg);
+  color: var(--ink);
+  font-size: 16px;
+}
+
+.textarea {
+  padding: 12px 14px;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.input::placeholder,
+.textarea::placeholder {
+  color: var(--muted);
+}
+
+.input:disabled,
+.select:disabled,
+.textarea:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.input[aria-invalid="true"],
+.textarea[aria-invalid="true"] {
+  border-color: var(--danger);
+}
+
+/* The native arrow looks different in every browser, so draw one that follows the theme. */
+.select {
+  appearance: none;
+  padding-right: 40px;
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--muted) 50%),
+    linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+  background-position:
+    calc(100% - 20px) 50%,
+    calc(100% - 15px) 50%;
+  background-size: 5px 5px;
+  background-repeat: no-repeat;
+  cursor: pointer;
+}
+
+.select-compact {
+  min-height: 36px;
+  font-size: 14px;
+}
+
+/* iOS zooms into fields with text under 16px when they get focus. */
+@media (max-width: 600px) {
+  .input,
+  .select,
+  .textarea,
+  .select-compact {
+    font-size: 16px;
+  }
+}
+
+.checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  cursor: pointer;
+}
+
+.checkbox input {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.form-error {
+  color: var(--danger);
+  font-size: 14px;
+}
+
+/* Buttons */
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 46px;
+  padding: 0 22px;
+  border: 0;
+  border-radius: var(--radius);
+  background: var(--accent);
+  color: var(--on-accent);
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.button:hover {
+  background: color-mix(in srgb, var(--accent) 88%, var(--ink));
+}
+
+.button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.text-button {
+  min-height: 36px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.text-button:hover {
+  color: var(--ink);
+}
+
+.text-button-danger,
+.text-button-danger:hover {
+  color: var(--danger);
+}
+
+.segmented {
+  display: inline-flex;
+  width: fit-content;
+  gap: 2px;
+  min-height: 42px;
+  padding: 3px;
+  border: 1px solid var(--field-line);
+  border-radius: var(--radius);
+}
+
+.segmented button {
+  padding: 0 14px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.segmented button[aria-pressed="true"] {
+  background: var(--ink);
+  color: var(--bg);
+  font-weight: 600;
+}
+
+/* Lists separated by hairlines */
+
+.list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-bottom: 1px solid var(--line);
+}
+
+.list > li {
+  padding: 18px 0;
+  border-top: 1px solid var(--line);
+}
+
+/* App header and project switcher */
+
+.app-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0 24px;
+  min-height: 64px;
+  padding: 0 clamp(16px, 4vw, 40px);
+  border-bottom: 1px solid var(--line);
+}
+
+.app-header-end {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+  margin-left: auto;
+}
+
+.app-nav {
+  display: flex;
+  gap: 28px;
+  font-size: 15px;
+}
+
+.app-nav a {
+  display: block;
+  padding: 21px 0 19px;
+  border-bottom: 2px solid transparent;
+  color: var(--muted);
+  text-decoration: none;
+}
+
+.app-nav a:hover {
+  color: var(--ink);
+}
+
+.app-nav a[aria-current="page"] {
+  border-bottom-color: var(--accent);
+  color: var(--ink);
+  font-weight: 600;
+}
+
+/* The links fill the header's height, so draw the ring inside them. */
+.app-nav a:focus-visible {
+  outline-offset: -4px;
+}
+
+.dot {
+  flex-shrink: 0;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.project-switcher {
+  position: relative;
+}
+
+.project-switcher > summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 40px;
+  margin-left: -12px;
+  padding: 0 12px;
+  border-radius: var(--radius);
+  font-weight: 700;
+  list-style: none;
+  cursor: pointer;
+}
+
+.project-switcher > summary::-webkit-details-marker {
+  display: none;
+}
+
+.project-switcher > summary:hover {
+  background: var(--surface);
+}
+
+.project-switcher .chevron {
+  transition: transform 0.15s ease;
+}
+
+.project-switcher[open] .chevron {
+  transform: rotate(180deg);
+}
+
+.project-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: -12px;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  width: 248px;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--elevated);
+  box-shadow: var(--shadow-menu);
+}
+
+.project-menu a {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  color: var(--ink);
+  font-size: 15px;
+  text-decoration: none;
+}
+
+.project-menu a:hover,
+.project-menu a[aria-current="true"] {
+  background: var(--elevated-hover);
+}
+
+.project-menu a[aria-current="true"] {
+  font-weight: 600;
+}
+
+.project-menu hr {
+  height: 1px;
+  margin: 6px 0;
+  border: 0;
+  background: var(--line);
+}
+
+.project-menu .all-projects {
+  color: var(--muted);
+}
+
+/* On phones the app's links move to a row of their own below, like tabs, so the
+   project and the theme switch keep the first row. */
+@media (max-width: 480px) {
+  /* Centers the 40px switcher in a 63px first row (the 64px header minus its
+     border), as on desktop. */
+  .project-switcher {
+    margin-block: 11.5px;
+  }
+
+  .app-header-end {
+    display: contents;
+  }
+
+  .app-header .theme-toggle {
+    margin-left: auto;
+  }
+
+  .app-nav {
+    order: 1;
+    width: 100%;
+  }
+
+  .app-nav a {
+    padding: 10px 0 8px;
+  }
+
+  /* Below the two rows (106.5px), not over the links. */
+  .app-shell:has(.app-nav) .toast {
+    top: 122px;
+  }
+}
+
+/* Theme switch */
+
+/* The transparent borders don't show, except in Windows high contrast mode,
+   which drops backgrounds and shadows and draws borders instead. */
+.theme-toggle {
+  position: relative;
+  flex-shrink: 0;
+  width: 52px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 14px;
+  background: var(--line);
+  cursor: pointer;
+}
+
+.theme-toggle:hover {
+  background: var(--field-line);
+}
+
+.theme-toggle-knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border: 1px solid transparent;
+  border-radius: 50%;
+  background: var(--bg);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.25);
+  transition: translate 0.2s ease;
+}
+
+/* Both icons share the knob, and light-dark() hides the one that doesn't apply. */
+.theme-toggle-knob svg {
+  grid-area: 1 / 1;
+}
+
+.theme-toggle-sun {
+  color: light-dark(var(--warning), transparent);
+}
+
+.theme-toggle-moon {
+  color: light-dark(transparent, var(--warning));
+}
+
+/* CSS can't read color-scheme, so the knob repeats the two ways the page turns
+   dark: a saved choice, or the system with no choice saved. */
+:root[data-theme="dark"] .theme-toggle-knob {
+  translate: 24px 0;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .theme-toggle-knob {
+    translate: 24px 0;
+  }
+}
+
+/* Pages without the app header (home, login, 404) put the switch where the
+   header would: top right, centered in the first 64px. */
+.home,
+.auth {
+  position: relative;
+}
+
+:is(.home, .auth) > .theme-toggle {
+  position: absolute;
+  top: 18px;
+  right: clamp(16px, 4vw, 40px);
+}
+
+/* Home */
+
+.home {
+  min-height: 100vh;
+  padding: clamp(56px, 10vw, 112px) clamp(24px, 8vw, 120px) 80px;
+}
+
+.home-inner {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(40px, 6vw, 56px);
+  max-width: 1040px;
+}
+
+.home-title {
+  font-size: clamp(39px, 6vw, 61px);
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.03em;
+}
+
+.project-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
+  gap: clamp(32px, 4vw, 44px) 56px;
+}
+
+.project-link {
+  display: flex;
+  gap: 20px;
+  border-radius: 6px;
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.project-link::before {
+  content: "";
+  flex-shrink: 0;
+  width: 6px;
+  border-radius: 3px;
+  background: var(--accent);
+}
+
+.project-link:focus-visible {
+  outline-color: var(--ink);
+  outline-offset: 6px;
+}
+
+.project-text {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 2px 0;
+}
+
+.project-name {
+  font-size: clamp(25px, 3vw, 31px);
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+}
+
+.project-link:hover .project-name {
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 6px;
+}
+
+.project-description {
+  color: var(--muted);
+}
+
+/* Login, the same layout in every app */
+
+.auth {
+  display: flex;
+  justify-content: center;
+  min-height: 100vh;
+  padding: clamp(64px, 14vh, 136px) 24px 64px;
+}
+
+.auth-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+  width: 100%;
+  max-width: 360px;
+}
+
+.auth-intro {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.auth-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--accent);
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.auth-title {
+  font-size: 39px;
+  font-weight: 800;
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.auth-form .button {
+  width: 100%;
+}
+
+.auth-back {
+  align-self: flex-start;
+  color: var(--muted);
+  font-size: 15px;
+  text-underline-offset: 4px;
+}
+
+.auth-back:hover {
+  color: var(--ink);
+}
+
+/* Toast */
+
+/* Below the 64px app header, so it never covers the navigation (the phone rules
+   move it lower when the header has two rows). */
+.toast {
+  position: fixed;
+  top: 80px;
+  right: 16px;
+  z-index: 50;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  max-width: min(420px, calc(100vw - 32px));
+  padding: 12px 8px 12px 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--elevated);
+  box-shadow: var(--shadow-menu);
+  font-size: 15px;
+  animation: toast-in 0.15s ease-out;
+}
+
+.toast .dot {
+  margin-top: 7px;
+  background: var(--toast-color);
+}
+
+.toast[data-severity="error"] {
+  --toast-color: var(--danger);
+}
+
+.toast[data-severity="warning"] {
+  --toast-color: var(--warning);
+}
+
+.toast[data-severity="success"] {
+  --toast-color: var(--success);
+}
+
+.toast[data-severity="info"] {
+  --toast-color: var(--muted);
+}
+
+.toast-message {
+  flex: 1;
+  padding-top: 1px;
+}
+
+.toast-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.toast-close:hover {
+  background: var(--elevated-hover);
+  color: var(--ink);
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
