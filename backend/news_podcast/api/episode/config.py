@@ -1,4 +1,4 @@
-from datetime import date, time
+from datetime import date
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -10,12 +10,11 @@ OUTPUT_DIR = APP_DIR.parent / "news_podcast_output"
 LOCAL_TZ = ZoneInfo("America/Sao_Paulo")
 
 NEWS_WINDOW_HOURS = 24
-# The workflow starts at :10 of the hour before the send time, so the scheduled
+# The Railway cron starts at :10 of the hour before the send time, so the scheduled
 # news window closes at :00 of that hour.
 NEWS_CUTOFF_HOURS_BEFORE_SEND = 1
 MAX_WAIT_SECONDS = 3 * 60 * 60
 
-DEFAULT_SEND_AT = time(7, 0)
 DEFAULT_MIN_MINUTES = 12
 DEFAULT_MAX_MINUTES = 18
 DEFAULT_SPEECH_SPEED = 1.0

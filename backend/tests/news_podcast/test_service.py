@@ -22,6 +22,7 @@ from news_podcast.api.episode.schemas import (
     Usage,
 )
 from news_podcast.api.episode.service import (
+    EpisodeError,
     NewsPodcastService,
     script_prompt,
     selection_prompt,
@@ -29,7 +30,7 @@ from news_podcast.api.episode.service import (
 from news_podcast.api.episode.telegram import TelegramClient
 
 TURNS = [Turn(speaker="Bia", text="Bom dia")]
-DEFAULT_OPTIONS = EpisodeOptions(12, 18, time(7, 0), 1.0)
+DEFAULT_OPTIONS = EpisodeOptions(12, 18, 1.0)
 CHATS = [
     TelegramChat(id="11", name="Felipe", is_group=False),
     TelegramChat(id="-22", name="Resumo & cia", is_group=True),
@@ -147,12 +148,12 @@ def test_voice_does_not_wait_when_the_daily_quota_is_over(
 
 
 def test_prompts_follow_the_configured_options() -> None:
-    options = EpisodeOptions(20, 30, time(21, 0), 1.0)
+    options = EpisodeOptions(20, 30, 1.0)
     start = datetime(2026, 11, 6, 20, 0, tzinfo=config.LOCAL_TZ)
     end = datetime(2026, 11, 7, 20, 0, tzinfo=config.LOCAL_TZ)
 
     selection = selection_prompt(options, start, end)
-    script = script_prompt(options, date(2026, 11, 7), start, end)
+    script = script_prompt(options, date(2026, 11, 7), start, end, time(21, 0))
 
     assert "em 20 a 30 minutos" in selection
     assert "Escolha de 13 a 20 histórias" in selection
@@ -167,7 +168,7 @@ def test_default_prompts_keep_the_morning_episode() -> None:
     end = datetime(2026, 11, 6, 6, 0, tzinfo=config.LOCAL_TZ)
 
     selection = selection_prompt(DEFAULT_OPTIONS, start, end)
-    script = script_prompt(DEFAULT_OPTIONS, date(2026, 11, 6), start, end)
+    script = script_prompt(DEFAULT_OPTIONS, date(2026, 11, 6), start, end, time(7, 0))
 
     assert "Escolha de 8 a 12 histórias" in selection
     assert 'chamado "Resumo das 7"' in script
@@ -194,7 +195,10 @@ class FakeTelegram(TelegramClient):
 
 
 def telegram_service(
-    client: httpx.AsyncClient, telegram: TelegramClient, chat_id: str | None
+    client: httpx.AsyncClient,
+    telegram: TelegramClient,
+    chat_id: str | None,
+    admin_chat_id: str | None = None,
 ) -> NewsPodcastService:
     return NewsPodcastService(
         http_client=client,
@@ -202,13 +206,16 @@ def telegram_service(
         telegram=telegram,
         chat_id=chat_id,
         options=DEFAULT_OPTIONS,
+        admin_chat_id=admin_chat_id,
     )
 
 
-async def report_chats(chat_id: str | None) -> list[tuple[str, str]]:
+async def report_chats(
+    chat_id: str | None, admin_chat_id: str | None = None
+) -> list[tuple[str, str]]:
     async with httpx.AsyncClient() as client:
         telegram = FakeTelegram(client)
-        await telegram_service(client, telegram, chat_id).send_chat_ids()
+        await telegram_service(client, telegram, chat_id, admin_chat_id).send_chat_ids()
         return telegram.sent
 
 
@@ -234,6 +241,30 @@ def test_chat_list_goes_only_to_the_configured_chat() -> None:
     assert [chat_id for chat_id, _ in sent] == ["11"]
     assert "👤 Felipe: <code>11</code>" in sent[0][1]
     assert "👥 Resumo &amp; cia: <code>-22</code>" in sent[0][1]
+
+
+def test_chat_list_goes_to_the_admin_chat_when_there_is_one() -> None:
+    sent = asyncio.run(report_chats(chat_id="-22", admin_chat_id="11"))
+
+    assert [chat_id for chat_id, _ in sent] == ["11"]
+
+
+def test_errors_go_to_the_admin_chat_not_the_group(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def fail(*_args: object) -> None:
+        raise EpisodeError("sem histórias")
+
+    async def scenario() -> list[tuple[str, str]]:
+        async with httpx.AsyncClient() as client:
+            telegram = FakeTelegram(client)
+            service = telegram_service(client, telegram, "-22", admin_chat_id="11")
+            monkeypatch.setattr(service, "_generate", fail)
+            with pytest.raises(EpisodeError):
+                await service.generate_episode(scheduled=False, send=True)
+            return telegram.sent
+
+    assert [chat_id for chat_id, _ in asyncio.run(scenario())] == ["11"]
 
 
 def test_first_setup_sends_each_chat_its_own_id() -> None:

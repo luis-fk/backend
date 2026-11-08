@@ -44,7 +44,6 @@ def configure_logging() -> None:
 def resolve_episode_options() -> EpisodeOptions:
     return parse_episode_options(
         minutes=getattr(settings, "NEWS_PODCAST_MINUTES", None),
-        send_at=getattr(settings, "NEWS_PODCAST_SEND_AT", None),
         speech_speed=getattr(settings, "NEWS_PODCAST_SPEECH_SPEED", None),
     )
 
@@ -53,6 +52,7 @@ async def run_action(options: dict[str, Any]) -> None:
     api_key = getattr(settings, "GEMINI_API_KEY", None)
     bot_token = getattr(settings, "TELEGRAM_BOT_TOKEN", None)
     chat_id = getattr(settings, "TELEGRAM_CHAT_ID", None) or None
+    admin_chat_id = getattr(settings, "TELEGRAM_ADMIN_CHAT_ID", None) or chat_id
 
     async with httpx.AsyncClient() as http_client:
         telegram = TelegramClient(http_client, bot_token) if bot_token else None
@@ -60,7 +60,7 @@ async def run_action(options: dict[str, Any]) -> None:
             episode_options = resolve_episode_options()
         except InvalidOptionError as error:
             if options["action"] == "episode" and not options["no_send"]:
-                await notify_failure(telegram, chat_id, "configuração", error)
+                await notify_failure(telegram, admin_chat_id, "configuração", error)
             raise
 
         service = NewsPodcastService(
@@ -69,6 +69,7 @@ async def run_action(options: dict[str, Any]) -> None:
             telegram=telegram,
             chat_id=chat_id,
             options=episode_options,
+            admin_chat_id=admin_chat_id,
         )
 
         if options["action"] == "chat-id":
