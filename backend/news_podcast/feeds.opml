@@ -8,7 +8,6 @@
   <body>
     <outline title="Economia" text="Economia">
       <outline feeder:notify="false" feeder:imageUrl="https://s2-g1.glbimg.com/9yYCBhtSsy23W0pNwYgEil7i_eM=/144x0/http://i.s3.glbimg.com/v1/AUTH_afd7a7aa13da4265ba6d93a18f8aa19e/pox/g1.png" feeder:fullTextByDefault="false" feeder:openArticlesWith="" feeder:alternateId="false" feeder:fetchOgImages="false" title="g1 · Economia" text="g1 · Economia" type="rss" xmlUrl="https://g1.globo.com/rss/g1/economia/"/>
-      <outline feeder:notify="false" feeder:fullTextByDefault="false" feeder:openArticlesWith="" feeder:alternateId="false" feeder:fetchOgImages="false" title="CNN Brasil · Economia (via Google News)" text="CNN Brasil · Economia (via Google News)" type="rss" xmlUrl="https://news.google.com/rss/search?q=site:cnnbrasil.com.br/economia+when:1d&amp;hl=pt-BR&amp;gl=BR&amp;ceid=BR:pt-419"/>
       <outline feeder:notify="false" feeder:fullTextByDefault="false" feeder:openArticlesWith="" feeder:alternateId="false" feeder:fetchOgImages="false" title="Poder360 · Economia (via Google News)" text="Poder360 · Economia (via Google News)" type="rss" xmlUrl="https://news.google.com/rss/search?q=site:poder360.com.br/poder-economia+when:1d&amp;hl=pt-BR&amp;gl=BR&amp;ceid=BR:pt-419"/>
     </outline>
     <outline title="Geral" text="Geral">
@@ -19,7 +18,6 @@
     </outline>
     <outline title="Mundo" text="Mundo">
       <outline feeder:notify="false" feeder:imageUrl="https://s2-g1.glbimg.com/9yYCBhtSsy23W0pNwYgEil7i_eM=/144x0/http://i.s3.glbimg.com/v1/AUTH_afd7a7aa13da4265ba6d93a18f8aa19e/pox/g1.png" feeder:fullTextByDefault="false" feeder:openArticlesWith="" feeder:alternateId="false" feeder:fetchOgImages="false" title="g1 · Mundo" text="g1 · Mundo" type="rss" xmlUrl="https://g1.globo.com/rss/g1/mundo/"/>
-      <outline feeder:notify="false" feeder:fullTextByDefault="false" feeder:openArticlesWith="" feeder:alternateId="false" feeder:fetchOgImages="false" title="CNN Brasil · Internacional (via Google News)" text="CNN Brasil · Internacional (via Google News)" type="rss" xmlUrl="https://news.google.com/rss/search?q=site:cnnbrasil.com.br/internacional+when:1d&amp;hl=pt-BR&amp;gl=BR&amp;ceid=BR:pt-419"/>
       <outline feeder:notify="false" feeder:fullTextByDefault="false" feeder:openArticlesWith="" feeder:alternateId="false" feeder:fetchOgImages="false" title="Poder360 · Internacional (via Google News)" text="Poder360 · Internacional (via Google News)" type="rss" xmlUrl="https://news.google.com/rss/search?q=site:poder360.com.br/poder-internacional+when:1d&amp;hl=pt-BR&amp;gl=BR&amp;ceid=BR:pt-419"/>
     </outline>
     <outline title="Política" text="Política">

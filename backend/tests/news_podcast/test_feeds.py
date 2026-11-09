@@ -47,7 +47,7 @@ def make_source(via_google_news: bool = False) -> FeedSource:
 def test_load_sources_reads_every_feed_with_its_folder() -> None:
     sources = load_sources(OPML_PATH)
 
-    assert len(sources) == 13
+    assert len(sources) == 11
     assert {source.section for source in sources} == {
         "Economia",
         "Geral",
