@@ -11,6 +11,7 @@ from news_podcast.api.episode.gemini import (
     MAX_ATTEMPTS,
     RATE_LIMIT_WAIT_SECONDS,
     GeminiClient,
+    GeminiError,
     GeminiQuotaExhaustedError,
     GeminiUnavailableError,
     answer_json,
@@ -22,9 +23,10 @@ from news_podcast.api.episode.gemini import (
     retry_delay,
     wav_duration,
 )
-from news_podcast.api.episode.schemas import Turn
+from news_podcast.api.episode.schemas import Script, Turn
 
 ONE_SECOND_OF_SILENCE = pcm_to_wav(b"\x00\x00" * 24000)
+SCHEMA = {"type": "object"}
 STYLE = "Calm conversation."
 HEADLINE_STYLE = "Emphatic headlines."
 
@@ -48,9 +50,58 @@ def quota_error(quota_id: str) -> dict[str, Any]:
     }
 
 
-def test_parse_json_text_accepts_code_fences_and_extra_text() -> None:
-    assert parse_json_text('```json\n{"a": 1}\n```') == {"a": 1}
-    assert parse_json_text('Aqui está: {"a": 2} pronto') == {"a": 2}
+def test_invalid_json_is_logged_where_it_breaks(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    text = '{"turns": [{"speaker": "Bia", "text": "O ministro disse "não"."}]}'
+
+    with pytest.raises(GeminiError, match="JSON inválido"):
+        parse_json_text(text)
+
+    assert "Expecting ',' delimiter" in caplog.text
+    assert 'disse "não"' in caplog.text
+
+
+def test_an_answer_that_stops_early_is_logged_with_its_reason(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    candidate = {"content": {"parts": [{"text": '{"turns": ['}]}}
+    data = {"candidates": [{**candidate, "finishReason": "RECITATION"}]}
+
+    with pytest.raises(GeminiError, match="JSON inválido"):
+        answer_json(data)
+
+    assert "RECITATION" in caplog.text
+
+
+def test_generate_json_constrains_the_answer_to_a_schema() -> None:
+    bodies: list[dict[str, Any]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        bodies.append(json.loads(request.content))
+        text = '{"turns": []}'
+        return httpx.Response(
+            200, json={"candidates": [{"content": {"parts": [{"text": text}]}}]}
+        )
+
+    async def scenario() -> None:
+        async with httpx.AsyncClient(
+            transport=httpx.MockTransport(handler)
+        ) as http_client:
+            client = GeminiClient(http_client, "key")
+            await client.generate_json(
+                "gemini-x",
+                "system",
+                "user",
+                "script",
+                schema=Script.model_json_schema(),
+            )
+
+    asyncio.run(scenario())
+
+    generation_config = bodies[0]["generationConfig"]
+    assert generation_config["responseMimeType"] == "application/json"
+    assert generation_config["responseJsonSchema"] == Script.model_json_schema()
 
 
 def test_daily_quota_is_told_apart_from_per_minute_limits() -> None:
@@ -124,7 +175,7 @@ def test_generate_json_retries_after_a_per_minute_limit() -> None:
     async def scenario() -> tuple[Any, int]:
         async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
             data, usage = await GeminiClient(client, "key").generate_json(
-                "gemini-3.8-flash", "system", "user", "selection"
+                "gemini-3.8-flash", "system", "user", "selection", schema=SCHEMA
             )
             return answer_json(data), usage.output_tokens
 
@@ -171,7 +222,7 @@ def test_generate_json_gives_up_after_a_few_overloaded_attempts(
     async def scenario() -> None:
         async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
             await GeminiClient(client, "key").generate_json(
-                "gemini-3.8-flash", "system", "user", "script"
+                "gemini-3.8-flash", "system", "user", "script", schema=SCHEMA
             )
 
     monkeypatch.setattr(asyncio, "sleep", no_wait)
@@ -190,7 +241,7 @@ def test_generate_json_does_not_insist_after_a_timeout() -> None:
     async def scenario() -> None:
         async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
             await GeminiClient(client, "key").generate_json(
-                "gemini-3.8-flash", "system", "user", "selection"
+                "gemini-3.8-flash", "system", "user", "selection", schema=SCHEMA
             )
 
     with pytest.raises(GeminiUnavailableError, match="não respondeu"):
@@ -234,7 +285,7 @@ def test_rate_limit_without_a_suggested_delay_waits_half_a_minute(
     async def scenario() -> Any:
         async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
             data, _ = await GeminiClient(client, "key").generate_json(
-                "gemini-3.8-flash", "system", "user", "selection"
+                "gemini-3.8-flash", "system", "user", "selection", schema=SCHEMA
             )
             return answer_json(data)
 

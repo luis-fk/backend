@@ -1,6 +1,6 @@
 from datetime import datetime
 from pathlib import Path
-from typing import NamedTuple
+from typing import Literal, NamedTuple
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -46,14 +46,26 @@ class NewsItem(BaseModel):
     content: str = ""
 
 
+# Gemini reads the field descriptions of SelectedStory and Turn, so they are in
+# Portuguese, like the prompts.
 class SelectedStory(BaseModel):
-    model_config = ConfigDict(coerce_numbers_to_str=True)
+    model_config = ConfigDict(
+        coerce_numbers_to_str=True, json_schema_serialization_defaults_required=True
+    )
 
-    title: str
-    category: str = "geral"
-    minutes: float = Field(default=1.0, gt=0)
-    angle: str = ""
-    item_ids: list[str]
+    title: str = Field(description="Título curto da história.")
+    category: Literal["politica", "economia", "mundo", "geral"] = "geral"
+    minutes: float = Field(
+        default=1.0, gt=0, description="Minutos de fala desta história."
+    )
+    angle: str = Field(
+        default="",
+        description="Em uma frase, o que o ouvinte precisa entender da história.",
+    )
+    item_ids: list[str] = Field(
+        description="Os ids de todas as manchetes deste fato, de veículos "
+        "diferentes quando houver."
+    )
 
 
 class StorySelection(BaseModel):
@@ -76,9 +88,14 @@ class StoryBrief(BaseModel):
 
 
 class Turn(BaseModel):
-    speaker: str
-    text: str
-    headline: bool = False
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    speaker: str = Field(description="Quem fala: um dos dois apresentadores.")
+    text: str = Field(description="O que a pessoa diz.")
+    headline: bool = Field(
+        default=False,
+        description="true só nas manchetes da escalada, na abertura do episódio.",
+    )
 
 
 class Script(BaseModel):
