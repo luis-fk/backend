@@ -39,6 +39,9 @@ SAMPLED_PASSAGES = 3
 # The key terms come from the most frequent words. In a book, function words fill about
 # two thirds of the top 100, so 200 leave the model about a hundred to pick from.
 MAX_PICKER_WORDS = 200
+# Each chunk repeats up to this much of the one before it, so a passage cut at a
+# chunk's edge is whole in one of the two.
+CHUNK_OVERLAP_CHARS = 250
 
 
 class NoText(Exception):
@@ -208,7 +211,9 @@ def add_pdf_text(path: str, file_hash: str, user_id: int) -> Texts:
 
 
 def get_embeddings(pages: list[Document]) -> tuple[list[str], list[list[float]]]:
-    splitter = RecursiveCharacterTextSplitter(chunk_size=2500, chunk_overlap=250)
+    splitter = RecursiveCharacterTextSplitter(
+        chunk_size=2500, chunk_overlap=CHUNK_OVERLAP_CHARS
+    )
     chunks = splitter.split_documents(pages)
 
     chunk_texts = [chunk.page_content for chunk in chunks]

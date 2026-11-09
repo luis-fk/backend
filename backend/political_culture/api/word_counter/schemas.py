@@ -31,3 +31,8 @@ class ChunkSchema(BaseModel):
     id: int
     text: str
     score: float
+
+
+class SurroundingText(BaseModel):
+    before: str
+    after: str
