@@ -104,7 +104,7 @@ Every backend endpoint needs a token: an HS256 JWT signed with `API_TOKEN_SECRET
 `src/app/actions/login-limit.ts`: 5 wrong names from the same visitor within an hour block that visitor for an hour, in every app (`login()` then answers "Muitas tentativas. Tente de novo em até 1 hora." without calling the backend). The visitor is `x-real-ip` (set by Railway's edge), then the first `x-forwarded-for` entry. Each attempt counts before the lookup, so parallel attempts can't get past the limit; a found name or an error other than a 404 takes its attempt back. Only time clears the wrong names, so logging in with a known name can't reset the limit. The counts live in memory, which is enough for the single Railway instance; they reset on each deploy.
 
 ### WebSocket pattern
-- **political-culture:** `hooks/useChatSocket.ts` connects on mount to `ws(s)://<server>/ws/chat/<userId>`, so it is open before any message is sent, and `hooks/useTextsSocket.ts` to `ws(s)://<server>/ws/political-culture/texts/<userId>`, which says how each PDF upload ended. Its callbacks go through `useEffectEvent`, so a new callback doesn't reconnect the socket and lose a result.
+- **political-culture:** `hooks/useChatSocket.ts` connects on mount to `ws(s)://<server>/ws/chat/<userId>`, so it is open before any message is sent, and `hooks/useTextsSocket.ts` to `ws(s)://<server>/ws/political-culture/texts/<userId>`, which says how each PDF upload ended. Its callbacks go through `useEffectEvent`, so a new callback doesn't reconnect the socket and lose a result. The page picks each upload's id (`crypto.randomUUID()`) and sends it with the file, since a PDF that fails at once can answer before the 202. The page only uploads while the socket is open; a closed socket (a backend deploy closes it) is not reopened, and the page asks for a reload, as the chat does.
 - **cfflch:** `hooks/use-admission-search.ts` opens `ws(s)://<server>/ws/cfflch/admission-status/<requestId>` for each search and waits for `onopen` before the POST.
 - The backend does not re-deliver messages, so the socket must be open before the POST.
 - Both send the API token as the subprotocols `["bearer", token]`, and the backend accepts with `bearer`.
@@ -152,7 +152,7 @@ The Django backend runs at `NEXT_PUBLIC_SERVER_URL`. The endpoints the frontend 
 | political-culture | `/api/political-culture/chatbot/message` | POST | Sends a chat message; the answer comes via WebSocket |
 | political-culture | `/api/political-culture/chat-history/{userId}` | GET | Returns chat history |
 | political-culture | `/api/political-culture/texts` | GET | The shared library, newest first |
-| political-culture | `/api/political-culture/texts` | POST | Adds a PDF of up to 100 MB (`content`): 202 with an `upload_id`, 409 when it is already in the library; the result comes via WebSocket |
+| political-culture | `/api/political-culture/texts` | POST | Adds a PDF of up to 100 MB (`content`, and the page's `upload_id`): 202, or 409 when it is in the library or being read; the result comes via WebSocket |
 | cfflch | `/api/cfflch/users/{name}` | GET | Login lookup |
 | cfflch | `/api/cfflch/admission-status/` | POST | Starts an admission search; results come via WebSocket |
 | cfflch | `/api/cfflch/admission-results/` | GET | Saved results for a `year` |
