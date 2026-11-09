@@ -15,8 +15,8 @@ configurações e o histórico. O resto é um management command.
 | Etapa | Arquivo | O que acontece |
 |---|---|---|
 | Feeds | `api/episode/feeds.py` | Lê o OPML exportado do Feeder, baixa os 9 feeds em paralelo e mantém só o que saiu entre 6h de ontem e 6h de hoje. |
-| Seleção | `service.py` + prompt de seleção | O modelo de texto recebe todas as manchetes, junta as que falam do mesmo fato, aplica as regras editoriais e escolhe uma história para cada minuto e meio de episódio (de 8 a 12 no padrão), com o tempo de cada uma. |
-| Leitura | `api/episode/articles.py` | Para cada história, lê o texto completo de até 3 veículos (o ICL vem primeiro). Os demais veículos que deram a notícia entram como manchete. Todos os feeds são de sites sem paywall. |
+| Seleção | `service.py` + prompt de seleção | O modelo de texto recebe todas as manchetes, junta as que falam do mesmo fato, aplica as regras editoriais e, pesando quantos veículos diferentes deram cada fato (cada veículo conta uma vez), escolhe uma história para cada minuto e meio de episódio (de 8 a 12 no padrão), com o tempo de cada uma. |
+| Leitura | `api/episode/articles.py` | Para cada história, lê o texto completo de até 3 veículos (o ICL vem primeiro). Os demais veículos que deram a notícia entram como manchete. Páginas de vídeo, que não têm texto, não são lidas, e outro veículo fica com a vaga. Todos os feeds são de sites sem paywall. |
 | Roteiro | `service.py` + prompt do roteiro | O modelo de texto escreve o diálogo com 170 palavras por minuto de episódio, vezes a velocidade (de 2.040 a 3.060 palavras no padrão), abrindo com uma escalada de 3 a 5 manchetes curtas, como nos telejornais. Se vier curto demais, pede uma versão mais longa uma vez. |
 | Voz | `api/episode/gemini.py` | O modelo de voz gera o diálogo com as duas vozes, em blocos de cerca de 650 palavras. Se o Gemini estiver fora do ar, o código espera e tenta de novo (veja *Bom saber*). |
 | Áudio | `api/episode/audio.py` | O ffmpeg junta os trechos, normaliza o volume e gera um OGG/Opus de 32 kbps (cerca de 4 MB para 15 minutos), o formato das mensagens de voz do Telegram. |
@@ -81,9 +81,9 @@ O bot só envia para a conversa do `TELEGRAM_CHAT_ID`. Quem só abre o bot e man
    conversas que viu nas últimas 24 horas, com o número de cada uma. O grupo aparece com
    👥 e um número negativo.
 3. Troque `TELEGRAM_CHAT_ID` pelo número do grupo no serviço do Railway. Daí em diante o
-   resumo vai para o grupo. Os avisos de erro vão para o `TELEGRAM_ADMIN_CHAT_ID` (o
-   número da sua conversa com o bot), para não aparecerem no grupo; sem ele, vão para o
-   grupo também.
+   resumo vai para o grupo. Os avisos de erro, inclusive o de um envio que o grupo
+   recusou, vão para o `TELEGRAM_ADMIN_CHAT_ID` (o número da sua conversa com o bot),
+   para não aparecerem no grupo; sem ele, vão para o grupo também.
 
 Se o grupo não aparecer na lista (o Telegram só guarda as últimas 24 horas para o bot),
 mande `/start@nome_do_bot` no grupo e rode de novo. Se o Telegram transformar o grupo em
@@ -119,9 +119,12 @@ não salva: o admin mostra o erro no campo.
 ## Histórico
 
 Em *News podcast → Episodes*, uma linha por execução: hora de início (de Brasília),
-status (enviado, falhou ou, com `--no-send`, não enviado), duração, custo no plano pago
-em reais e, se falhou, a etapa e o erro. A página de cada execução mostra os tokens de
-cada resposta do Gemini. O áudio não fica guardado. O topo da lista mostra o custo total
+status (enviado, falhou ou, com `--no-send`, não enviado), duração, palavras por
+minuto, custo no plano pago em reais e, se falhou, a etapa e o erro. A página de cada
+execução mostra as palavras do roteiro e os tokens de cada resposta do Gemini. Na
+velocidade 1x, as palavras por minuto são o ritmo da voz: se ficarem longe de 170, o
+`NATURAL_WORDS_PER_MINUTE` do `config.py` precisa de ajuste, senão o episódio sai mais
+curto ou mais longo que o pedido. O áudio não fica guardado. O topo da lista mostra o custo total
 do que está filtrado (por mês ou por status). Uma execução pausada não aparece, e uma
 que falha no meio grava o custo do que já rodou.
 
@@ -129,7 +132,9 @@ que falha no meio grava o custo do que já rodou.
 
 - **Feeds:** exporte de novo no Feeder e substitua o `feeds.opml`. Use só sites sem
   paywall e confira se o domínio está em `FULL_TEXT_DOMAINS` (`config.py`). Fora dessa
-  lista, a matéria entra só com o título e o resumo do RSS.
+  lista, a matéria entra só com o título e o resumo do RSS. Uma busca do Google News
+  traz no máximo 100 itens, por isso sites grandes, como CNN Brasil e Poder360, entram
+  por seção. A busca do SBT deixa os vídeos de fora (`-site:sbtnews.sbt.com.br/videos`).
 - **Apresentadores e as vozes deles:** `HOSTS` no `config.py`.
 - **Dólar usado para mostrar os custos em reais:** `BRL_PER_USD` (fixo) no `config.py`.
 
@@ -151,9 +156,14 @@ está no `.gitignore`.
 - A velocidade acelera o próprio arquivo com o filtro `atempo` do ffmpeg. O botão de
   velocidade do player do Telegram (1x, 1,5x, 2x) continua valendo, e as duas
   velocidades se multiplicam.
-- Se o modelo de texto estiver sobrecarregado, o texto é feito com o reserva, e o resto
-  da execução já vai direto para ele.
+- Se o modelo de texto estiver sobrecarregado, o texto é feito com o reserva, e as
+  etapas seguintes já vão direto para ele. Se nenhum dos dois der uma resposta boa
+  enquanto um deles estiver fora do ar, o código espera 10 minutos e depois 20 e
+  pergunta aos dois de novo, e o episódio chega mais tarde na mesma medida.
 - A voz não tem reserva: se o Gemini estiver fora do ar, o código espera 10 minutos e
   depois 20 e tenta de novo, e o episódio chega mais tarde na mesma medida. Se ainda
   falhar, ou se a cota do dia acabar, o episódio do dia não sai e chega uma mensagem de
   erro no Telegram.
+- Uma execução que passa de 2 horas para e manda uma mensagem de erro: o Railway não
+  começa a execução agendada enquanto a anterior está rodando, e uma execução travada
+  bloquearia os dias seguintes.

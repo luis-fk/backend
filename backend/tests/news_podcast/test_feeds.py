@@ -47,7 +47,7 @@ def make_source(via_google_news: bool = False) -> FeedSource:
 def test_load_sources_reads_every_feed_with_its_folder() -> None:
     sources = load_sources(OPML_PATH)
 
-    assert len(sources) == 9
+    assert len(sources) == 11
     assert {source.section for source in sources} == {
         "Economia",
         "Geral",
@@ -56,6 +56,13 @@ def test_load_sources_reads_every_feed_with_its_folder() -> None:
     }
     icl = next(source for source in sources if source.outlet == "ICL Notícias")
     assert icl.via_google_news
+
+
+def test_the_sbt_search_leaves_its_video_pages_out() -> None:
+    sources = load_sources(OPML_PATH)
+
+    sbt = next(source for source in sources if source.outlet == "SBT News")
+    assert "-site:sbtnews.sbt.com.br/videos" in sbt.url
 
 
 def test_outlet_name_drops_section_and_google_news_suffix() -> None:

@@ -1,4 +1,6 @@
+from functools import partial
 from string import Formatter
+from typing import Any
 
 from django.core.exceptions import ValidationError
 from django.core.validators import MaxValueValidator, MinValueValidator
@@ -39,6 +41,34 @@ def placeholder_error(template: str, fields: tuple[str, ...]) -> str | None:
     return None
 
 
+# The values a new settings row starts with. The fields read them through
+# starting_value, so a migration records only the field's name, and editing a
+# value in config.py or prompts.py needs no migration.
+STARTING_VALUES: dict[str, Any] = {
+    "min_minutes": config.DEFAULT_MIN_MINUTES,
+    "max_minutes": config.DEFAULT_MAX_MINUTES,
+    "speech_speed": config.DEFAULT_SPEECH_SPEED,
+    "text_model": config.TEXT_MODEL,
+    "text_input_price": config.TEXT_MODEL_PRICE.input_per_million,
+    "text_output_price": config.TEXT_MODEL_PRICE.output_per_million,
+    "fallback_model": config.TEXT_FALLBACK_MODEL,
+    "fallback_input_price": config.TEXT_FALLBACK_MODEL_PRICE.input_per_million,
+    "fallback_output_price": config.TEXT_FALLBACK_MODEL_PRICE.output_per_million,
+    "voice_model": config.TTS_MODEL,
+    "voice_input_price": config.TTS_MODEL_PRICE.input_per_million,
+    "voice_output_price": config.TTS_MODEL_PRICE.output_per_million,
+    "selection_prompt": prompts.SELECTION_PROMPT,
+    "script_prompt": prompts.SCRIPT_PROMPT,
+    "expand_prompt": prompts.EXPAND_PROMPT,
+    "voice_style": config.TTS_STYLE,
+    "headline_voice_style": config.HEADLINE_TTS_STYLE,
+}
+
+
+def starting_value(field_name: str) -> Any:
+    return STARTING_VALUES[field_name]
+
+
 class PodcastSettings(models.Model):
     """The episode settings, edited in the Django admin. A single row, which starts
     with the values in config.py and prompts.py."""
@@ -49,76 +79,80 @@ class PodcastSettings(models.Model):
     )
     min_minutes = models.PositiveSmallIntegerField(
         "minimum minutes",
-        default=config.DEFAULT_MIN_MINUTES,
+        default=partial(starting_value, "min_minutes"),
         validators=[MinValueValidator(config.SHORTEST_EPISODE_MINUTES)],
         help_text="Length of the file on Telegram, at the speech speed.",
     )
     max_minutes = models.PositiveSmallIntegerField(
-        "maximum minutes", default=config.DEFAULT_MAX_MINUTES
+        "maximum minutes", default=partial(starting_value, "max_minutes")
     )
     speech_speed = models.FloatField(
-        default=config.DEFAULT_SPEECH_SPEED,
+        default=partial(starting_value, "speech_speed"),
         validators=[MinValueValidator(SLOWEST), MaxValueValidator(FASTEST)],
         help_text="Speeds up the file itself; Telegram's speed button multiplies it.",
     )
-    text_model = models.CharField(max_length=100, default=config.TEXT_MODEL)
+    text_model = models.CharField(
+        max_length=100, default=partial(starting_value, "text_model")
+    )
     text_input_price = models.FloatField(
         "input price",
-        default=config.TEXT_MODEL_PRICE.input_per_million,
+        default=partial(starting_value, "text_input_price"),
         validators=[MinValueValidator(0)],
     )
     text_output_price = models.FloatField(
         "output price",
-        default=config.TEXT_MODEL_PRICE.output_per_million,
+        default=partial(starting_value, "text_output_price"),
         validators=[MinValueValidator(0)],
     )
     fallback_model = models.CharField(
         max_length=100,
         blank=True,
-        default=config.TEXT_FALLBACK_MODEL,
+        default=partial(starting_value, "fallback_model"),
         help_text="Writes the text when the text model is unavailable. Optional.",
     )
     fallback_input_price = models.FloatField(
         "input price",
-        default=config.TEXT_FALLBACK_MODEL_PRICE.input_per_million,
+        default=partial(starting_value, "fallback_input_price"),
         validators=[MinValueValidator(0)],
     )
     fallback_output_price = models.FloatField(
         "output price",
-        default=config.TEXT_FALLBACK_MODEL_PRICE.output_per_million,
+        default=partial(starting_value, "fallback_output_price"),
         validators=[MinValueValidator(0)],
     )
-    voice_model = models.CharField(max_length=100, default=config.TTS_MODEL)
+    voice_model = models.CharField(
+        max_length=100, default=partial(starting_value, "voice_model")
+    )
     voice_input_price = models.FloatField(
         "input price",
-        default=config.TTS_MODEL_PRICE.input_per_million,
+        default=partial(starting_value, "voice_input_price"),
         validators=[MinValueValidator(0)],
     )
     voice_output_price = models.FloatField(
         "output price",
-        default=config.TTS_MODEL_PRICE.output_per_million,
+        default=partial(starting_value, "voice_output_price"),
         validators=[MinValueValidator(0)],
     )
     selection_prompt = models.TextField(
-        default=prompts.SELECTION_PROMPT,
+        default=partial(starting_value, "selection_prompt"),
         help_text=placeholders_help(prompts.SELECTION_FIELDS),
     )
     script_prompt = models.TextField(
-        default=prompts.SCRIPT_PROMPT,
+        default=partial(starting_value, "script_prompt"),
         help_text=placeholders_help(prompts.SCRIPT_FIELDS),
     )
     expand_prompt = models.TextField(
-        default=prompts.EXPAND_PROMPT,
+        default=partial(starting_value, "expand_prompt"),
         help_text="Sent once when the script comes out short. "
         + placeholders_help(prompts.EXPAND_FIELDS),
     )
     voice_style = models.TextField(
-        default=config.TTS_STYLE,
+        default=partial(starting_value, "voice_style"),
         help_text="How the hosts talk. If the pace changes, recalibrate "
         "NATURAL_WORDS_PER_MINUTE in config.py.",
     )
     headline_voice_style = models.TextField(
-        default=config.HEADLINE_TTS_STYLE,
+        default=partial(starting_value, "headline_voice_style"),
         help_text="How the opening headlines are read.",
     )
 
@@ -189,6 +223,11 @@ class Episode(models.Model):
     started_at = models.DateTimeField()
     status = models.CharField(max_length=10, choices=Status.choices)
     duration_seconds = models.FloatField(null=True, blank=True)
+    script_words = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Words in the script; with the length, they give the voice's pace.",
+    )
     cost_usd = models.FloatField(
         "cost (US$)", help_text="Paid-plan cost, at the prices in the settings."
     )
