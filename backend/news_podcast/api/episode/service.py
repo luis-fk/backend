@@ -104,8 +104,12 @@ class NewsPodcastService:
 
     async def generate_episode(self, *, scheduled: bool, send: bool) -> EpisodeReport:
         now = datetime.now(UTC)
+        # The hour the episode is named after. It goes out as soon as it is ready:
+        # the cron's start time sets when it arrives, and a process left waiting for
+        # the hour could die with the episode in it.
         send_at = next_send(now, config.LOCAL_TZ)
-        # A scheduled run waits for send_at; one run by hand sends when ready.
+        # A scheduled run reads the news up to the full hour before send_at, where
+        # the previous day's window ended; a run without --scheduled reads up to now.
         scheduled_for = send_at if scheduled else None
         try:
             report = await self._generate(now, send_at, scheduled_for)
@@ -118,8 +122,6 @@ class NewsPodcastService:
             raise
 
         if send:
-            if scheduled_for:
-                await wait_until(scheduled_for)
             self.step = "envio"
             await self._deliver(report)
         return report
@@ -135,8 +137,8 @@ class NewsPodcastService:
             config.NEWS_CUTOFF_HOURS_BEFORE_SEND,
         )
         logger.info(
-            f"Episode of {self.options.min_minutes}-{self.options.max_minutes} min "
-            f"at {self.options.speech_speed:g}x, sent at {send_at:%H:%M}"
+            f"The {send_at:%H:%M} episode, of {self.options.min_minutes}-"
+            f"{self.options.max_minutes} min at {self.options.speech_speed:g}x"
         )
         config.OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -397,14 +399,6 @@ def parse_script(data: Any) -> Script:
     if len(turns) < MIN_SCRIPT_TURNS:
         raise GeminiError(f"o roteiro veio com só {len(turns)} falas")
     return script.model_copy(update={"turns": turns})
-
-
-async def wait_until(moment: datetime) -> None:
-    delay = (moment - datetime.now(UTC)).total_seconds()
-    if 0 < delay <= config.MAX_WAIT_SECONDS:
-        local_moment = moment.astimezone(config.LOCAL_TZ)
-        logger.info(f"Waiting {delay / 60:.0f} min to send at {local_moment:%H:%M}")
-        await asyncio.sleep(delay)
 
 
 # Each prompt gets the placeholders listed for it in prompts.py, the only ones the
