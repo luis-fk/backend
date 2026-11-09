@@ -98,7 +98,7 @@ def make_episode(*, scheduled: bool, send: bool) -> None:
         status = Episode.Status.FAILED
     else:
         status = Episode.Status.SENT if send else Episode.Status.NOT_SENT
-    # A run can last close to an hour (with the voice retries), and Django only renews
+    # A run can last up to MAX_RUN_MINUTES (2 hours), and Django only renews
     # connections between requests: this drops the one that read the settings, which
     # the database may have closed meanwhile, so the write opens a new one.
     close_old_connections()
