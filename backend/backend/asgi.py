@@ -19,12 +19,15 @@ django_asgi_app = get_asgi_application()
 
 from cfflch.api.admission_status import routing as cfflch_routing  # noqa: E402
 from political_culture.api.messages import routing as pc_routing  # noqa: E402
+from political_culture.api.texts import routing as pc_texts_routing  # noqa: E402
 
 application = ProtocolTypeRouter(
     {
         "http": django_asgi_app,
         "websocket": URLRouter(
-            pc_routing.websocket_urlpatterns + cfflch_routing.websocket_urlpatterns
+            pc_routing.websocket_urlpatterns
+            + pc_texts_routing.websocket_urlpatterns
+            + cfflch_routing.websocket_urlpatterns
         ),
     }
 )

@@ -1,0 +1,19 @@
+meta {
+  name: Texts - POST
+  type: http
+  seq: 5
+}
+
+post {
+  url: {{baseUrl}}/api/political-culture/texts
+  body: multipartForm
+  auth: inherit
+}
+
+body:multipart-form {
+  content: @file()
+}
+
+docs {
+  A PDF of up to 100 MB. The answer is 202 with an `upload_id`, and the result arrives on the Texts WebSocket, which must be connected first.
+}

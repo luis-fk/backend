@@ -1,10 +1,7 @@
-import logging
-import os
 import re
-import tempfile
 from collections import Counter
-from typing import IO, Optional
 
+from django.db import router, transaction
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_core.documents import Document
 from langchain_core.prompts import (
@@ -30,6 +27,13 @@ from political_culture.models import TextChunks, Texts, TextWordCount
 # Enough for a title page, a table of contents and the start of an introduction.
 OPENING_CHARS = 8000
 SAMPLED_PASSAGES = 3
+# A book has tens of thousands of different words. Its most frequent ones are enough
+# to pick from, and keep the call small.
+MAX_PICKER_WORDS = 2000
+
+
+class NoText(Exception):
+    """The PDF has no text to read, like a scan without OCR."""
 
 
 def extract_text_info(text: str) -> TitleAndAuthorSchema:
@@ -95,7 +99,10 @@ def word_picker(
     )
 
     response = chain.invoke(
-        {"input": words, "content_description": content_description}
+        {
+            "input": words[:MAX_PICKER_WORDS],
+            "content_description": content_description,
+        }
     )
 
     return WordFrequencySquema.model_validate(response)
@@ -117,65 +124,65 @@ def count_words(text: str) -> tuple[list[tuple[str, int]], int]:
     return sorted_word_counts, total_word_count
 
 
-def add_text(
-    content: IO[bytes], user_id: int, *, user_submitted_text: Optional[bool] = False
-) -> Texts:
-    text, chunk_texts, vectors = extract_pdf_embeddings_and_metadata(content)
-
-    logging.info("Adding text to the database")
-
-    text_db = Texts.objects.create(
-        user_id=user_id,
-        text=text,
-        user_submitted_text=bool(user_submitted_text),
-    )
-
-    for vector, chunk_text in zip(vectors, chunk_texts):
-        TextChunks.objects.create(text=text_db, chunk_text=chunk_text, vector=vector)
-
-    save_text_info(text_db, chunk_texts)
-
-    return text_db
+def picked_word_counts(
+    text: str, content_description: str | None
+) -> tuple[dict[str, int], int]:
+    """The words the model finds relevant, with their counts, and the text's total."""
+    words, total_word_count = count_words(text)
+    picked = word_picker(words, content_description)
+    return {word.word: word.count for word in picked.words_list}, total_word_count
 
 
 def add_text_word_count(text_db: Texts) -> TextWordCount:
-    word_frequencies, total_word_count = count_words(text_db.text)
-
-    new_word_frequencies = word_picker(word_frequencies, text_db.content_description)
-
-    dict_word_frequencies = {
-        word_count.word: word_count.count
-        for word_count in new_word_frequencies.words_list
-    }
+    word_frequencies, total_word_count = picked_word_counts(
+        text_db.text, text_db.content_description
+    )
 
     return TextWordCount.objects.create(
         text=text_db,
         total_word_count=total_word_count,
-        word_frequencies=dict_word_frequencies,
+        word_frequencies=word_frequencies,
     )
 
 
-def extract_pdf_embeddings_and_metadata(
-    content: IO[bytes],
-) -> tuple[str, list[str], list[list[float]]]:
-    with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
-        tmp.write(content.read())
-        tmp.flush()
-        tmp_path = tmp.name
-
-    loader = PyPDFLoader(tmp_path)
-    pages = loader.load()
-
+def add_pdf_text(path: str, file_hash: str, user_id: int) -> Texts:
+    """Reads a PDF into the library: its text, its chunks with their embeddings, its
+    title, author and summary, and its word count. The model calls come first and
+    the rows are saved in one transaction, so a failure leaves nothing behind."""
+    pages = PyPDFLoader(path).load()
+    for page in pages:
+        # Some PDFs carry NUL characters, which PostgreSQL refuses in a text column.
+        page.page_content = page.page_content.replace("\x00", "")
     text = "".join(page.page_content for page in pages)
+    if not text.strip():
+        raise NoText()
 
-    chunk_texts, vector = get_embeddings(pages)
+    chunk_texts, vectors = get_embeddings(pages)
+    info = extract_text_info(text_sample(text, chunk_texts))
+    word_frequencies, total_word_count = picked_word_counts(
+        text, info.content_description
+    )
 
-    try:
-        os.unlink(tmp_path)
-    except OSError:
-        pass
+    with transaction.atomic(using=router.db_for_write(Texts)):
+        text_db = Texts.objects.create(
+            user_id=user_id,
+            text=text,
+            file_hash=file_hash,
+            title=info.title,
+            author=info.author,
+            content_description=info.content_description,
+        )
+        TextChunks.objects.bulk_create(
+            TextChunks(text=text_db, chunk_text=chunk_text, vector=vector)
+            for chunk_text, vector in zip(chunk_texts, vectors)
+        )
+        TextWordCount.objects.create(
+            text=text_db,
+            total_word_count=total_word_count,
+            word_frequencies=word_frequencies,
+        )
 
-    return text, chunk_texts, vector
+    return text_db
 
 
 def get_embeddings(pages: list[Document]) -> tuple[list[str], list[list[float]]]:

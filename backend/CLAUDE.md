@@ -39,7 +39,11 @@ The Next.js frontend that serves their UIs lives in `../frontend`. `README.md` c
 
 ## Current state
 **Complete (stable):**
-- `political_culture`: word counter with LLM extraction, political chatbot with tools. pgvector is used to semantically search long reference texts that would otherwise exceed context limits. No near-term work planned.
+- `political_culture`: a shared texts library (`api/texts/`), the word counter with LLM extraction, and a political chatbot with tools. pgvector is used to semantically search long reference texts that would otherwise exceed context limits. Library decisions:
+  - Any user lists the library and adds PDFs of up to 100 MB. Only the Django admin edits or deletes a text, since a delete would remove it for everyone.
+  - A PDF already in the library, by its SHA-256 (`Texts.file_hash`), is refused with 409, so it isn't read and paid for twice.
+  - A book takes minutes, so `POST /api/political-culture/texts` answers 202 and a thread reads the PDF: embeddings, then title, author and summary, then word count, saved in one transaction. The result goes to the uploader's socket `ws/political-culture/texts/<userId>`, which isn't re-delivered. A restart mid-reading loses the upload, and the user sends it again.
+  - The word picker gets only the 2000 most frequent words (`MAX_PICKER_WORDS`), since a book's whole vocabulary would make the call huge.
 - `cfflch`: admission status checker — searches Tavily for PDFs, downloads and parses them, streams results over WebSocket. Has its own dedicated database (`cfflch_db`).
 - `plants`: ESP32 data ingestion, OpenWeather integration for weather data, AI chatbot. The chatbot now has an extra `respond` node after tool execution so tool output is surfaced to the user correctly.
 

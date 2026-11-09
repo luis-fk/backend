@@ -15,11 +15,14 @@ class Users(models.Model):
 
 class Texts(models.Model):
     title = models.CharField(max_length=500, null=True, blank=True)
-    author = models.CharField(max_length=50, null=True, blank=True)
+    # Room for several authors.
+    author = models.CharField(max_length=255, null=True, blank=True)
     ideology = models.CharField(max_length=50, null=True, blank=True, default=None)
     text = models.TextField()
     content_description = models.TextField(null=True, blank=True)
     user_submitted_text = models.BooleanField(default=False)
+    # The SHA-256 of an uploaded PDF, so the same file isn't read, and paid for, twice.
+    file_hash = models.CharField(max_length=64, unique=True, null=True, editable=False)
 
     user = models.ForeignKey(Users, on_delete=models.CASCADE, related_name="texts")
 
