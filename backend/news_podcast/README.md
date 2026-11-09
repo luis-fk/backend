@@ -151,8 +151,10 @@ está no `.gitignore`.
 - A velocidade acelera o próprio arquivo com o filtro `atempo` do ffmpeg. O botão de
   velocidade do player do Telegram (1x, 1,5x, 2x) continua valendo, e as duas
   velocidades se multiplicam.
-- Se o modelo de texto estiver sobrecarregado, o texto é feito com o reserva, e o resto
-  da execução já vai direto para ele.
+- Se o modelo de texto estiver sobrecarregado, o texto é feito com o reserva, e as
+  etapas seguintes já vão direto para ele. Se nenhum dos dois der uma resposta boa
+  enquanto um deles estiver fora do ar, o código espera 10 minutos e depois 20 e
+  pergunta aos dois de novo, e o episódio chega mais tarde na mesma medida.
 - A voz não tem reserva: se o Gemini estiver fora do ar, o código espera 10 minutos e
   depois 20 e tenta de novo, e o episódio chega mais tarde na mesma medida. Se ainda
   falhar, ou se a cota do dia acabar, o episódio do dia não sai e chega uma mensagem de
