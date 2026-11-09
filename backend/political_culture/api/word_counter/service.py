@@ -18,7 +18,6 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 from political_culture.api.utils import llm_4
 from political_culture.api.word_counter.prompts import (
-    STRUCTURED_OUTPUT_PROMPT,
     TEXT_INFO_EXTRACTION_PROMPT,
     WORD_EXTRACTION_PROMPT,
 )
@@ -26,31 +25,18 @@ from political_culture.api.word_counter.schemas import (
     TitleAndAuthorSchema,
     WordFrequencySquema,
 )
-from political_culture.api.word_counter.tools import query_vectors
 from political_culture.models import TextChunks, Texts, TextWordCount
 
+# Enough for a title page, a table of contents and the start of an introduction.
+OPENING_CHARS = 8000
+SAMPLED_PASSAGES = 3
 
-def text_info_extractor(text_id: int) -> str:
+
+def extract_text_info(text: str) -> TitleAndAuthorSchema:
+    """Reads the title, the author and a summary straight from the text."""
     instructions_prompt = ChatPromptTemplate.from_messages(
         [
             SystemMessagePromptTemplate.from_template(TEXT_INFO_EXTRACTION_PROMPT),
-            HumanMessagePromptTemplate.from_template("{input}"),
-            AIMessagePromptTemplate.from_template("{agent_scratchpad}"),
-        ]
-    )
-
-    tools = [query_vectors]
-    llm_with_tools = llm_4.bind_tools(tools)
-    messages = instructions_prompt.invoke({"input": text_id, "agent_scratchpad": ""})
-    response = llm_with_tools.invoke(messages)
-
-    return str(response.content)
-
-
-def structured_text_info_extractor(content_description: str) -> TitleAndAuthorSchema:
-    instructions_prompt = ChatPromptTemplate.from_messages(
-        [
-            SystemMessagePromptTemplate.from_template(STRUCTURED_OUTPUT_PROMPT),
             HumanMessagePromptTemplate.from_template("{input}"),
         ]
     )
@@ -59,9 +45,39 @@ def structured_text_info_extractor(content_description: str) -> TitleAndAuthorSc
         schema=TitleAndAuthorSchema, method="json_schema"
     )
 
-    response = chain.invoke({"input": content_description})
+    response = chain.invoke({"input": text})
 
     return TitleAndAuthorSchema.model_validate(response)
+
+
+def text_sample(text: str, chunk_texts: list[str]) -> str:
+    """A long text's opening, where the title and the author are, plus a few
+    passages spread through the rest, so the summary covers the whole text."""
+    if len(text) <= OPENING_CHARS:
+        return text
+    step = max(len(chunk_texts) // (SAMPLED_PASSAGES + 1), 1)
+    passages = chunk_texts[step::step][:SAMPLED_PASSAGES]
+    return "\n\n[...]\n\n".join([text[:OPENING_CHARS], *passages])
+
+
+def save_text_info(text_db: Texts, chunk_texts: list[str]) -> None:
+    info = extract_text_info(text_sample(text_db.text, chunk_texts))
+
+    text_db.title = info.title
+    text_db.author = info.author
+    text_db.content_description = info.content_description
+
+    text_db.save()
+
+
+def analyse_again(text_db: Texts) -> None:
+    """Redoes the title, author, summary and word count of a stored text, without
+    computing its embeddings again."""
+    chunks = text_db.chunks.order_by("id").values_list("chunk_text", flat=True)
+    save_text_info(text_db, [chunk for chunk in chunks if chunk])
+
+    TextWordCount.objects.filter(text=text_db).delete()
+    add_text_word_count(text_db)
 
 
 def word_picker(
@@ -117,15 +133,7 @@ def add_text(
     for vector, chunk_text in zip(vectors, chunk_texts):
         TextChunks.objects.create(text=text_db, chunk_text=chunk_text, vector=vector)
 
-    content_description = text_info_extractor(text_db.pk)
-
-    structured_content = structured_text_info_extractor(content_description)
-
-    text_db.title = structured_content.title
-    text_db.author = structured_content.author
-    text_db.content_description = structured_content.content_description
-
-    text_db.save()
+    save_text_info(text_db, chunk_texts)
 
     return text_db
 
