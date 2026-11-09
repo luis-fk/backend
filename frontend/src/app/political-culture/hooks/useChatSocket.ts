@@ -7,6 +7,7 @@ interface UseChatSocketProps {
   token: string | undefined;
   serverUrl: string | undefined;
   onMessage: (message: MessageType) => void;
+  onFailedAnswer: () => void;
   setSending: (sending: boolean) => void;
   onError: () => void;
 }
@@ -16,6 +17,7 @@ export function useChatSocket({
   token,
   serverUrl,
   onMessage,
+  onFailedAnswer,
   setSending,
   onError,
 }: UseChatSocketProps) {
@@ -29,6 +31,8 @@ export function useChatSocket({
         const data = JSON.parse(event.data);
         if (data.message && data.role) {
           onMessage(data);
+        } else if (data.failed) {
+          onFailedAnswer();
         }
       } catch (e) {
         logger.error("Failed to parse WebSocket message", {
@@ -39,7 +43,7 @@ export function useChatSocket({
         setSending(false);
       }
     },
-    [onMessage, setSending],
+    [onMessage, onFailedAnswer, setSending],
   );
 
   const handleError = useCallback(

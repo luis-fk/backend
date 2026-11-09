@@ -88,6 +88,10 @@ export default function Chat(): React.ReactElement {
     setMessages((previous) => [...previous, message]);
   }, []);
 
+  const handleFailedAnswer = useCallback((): void => {
+    setErrorMessage("Não foi possível responder à mensagem. Tente de novo.");
+  }, []);
+
   const handleSocketError = useCallback((): void => {
     setErrorMessage("Conexão perdida. Tente recarregar a página.");
   }, []);
@@ -97,6 +101,7 @@ export default function Chat(): React.ReactElement {
     token,
     serverUrl,
     onMessage: handleNewMessage,
+    onFailedAnswer: handleFailedAnswer,
     setSending,
     onError: handleSocketError,
   });

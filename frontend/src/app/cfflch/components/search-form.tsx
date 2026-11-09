@@ -24,7 +24,9 @@ function ResultItem({
     <li className="search-result">
       <span className="search-result-name">{result.student_name}</span>
       <span className="search-result-status muted">
-        {listStatus(result.pdf_entries.length)}
+        {result.failed
+          ? "A busca falhou. Tente de novo."
+          : listStatus(result.pdf_entries.length)}
       </span>
       {result.pdf_entries.map((pdf) => (
         <a
