@@ -30,13 +30,15 @@ class LibraryText(TypedDict):
     description: str | None
     word_count: int | None
     added_by: str | None
+    # Whether the text is in this user's analyses.
+    selected: bool
 
 
 class DuplicateText(Exception):
     """The PDF is already in the library."""
 
 
-def library_texts() -> list[LibraryText]:
+def library_texts(user_id: int) -> list[LibraryText]:
     """The library, newest first, without the texts themselves, which can be books."""
     rows = list(
         Texts.objects.filter(user_submitted_text=False)
@@ -56,6 +58,9 @@ def library_texts() -> list[LibraryText]:
         .objects.filter(id__in={row["auth_user_id"] for row in rows})
         .values_list("id", "username")
     )
+    selected = set(
+        Texts.objects.filter(selected_by__id=user_id).values_list("id", flat=True)
+    )
     return [
         LibraryText(
             id=row["id"],
@@ -64,9 +69,20 @@ def library_texts() -> list[LibraryText]:
             description=row["description"],
             word_count=row["word_count"],
             added_by=names.get(row["auth_user_id"]),
+            selected=row["id"] in selected,
         )
         for row in rows
     ]
+
+
+def select_text(user_id: int, text_id: int, selected: bool) -> None:
+    """Ticks or unticks a library text for the user's analyses. Raises
+    Texts.DoesNotExist for an unknown text or one pasted in the chat."""
+    text = Texts.objects.get(id=text_id, user_submitted_text=False)
+    if selected:
+        text.selected_by.add(user_id)
+    else:
+        text.selected_by.remove(user_id)
 
 
 def start_upload(pdf: UploadedFile, user_id: int) -> str:

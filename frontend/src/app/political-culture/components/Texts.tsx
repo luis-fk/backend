@@ -25,6 +25,8 @@ interface LibraryText {
   description: string | null;
   word_count: number | null;
   added_by: string | null;
+  // Whether the assistant uses the text in this user's analyses.
+  selected: boolean;
 }
 
 // The upload in progress: sending the file, then, once uploadId arrives, the
@@ -83,6 +85,12 @@ function details(text: LibraryText): string | null {
   if (parts.length === 0) return null;
   const line = parts.join(", ");
   return line.charAt(0).toUpperCase() + line.slice(1);
+}
+
+function selectedSummary(library: LibraryText[]): string {
+  const selected = library.filter((text) => text.selected).length;
+  const texts = library.length === 1 ? "texto" : "textos";
+  return `${selected} de ${library.length} ${texts} nas suas análises`;
 }
 
 export default function Texts(): React.ReactElement {
@@ -192,13 +200,47 @@ export default function Texts(): React.ReactElement {
     }
   }
 
+  function markSelected(id: number, selected: boolean): void {
+    setLibrary(
+      (current) =>
+        current &&
+        current.map((text) => (text.id === id ? { ...text, selected } : text)),
+    );
+  }
+
+  // Shows the tick at once and takes it back if the backend refuses it.
+  async function toggle(text: LibraryText): Promise<void> {
+    if (!token || !serverUrl) return;
+    const selected = !text.selected;
+    markSelected(text.id, selected);
+
+    try {
+      await axios.put(
+        `${serverUrl}/api/political-culture/texts/${text.id}/selection`,
+        { selected },
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
+    } catch (error) {
+      logger.error("Failed to save a text's tick", { id: text.id, error });
+      markSelected(text.id, !selected);
+      setNotice({
+        message:
+          axios.isAxiosError(error) && error.response?.status === 401
+            ? SESSION_EXPIRED
+            : "Não foi possível salvar a sua escolha. Tente de novo.",
+        severity: "error",
+      });
+    }
+  }
+
   return (
     <main className="page">
       <div className="page-header">
         <h1 className="page-title">Textos</h1>
         <p className="muted">
-          A biblioteca que o assistente consulta. Qualquer pessoa do projeto
-          pode adicionar um PDF.
+          A biblioteca do assistente. Marque os textos que ele usa nas suas
+          análises: cada pessoa escolhe os seus, e um texto novo começa
+          desmarcado.
         </p>
       </div>
 
@@ -276,9 +318,14 @@ export default function Texts(): React.ReactElement {
         className="political-texts-library"
         aria-labelledby="library-title"
       >
-        <h2 id="library-title" className="section-title">
-          Biblioteca
-        </h2>
+        <div className="political-texts-library-header">
+          <h2 id="library-title" className="section-title">
+            Biblioteca
+          </h2>
+          {library && library.length > 0 && (
+            <p className="muted">{selectedSummary(library)}</p>
+          )}
+        </div>
         {session === null ? (
           <p className="muted">
             Não foi possível carregar a sua sessão. Recarregue a página.
@@ -297,19 +344,32 @@ export default function Texts(): React.ReactElement {
               const line = details(text);
               return (
                 <li key={text.id} className="political-texts-item">
-                  <h3 className="political-texts-title">
-                    {text.title ?? "Sem título"}
-                  </h3>
-                  <p>{text.author ?? "Autor desconhecido"}</p>
-                  {line && (
-                    <p className="muted political-texts-details">{line}</p>
-                  )}
-                  {text.description && (
-                    <details className="political-texts-summary">
-                      <summary>Resumo</summary>
-                      <p>{text.description}</p>
-                    </details>
-                  )}
+                  <div className="political-texts-main">
+                    <h3 className="political-texts-title">
+                      {text.title ?? "Sem título"}
+                    </h3>
+                    <p>{text.author ?? "Autor desconhecido"}</p>
+                    {line && (
+                      <p className="muted political-texts-details">{line}</p>
+                    )}
+                    {text.description && (
+                      <details className="political-texts-summary">
+                        <summary>Resumo</summary>
+                        <p>{text.description}</p>
+                      </details>
+                    )}
+                  </div>
+                  <label className="checkbox political-texts-pick">
+                    <input
+                      type="checkbox"
+                      checked={text.selected}
+                      onChange={() => toggle(text)}
+                    />
+                    Usar nas minhas análises
+                    <span className="visually-hidden">
+                      : {text.title ?? "texto sem título"}
+                    </span>
+                  </label>
                 </li>
               );
             })}

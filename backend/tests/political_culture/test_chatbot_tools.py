@@ -1,8 +1,8 @@
-from typing import Any
+from collections.abc import Callable
+from typing import Any, NamedTuple
 from unittest.mock import patch
 
 import pytest
-from django.db.models import Q
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, ToolMessage
 from langchain_core.messages.tool import invalid_tool_call, tool_call
 from langchain_core.runnables import RunnableLambda
@@ -11,6 +11,9 @@ from langchain_core.tools import tool
 from political_culture.api.chatbot import agents
 from political_culture.api.chatbot.tools import user_tools
 from political_culture.api.chatbot.utils import get_recent_chat_history_db
+from political_culture.models import Texts, TextWordCount, Users
+
+DATABASES = pytest.mark.django_db(databases=["default", "political_culture_db"])
 
 
 @tool
@@ -176,17 +179,103 @@ def test_the_memory_tool_reads_the_user_of_the_conversation() -> None:
     memories.filter.assert_called_once_with(user_id=7)
 
 
-def test_word_counts_only_come_from_the_library_or_the_user_own_texts() -> None:
-    with patch("political_culture.api.chatbot.tools.TextWordCount.objects") as counts:
-        counts.filter.return_value.values_list.return_value.first.return_value = {
-            "estado": 3
-        }
+class Library(NamedTuple):
+    """User me's view of the library: one text ticked by me, one ticked only by
+    another user, one ticked by no one, and a text each of them pasted in the chat."""
 
-        word_count = user_tools(7).word_count.invoke({"text_id": 12})
+    me: int
+    ticked: Texts
+    ticked_by_other: Texts
+    unticked: Texts
+    my_paste: Texts
+    other_paste: Texts
 
-    assert word_count == {"estado": 3}
-    visible = Q(text__user_submitted_text=False) | Q(text__user_id=7)
-    counts.filter.assert_called_once_with(visible, text_id=12)
+
+@pytest.fixture
+def library() -> Library:
+    me = Users.objects.create(auth_user_id=1)
+    other = Users.objects.create(auth_user_id=2)
+
+    def text(title: str, owner: Users, pasted: bool = False) -> Texts:
+        text = Texts.objects.create(
+            user=owner, title=title, text=title, user_submitted_text=pasted
+        )
+        TextWordCount.objects.create(
+            text=text, total_word_count=1, word_frequencies={title: 1}
+        )
+        return text
+
+    ticked = text("Marcado", other)
+    ticked_by_other = text("Marcado pelo outro", me)
+    ticked.selected_by.add(me)
+    ticked_by_other.selected_by.add(other)
+    return Library(
+        me.id,
+        ticked,
+        ticked_by_other,
+        text("Desmarcado", other),
+        text("Meu colado", me, pasted=True),
+        text("Colado pelo outro", other, pasted=True),
+    )
+
+
+@DATABASES
+def test_the_library_tool_lists_only_the_texts_the_user_ticked(
+    library: Library,
+) -> None:
+    texts = user_tools(library.me).library_texts.invoke({})
+
+    assert [text[0] for text in texts] == [library.ticked.id]
+
+
+@DATABASES
+def test_word_counts_come_from_ticked_texts_and_the_user_own_pastes(
+    library: Library,
+) -> None:
+    word_count = user_tools(library.me).word_count
+
+    readable = {
+        text.title
+        for text in library[1:]
+        if word_count.invoke({"text_id": text.id}) is not None
+    }
+
+    assert readable == {"Marcado", "Meu colado"}
+
+
+@DATABASES
+def test_the_text_search_reads_ticked_texts_and_the_user_own_pastes(
+    library: Library,
+) -> None:
+    # CosineDistance needs PostgreSQL, so only the filter runs on the database.
+    with (
+        patch("political_culture.api.chatbot.tools.OpenAIEmbeddings"),
+        patch("political_culture.api.chatbot.tools.TextChunks.objects") as chunks,
+    ):
+        user_tools(library.me).search_text.invoke({"text_id": 1, "query": "estado"})
+
+    searched = chunks.filter.call_args.kwargs["text__in"]
+    assert set(searched.values_list("title", flat=True)) == {"Marcado", "Meu colado"}
+
+
+@DATABASES
+@pytest.mark.parametrize(
+    "agent",
+    [
+        agents.word_analyist_agent,
+        agents.text_analyist_agent,
+        agents.text_ideology_analyist_agent,
+    ],
+)
+def test_the_analysis_agents_read_the_library_as_the_user(
+    library: Library, agent: Callable[[str, int], str]
+) -> None:
+    with patch.object(agents, "_invoke_tool_agent", return_value="Ok.") as invoke:
+        agent("Um texto.", library.me)
+
+    tools = {tool.name: tool for tool in invoke.call_args.args[1]}
+    listed = tools["get_all_texts_info"].invoke({})
+    assert [text[0] for text in listed] == [library.ticked.id]
 
 
 class Row:

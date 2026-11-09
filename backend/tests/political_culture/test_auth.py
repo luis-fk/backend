@@ -46,6 +46,17 @@ def list_texts(
     return client.get("/api/political-culture/texts", headers=headers)
 
 
+def select_text(
+    client: Client, user_id: int, headers: dict[str, str]
+) -> HttpResponseBase:
+    return client.put(
+        "/api/political-culture/texts/1/selection",
+        {"selected": True},
+        content_type="application/json",
+        headers=headers,
+    )
+
+
 def add_text(client: Client, user_id: int, headers: dict[str, str]) -> HttpResponseBase:
     pdf = SimpleUploadedFile("texto.pdf", b"%PDF-1.4", content_type="application/pdf")
     return client.post(
@@ -57,7 +68,7 @@ def find_user(client: Client, headers: dict[str, str]) -> HttpResponseBase:
     return client.get("/api/political-culture/users/ana", headers=headers)
 
 
-ALL = [get_history, send_message, list_texts, add_text]
+ALL = [get_history, send_message, list_texts, add_text, select_text]
 OWN_DATA = [get_history, send_message]
 
 
@@ -113,6 +124,7 @@ def app_data() -> Iterator[None]:
         patch.object(ChatBotApi, "llm"),
         patch("political_culture.api.texts.routes.library_texts", return_value=[]),
         patch("political_culture.api.texts.routes.start_upload", return_value="x"),
+        patch("political_culture.api.texts.routes.select_text"),
     ):
         yield
 
@@ -121,7 +133,13 @@ def app_data() -> Iterator[None]:
 @pytest.mark.usefixtures("app_data")
 @pytest.mark.parametrize(
     ("send", "status"),
-    [(get_history, 200), (send_message, 200), (list_texts, 200), (add_text, 202)],
+    [
+        (get_history, 200),
+        (send_message, 200),
+        (list_texts, 200),
+        (add_text, 202),
+        (select_text, 204),
+    ],
 )
 def test_api_keys_act_as_their_user(client: Client, send: Send, status: int) -> None:
     assert send(client, 7, bearer(api_key(APP, 7))).status_code == status

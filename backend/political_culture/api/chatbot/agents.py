@@ -13,7 +13,6 @@ from political_culture.api.chatbot import prompts
 from political_culture.api.chatbot import tools as chatbot_tools
 from political_culture.api.chatbot.schemas import ChatInfo, Routing
 from political_culture.api.utils import llm_4
-from political_culture.api.word_counter.tools import query_vectors
 
 logger = logging.getLogger(__name__)
 
@@ -77,26 +76,22 @@ def _invoke_tool_agent(system_prompt: str, tools: list[BaseTool], input: str) ->
 
 
 def word_analyist_agent(input: str, user_id: int) -> str:
-    tools = [
-        chatbot_tools.get_all_texts_info,
-        chatbot_tools.user_tools(user_id).word_count,
-    ]
+    user_tools = chatbot_tools.user_tools(user_id)
+    tools = [user_tools.library_texts, user_tools.word_count]
     return _invoke_tool_agent(prompts.WORD_COUNT_COMPARISON_PROMPT, tools, input)
 
 
-def text_analyist_agent(input: str) -> str:
-    tools = [
-        query_vectors,
-        chatbot_tools.get_all_texts_info,
-    ]
+def text_analyist_agent(input: str, user_id: int) -> str:
+    user_tools = chatbot_tools.user_tools(user_id)
+    tools = [user_tools.search_text, user_tools.library_texts]
     return _invoke_tool_agent(prompts.TEXT_ANALYSIS_PROMPT, tools, input)
 
 
-def text_ideology_analyist_agent(input: str) -> str:
+def text_ideology_analyist_agent(input: str, user_id: int) -> str:
     tools = [
         chatbot_tools.get_ideologies,
         chatbot_tools.get_ideology_definition,
-        chatbot_tools.get_all_texts_info,
+        chatbot_tools.user_tools(user_id).library_texts,
     ]
     return _invoke_tool_agent(prompts.TEXT_IDEOLOGY_ANALYSIS_PROMPT, tools, input)
 
@@ -140,8 +135,8 @@ def general_chat_agent(
 ) -> str:
     user_tools = chatbot_tools.user_tools(user_id)
     tools = [
-        chatbot_tools.get_all_texts_info,
-        query_vectors,
+        user_tools.library_texts,
+        user_tools.search_text,
         user_tools.word_count,
         user_tools.submitted_texts,
         user_tools.memory,

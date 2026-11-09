@@ -44,6 +44,7 @@ The Next.js frontend that serves their UIs lives in `../frontend`. `README.md` c
   - A PDF already in the library, by its SHA-256 (`Texts.file_hash`), is refused with 409, so it isn't read and paid for twice.
   - A book takes minutes, so `POST /api/political-culture/texts` answers 202 and a thread reads the PDF: embeddings, then title, author and summary, then word count, saved in one transaction. The result goes to the uploader's socket `ws/political-culture/texts/<userId>`, which isn't re-delivered. A restart mid-reading loses the upload, and the user sends it again.
   - The word picker gets only the 2000 most frequent words (`MAX_PICKER_WORDS`), since a book's whole vocabulary would make the call huge.
+  - Each user ticks the library texts the AI uses in their analyses (`Texts.selected_by`, set with `PUT /api/political-culture/texts/<id>/selection`). Every text, old or new, starts unticked. The tools that read the library are built per user (`user_tools` in `chatbot/tools.py`), so they see only that user's ticked texts and the texts they pasted in the chat.
 - `cfflch`: admission status checker — searches Tavily for PDFs, downloads and parses them, streams results over WebSocket. Has its own dedicated database (`cfflch_db`).
 - `plants`: ESP32 data ingestion, OpenWeather integration for weather data, AI chatbot. The chatbot now has an extra `respond` node after tool execution so tool output is surfaced to the user correctly.
 
