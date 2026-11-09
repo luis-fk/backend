@@ -132,7 +132,9 @@ que falha no meio grava o custo do que já rodou.
 
 - **Feeds:** exporte de novo no Feeder e substitua o `feeds.opml`. Use só sites sem
   paywall e confira se o domínio está em `FULL_TEXT_DOMAINS` (`config.py`). Fora dessa
-  lista, a matéria entra só com o título e o resumo do RSS.
+  lista, a matéria entra só com o título e o resumo do RSS. Uma busca do Google News
+  traz no máximo 100 itens, por isso sites grandes, como CNN Brasil e Poder360, entram
+  por seção. A busca do SBT deixa os vídeos de fora (`-site:sbtnews.sbt.com.br/videos`).
 - **Apresentadores e as vozes deles:** `HOSTS` no `config.py`.
 - **Dólar usado para mostrar os custos em reais:** `BRL_PER_USD` (fixo) no `config.py`.
 
