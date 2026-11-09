@@ -29,6 +29,7 @@ logger = logging.getLogger(__name__)
 
 GOOGLE_NEWS_TIMEOUT_SECONDS = 15.0
 GOOGLE_NEWS_CONCURRENCY = 4
+VIDEO_PATH_SEGMENTS = frozenset({"video", "videos"})
 
 
 def host_of(url: str) -> str:
@@ -46,8 +47,14 @@ def is_google_news_link(url: str) -> bool:
     return host_of(url) == GOOGLE_NEWS_HOST
 
 
+def is_video_page(url: str) -> bool:
+    """A video page, like sbtnews.sbt.com.br/videos/..., has no text to read."""
+    segments = urlparse(url).path.lower().split("/")
+    return not VIDEO_PATH_SEGMENTS.isdisjoint(segments)
+
+
 def pick_items(
-    story: SelectedStory, items_by_id: dict[str, NewsItem]
+    story: SelectedStory, items_by_id: dict[str, NewsItem], resolved: dict[str, str]
 ) -> list[NewsItem]:
     candidates = [
         items_by_id[item_id] for item_id in story.item_ids if item_id in items_by_id
@@ -57,6 +64,8 @@ def pick_items(
     picked: list[NewsItem] = []
     outlets: set[str] = set()
     for item in ranked:
+        if is_video_page(resolved.get(item.link, item.link)):
+            continue
         if item.outlet not in outlets:
             picked.append(item)
             outlets.add(item.outlet)
@@ -80,11 +89,21 @@ async def build_briefs(
     stories: list[SelectedStory],
     items_by_id: dict[str, NewsItem],
 ) -> list[StoryBrief]:
-    picks = [pick_items(story, items_by_id) for story in stories]
-    google_links = [
-        item.link for items in picks for item in items if is_google_news_link(item.link)
+    # Every candidate's Google News link is decoded before the picking, since only
+    # the real address shows a video page, which must not take a reading slot.
+    candidates = [
+        items_by_id[item_id]
+        for story in stories
+        for item_id in story.item_ids
+        if item_id in items_by_id
     ]
+    google_links = list(
+        dict.fromkeys(
+            item.link for item in candidates if is_google_news_link(item.link)
+        )
+    )
     resolved = await resolve_google_news_links(google_links)
+    picks = [pick_items(story, items_by_id, resolved) for story in stories]
 
     async def read_story(items: list[NewsItem]) -> list[SourceText]:
         return list(
