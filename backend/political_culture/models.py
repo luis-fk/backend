@@ -13,13 +13,20 @@ class Users(models.Model):
         return str(self.auth_user_id)
 
 
+# Room for a subtitle and for several authors.
+TITLE_MAX_LENGTH = 500
+AUTHOR_MAX_LENGTH = 255
+
+
 class Texts(models.Model):
-    title = models.CharField(max_length=500, null=True, blank=True)
-    author = models.CharField(max_length=50, null=True, blank=True)
+    title = models.CharField(max_length=TITLE_MAX_LENGTH, null=True, blank=True)
+    author = models.CharField(max_length=AUTHOR_MAX_LENGTH, null=True, blank=True)
     ideology = models.CharField(max_length=50, null=True, blank=True, default=None)
     text = models.TextField()
     content_description = models.TextField(null=True, blank=True)
     user_submitted_text = models.BooleanField(default=False)
+    # The SHA-256 of an uploaded PDF, so the same file isn't read, and paid for, twice.
+    file_hash = models.CharField(max_length=64, unique=True, null=True, editable=False)
 
     user = models.ForeignKey(Users, on_delete=models.CASCADE, related_name="texts")
 

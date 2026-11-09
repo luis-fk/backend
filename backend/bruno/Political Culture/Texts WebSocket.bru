@@ -1,0 +1,27 @@
+meta {
+  name: Texts WebSocket
+  type: ws
+  seq: 6
+}
+
+ws {
+  url: {{wsUrl}}/ws/political-culture/texts/{{politicalCultureUserId}}
+  body: ws
+  auth: none
+}
+
+headers {
+  Sec-WebSocket-Protocol: bearer, {{politicalCultureToken}}
+}
+
+body:ws {
+  name: message 1
+  type: json
+  content: '''
+    {}
+  '''
+}
+
+docs {
+  When an upload ends: `{"upload_id", "status": "ready", "text_id"}`, or `{"upload_id", "status": "failed", "reason"}` with the reason `no_text` (a scan without text) or `error`.
+}

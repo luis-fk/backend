@@ -19,6 +19,7 @@ from tests.api_tokens import (
 )
 
 APP = "political-culture"
+UPLOAD_ID = "2f6d9c1a-5b7e-4c3d-8a9f-0e1b2c3d4e5f"
 
 Send = Callable[[Client, int, dict[str, str]], HttpResponseBase]
 
@@ -40,13 +41,17 @@ def send_message(
     )
 
 
-def count_words(
+def list_texts(
     client: Client, user_id: int, headers: dict[str, str]
 ) -> HttpResponseBase:
+    return client.get("/api/political-culture/texts", headers=headers)
+
+
+def add_text(client: Client, user_id: int, headers: dict[str, str]) -> HttpResponseBase:
     pdf = SimpleUploadedFile("texto.pdf", b"%PDF-1.4", content_type="application/pdf")
     return client.post(
-        "/api/political-culture/word-counter",
-        {"user_id": user_id, "content": pdf},
+        "/api/political-culture/texts",
+        {"content": pdf, "upload_id": UPLOAD_ID},
         headers=headers,
     )
 
@@ -55,19 +60,23 @@ def find_user(client: Client, headers: dict[str, str]) -> HttpResponseBase:
     return client.get("/api/political-culture/users/ana", headers=headers)
 
 
-@pytest.mark.parametrize("send", [get_history, send_message, count_words])
+ALL = [get_history, send_message, list_texts, add_text]
+OWN_DATA = [get_history, send_message]
+
+
+@pytest.mark.parametrize("send", ALL)
 def test_requests_without_a_token_get_401(client: Client, send: Send) -> None:
     assert send(client, 7, {}).status_code == 401
 
 
-@pytest.mark.parametrize("send", [get_history, send_message, count_words])
+@pytest.mark.parametrize("send", ALL)
 def test_tokens_for_another_app_get_401(client: Client, send: Send) -> None:
     headers = bearer(user_token("plants", "7"))
 
     assert send(client, 7, headers).status_code == 401
 
 
-@pytest.mark.parametrize("send", [get_history, send_message, count_words])
+@pytest.mark.parametrize("send", OWN_DATA)
 def test_tokens_for_another_user_get_403(client: Client, send: Send) -> None:
     headers = bearer(user_token(APP, "7"))
 
@@ -90,50 +99,50 @@ def test_users_send_their_own_messages(client: Client) -> None:
     llm.process_text.assert_called_once_with(text="Olá", user_id=7)
 
 
-def test_users_count_words_in_their_own_texts(client: Client) -> None:
-    with (
-        patch("political_culture.api.word_counter.routes.add_text") as add_text,
-        patch("political_culture.api.word_counter.routes.add_text_word_count"),
-    ):
-        response = count_words(client, 7, bearer(user_token(APP, "7")))
+def test_texts_are_added_as_the_tokens_user(client: Client) -> None:
+    with patch("political_culture.api.texts.routes.start_upload") as start_upload:
+        response = add_text(client, 7, bearer(user_token(APP, "7")))
 
-    assert response.status_code == 200
-    add_text.assert_called_once_with(ANY, 7, user_submitted_text=False)
+    assert response.status_code == 202
+    start_upload.assert_called_once_with(ANY, 7, UPLOAD_ID)
 
 
 @pytest.fixture
 def app_data() -> Iterator[None]:
-    """The chat history, the chatbot and the word counter, without a database."""
+    """The chat history, the chatbot and the texts, without their database."""
     with (
         patch.object(ChatHistory.objects, "filter"),
         patch.object(ChatBotApi, "llm"),
-        patch("political_culture.api.word_counter.routes.add_text"),
-        patch("political_culture.api.word_counter.routes.add_text_word_count"),
+        patch("political_culture.api.texts.routes.library_texts", return_value=[]),
+        patch("political_culture.api.texts.routes.start_upload"),
     ):
         yield
 
 
 @pytest.mark.django_db
 @pytest.mark.usefixtures("app_data")
-@pytest.mark.parametrize("send", [get_history, send_message, count_words])
-def test_api_keys_act_as_their_user(client: Client, send: Send) -> None:
-    assert send(client, 7, bearer(api_key(APP, 7))).status_code == 200
+@pytest.mark.parametrize(
+    ("send", "status"),
+    [(get_history, 200), (send_message, 200), (list_texts, 200), (add_text, 202)],
+)
+def test_api_keys_act_as_their_user(client: Client, send: Send, status: int) -> None:
+    assert send(client, 7, bearer(api_key(APP, 7))).status_code == status
 
 
 @pytest.mark.django_db
-@pytest.mark.parametrize("send", [get_history, send_message, count_words])
+@pytest.mark.parametrize("send", OWN_DATA)
 def test_api_keys_for_another_user_get_403(client: Client, send: Send) -> None:
     assert send(client, 8, bearer(api_key(APP, 7))).status_code == 403
 
 
 @pytest.mark.django_db
-@pytest.mark.parametrize("send", [get_history, send_message, count_words])
+@pytest.mark.parametrize("send", ALL)
 def test_api_keys_for_another_app_get_401(client: Client, send: Send) -> None:
     assert send(client, 7, bearer(api_key("plants", 7))).status_code == 401
 
 
 @pytest.mark.django_db
-@pytest.mark.parametrize("send", [get_history, send_message, count_words])
+@pytest.mark.parametrize("send", ALL)
 def test_inactive_api_keys_get_401(client: Client, send: Send) -> None:
     headers = bearer(api_key(APP, 7, active=False))
 
@@ -141,7 +150,7 @@ def test_inactive_api_keys_get_401(client: Client, send: Send) -> None:
 
 
 @pytest.mark.django_db
-@pytest.mark.parametrize("send", [get_history, send_message, count_words])
+@pytest.mark.parametrize("send", ALL)
 def test_unknown_api_keys_get_401(client: Client, send: Send) -> None:
     assert send(client, 7, bearer(unknown_api_key())).status_code == 401
 

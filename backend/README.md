@@ -3,7 +3,7 @@
 Django API for four independent apps:
 
 - `plants`: stores ESP32 soil readings with the local weather and runs an AI chatbot.
-- `political_culture`: political chatbot and word counter (pgvector for long texts).
+- `political_culture`: political chatbot, a shared library of texts (PDFs) and their word counts (pgvector for long texts).
 - `cfflch`: searches college admission lists (PDFs) and streams the results over WebSocket.
 - `news_podcast`: daily news podcast on Telegram, run by a Railway cron service, with its settings and cost history in the Django admin ([README](news_podcast/README.md)).
 
