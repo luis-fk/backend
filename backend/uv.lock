@@ -220,7 +220,7 @@ wheels = [
 
 [[package]]
 name = "backend"
-version = "4.1.2"
+version = "4.2.0"
 source = { editable = "." }
 dependencies = [
     { name = "channels" },
