@@ -27,7 +27,8 @@ def singleton(cls: Type[T]) -> Callable[..., T]:
 
 
 def clean_html(html_string: str) -> str:
-    return re.sub(r"<[^>]+>", "", html_string)
+    # A tag starts with a letter, so the < in "10% < 50%" stays.
+    return re.sub(r"</?[a-zA-Z][^<>]*>", "", html_string)
 
 
 def add_text(

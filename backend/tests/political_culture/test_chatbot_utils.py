@@ -28,6 +28,10 @@ def test_a_singleton_class_is_built_once() -> None:
         ("<p>O <b>Estado</b> e a revolução</p>", "O Estado e a revolução"),
         ('<a href="https://exemplo.br">Manifesto</a>', "Manifesto"),
         ("Sem marcação.", "Sem marcação."),
+        (
+            "Se a renda dos 10% < 50% e a do 1% > 20%, o que muda?",
+            "Se a renda dos 10% < 50% e a do 1% > 20%, o que muda?",
+        ),
     ],
 )
 def test_clean_html_keeps_only_the_text(html: str, text: str) -> None:

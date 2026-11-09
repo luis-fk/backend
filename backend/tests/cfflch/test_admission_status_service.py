@@ -15,6 +15,7 @@ from cfflch.api.admission_status.schemas import (
     StudentFoundResult,
     StudentNotFoundResult,
     StudentResult,
+    StudentSearchFailedResult,
 )
 from cfflch.api.admission_status.service import AdmissionStatusService
 from cfflch.api.admission_status.utils import normalize_text
@@ -65,6 +66,7 @@ class FakeWeb:
     pdfs: dict[str, bytes] = field(default_factory=dict)
     offline: set[str] = field(default_factory=set)
     queries: list[str] = field(default_factory=list)
+    search_is_down: bool = False
 
     def publish(self, url: str, title: str, *pages: str) -> None:
         """A search result that links to a PDF with these pages."""
@@ -73,6 +75,8 @@ class FakeWeb:
 
     async def search(self, query: str, **_options: Any) -> dict[str, Any]:
         self.queries.append(query)
+        if self.search_is_down:
+            raise RuntimeError("Tavily is down.")
         return {"results": self.results}
 
     def serve(self, request: httpx.Request) -> httpx.Response:
@@ -139,6 +143,9 @@ def found(url: str, title: str, query: str = QUERY) -> StudentFoundResult:
     )
 
 
+FAILED = StudentSearchFailedResult(student_name="Fulano de Tal")
+
+
 def known_student(
     year: int = 2025, class_room: ClassRoom | None = None
 ) -> AdmissionResult:
@@ -154,7 +161,7 @@ def class_room(name: str) -> ClassRoom:
     return ClassRoom.objects.create(name=name, name_normalized=normalize_text(name))
 
 
-def is_in_pdf(content: bytes, name: str) -> bool:
+def is_in_pdf(content: bytes, name: str) -> bool | None:
     return run(
         FakeWeb(),
         lambda service: service._search_student_in_pdf(content, normalize_text(name)),
@@ -197,8 +204,12 @@ def test_a_name_missing_from_the_list_is_not_found() -> None:
     )
 
 
-def test_a_file_that_is_not_a_pdf_is_not_found_instead_of_failing() -> None:
-    assert not is_in_pdf(b"<html>Page not found</html>", "Fulano de Tal")
+def test_a_name_inside_a_longer_name_is_not_found() -> None:
+    assert not is_in_pdf(pdf("1. Joana de Tal", "2. Ana de Tallis"), "Ana de Tal")
+
+
+def test_a_file_that_is_not_a_pdf_cannot_be_read() -> None:
+    assert is_in_pdf(b"<html>Page not found</html>", "Fulano de Tal") is None
 
 
 def test_a_student_is_found_in_every_list_that_names_them() -> None:
@@ -227,6 +238,47 @@ def test_lists_that_fail_to_download_are_skipped() -> None:
     results = run(web, lambda service: service._process_student("Fulano de Tal", 2025))
 
     assert results == [found(LIST_URL, "Aprovados 2025")]
+
+
+def test_a_student_missing_from_the_lists_that_could_be_read_is_not_found() -> None:
+    web = FakeWeb()
+    web.results.append({"url": "https://exemplo.br/removida.pdf", "title": "Removida"})
+    web.publish(LIST_URL, "Aprovados 2025", "1. Sicrano Araújo")
+
+    results = run(web, lambda service: service._process_student("Fulano de Tal", 2025))
+
+    assert results == [StudentNotFoundResult(student_name="Fulano de Tal")]
+
+
+def test_the_search_fails_when_no_list_can_be_read() -> None:
+    web = FakeWeb()
+    web.results.append({"url": "https://exemplo.br/removida.pdf", "title": "Removida"})
+    web.publish(
+        "https://fora-do-ar.exemplo.br/lista.pdf", "Fora do ar", "FULANO DE TAL"
+    )
+    web.offline.add("https://fora-do-ar.exemplo.br/lista.pdf")
+    web.results.append({"url": LIST_URL, "title": "Aprovados 2025"})
+    web.pdfs[LIST_URL] = b"<html>Captcha</html>"
+
+    results = run(web, lambda service: service._process_student("Fulano de Tal", 2025))
+
+    assert results == [FAILED]
+
+
+def test_the_search_fails_when_tavily_fails() -> None:
+    web = FakeWeb(search_is_down=True)
+
+    results = run(web, lambda service: service._process_student("Fulano de Tal", 2025))
+
+    assert results == [FAILED]
+
+
+def test_the_search_fails_without_a_tavily_key() -> None:
+    async def search_without_key(service: AdmissionStatusService) -> Any:
+        service.tavily_client = None
+        return await service._process_student("Fulano de Tal", 2025)
+
+    assert run(FakeWeb(), search_without_key) == [FAILED]
 
 
 @DATABASES
@@ -268,6 +320,21 @@ def test_a_student_not_on_any_list_is_saved_as_not_found() -> None:
     result = AdmissionResult.objects.get()
     assert result.student_name == "Fulano de Tal"
     assert not result.pdfs.exists()
+
+
+@DATABASES
+def test_a_failed_search_is_not_saved_so_the_next_one_searches_again() -> None:
+    web = FakeWeb(search_is_down=True)
+
+    assert check(web, ["Fulano de Tal"]) == [[FAILED]]
+    assert not AdmissionResult.objects.exists()
+
+    web.search_is_down = False
+    web.publish(LIST_URL, "Aprovados 2025", "1. FULANO DE TAL")
+
+    assert check(web, ["Fulano de Tal"]) == [[found(LIST_URL, "Aprovados 2025")]]
+    assert web.queries == [QUERY, QUERY]
+    assert AdmissionResult.objects.get().pdfs.count() == 1
 
 
 @DATABASES

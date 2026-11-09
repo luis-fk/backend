@@ -108,6 +108,7 @@ Every backend endpoint needs a token: an HS256 JWT signed with `API_TOKEN_SECRET
 - **cfflch:** `hooks/use-admission-search.ts` opens `ws(s)://<server>/ws/cfflch/admission-status/<requestId>` for each search and waits for `onopen` before the POST.
 - The backend does not re-deliver messages, so the socket must be open before the POST.
 - Both send the API token as the subprotocols `["bearer", token]`, and the backend accepts with `bearer`.
+- A failure comes over the socket too, so a page never waits forever: the political-culture chat gets `{ failed: true }` when the answer fails, and a cfflch student comes with `failed: true` when the search couldn't run or read any list.
 
 ## Coding conventions
 

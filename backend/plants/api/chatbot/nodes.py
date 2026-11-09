@@ -36,10 +36,14 @@ def wrap_up(state: SquadState) -> None:
         defaults={"user_id": user_id, "memory": state["memory"]},
     )
 
-    human_response = str(state["messages"][-2].content)
+    question = next(
+        message
+        for message in reversed(state["messages"])
+        if isinstance(message, HumanMessage)
+    )
     ChatHistory.objects.create(
         user_id=user_id,
-        message=human_response,
+        message=str(question.content),
         role="human",
     )
 

@@ -42,12 +42,9 @@ class LLM:
             .first()
         )
 
-        human_messages = ChatHistory.objects.filter(
-            user_id=user_id, role="human"
-        ).order_by("id")[:5]
-        ai_messages = ChatHistory.objects.filter(user_id=user_id, role="ai").order_by(
-            "id"
-        )[:5]
+        newest_first = ChatHistory.objects.filter(user_id=user_id).order_by("-id")
+        human_messages = list(newest_first.filter(role="human")[:5])[::-1]
+        ai_messages = list(newest_first.filter(role="ai")[:5])[::-1]
 
         chat_history: list[BaseMessage] = []
 

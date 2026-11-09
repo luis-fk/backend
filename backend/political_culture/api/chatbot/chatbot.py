@@ -41,33 +41,34 @@ class LLM:
         close_old_connections()
         logger.info(f"Processing message for user {user_id}")
 
+        try:
+            message = self._answer(text, user_id)
+        except Exception:
+            logger.exception(f"Error in background processing for user {user_id}")
+            # The page waits for a message on the socket after each question.
+            message = {"failed": True}
+
+        channel_layer = get_channel_layer()
+        if channel_layer:
+            async_to_sync(channel_layer.group_send)(
+                f"chat_{user_id}", {"type": "chat.message", "message": message}
+            )
+
+    def _answer(self, text: str, user_id: int) -> dict[str, Any]:
+        if not self.graph:
+            raise RuntimeError("No LLM graph available")
+
         user_memory = (
             UserMemory.objects.filter(user_id=user_id)
             .values_list("memory", flat=True)
             .first()
         )
-
-        if not self.graph:
-            logger.error(f"No LLM graph available for user {user_id}")
-            return
-
-        try:
-            self.graph.invoke(
-                input=cast(
-                    SquadState,
-                    {"input": text, "memory": user_memory, "user_id": user_id},
-                ),
-                config={"recursion_limit": 50},
-            )
-            logger.info(f"Message processed for user {user_id}")
-
-            channel_layer = get_channel_layer()
-            if channel_layer:
-                llm_response = wrap_up_get_response(user_id)
-
-                async_to_sync(channel_layer.group_send)(
-                    f"chat_{user_id}", {"type": "chat.message", "message": llm_response}
-                )
-
-        except Exception:
-            logger.exception(f"Error in background processing for user {user_id}")
+        self.graph.invoke(
+            input=cast(
+                SquadState,
+                {"input": text, "memory": user_memory, "user_id": user_id},
+            ),
+            config={"recursion_limit": 50},
+        )
+        logger.info(f"Message processed for user {user_id}")
+        return wrap_up_get_response(user_id)

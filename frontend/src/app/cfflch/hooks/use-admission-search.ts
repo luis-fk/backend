@@ -11,6 +11,8 @@ export type AdmissionResult = {
   student_name: string;
   normalized_name: string;
   found: boolean;
+  // The search could not run, or none of its lists could be read.
+  failed: boolean;
   pdf_entries: PdfEntry[];
 };
 
@@ -22,6 +24,7 @@ type WsItem = {
   pdf_url: string;
   search_title: string;
   found: boolean;
+  failed?: boolean;
 };
 
 type WsDoneSignal = { done: true };
@@ -110,6 +113,7 @@ export function useAdmissionSearch(
                   student_name: item.student_name,
                   normalized_name: item.normalized_name || item.student_name,
                   found: item.found,
+                  failed: item.failed === true,
                   pdf_entries:
                     item.found && item.pdf_url
                       ? [{ url: item.pdf_url, search_title: item.search_title }]
