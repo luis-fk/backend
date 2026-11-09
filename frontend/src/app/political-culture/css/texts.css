@@ -1,0 +1,128 @@
+/* Textos: the upload form, its progress and the library. Shared classes are in
+   globals.css; every class here starts with "political-texts" (see chat.css). */
+
+.political-texts-upload {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 16px;
+}
+
+.political-texts-upload .field {
+  flex: 1 1 320px;
+}
+
+/* The file picker: a label drawn like the other fields, holding the hidden input,
+   a button-like span and the chosen file's name. */
+.political-texts-picker {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 46px;
+  padding: 5px 14px 5px 5px;
+  border: 1px solid var(--field-line);
+  border-radius: var(--radius);
+  background: var(--bg);
+  cursor: pointer;
+}
+
+/* The input itself is hidden, so its focus ring goes on the picker. */
+.political-texts-picker:has(input:focus-visible) {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.political-texts-picker:has(input:disabled) {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.political-texts-picker-button {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  min-height: 34px;
+  padding: 0 14px;
+  border-radius: 7px;
+  background: var(--surface);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.political-texts-picker:hover .political-texts-picker-button {
+  background: var(--line);
+}
+
+.political-texts-picker-name {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 15px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.political-texts-picker-name[data-empty="true"] {
+  color: var(--muted);
+}
+
+.political-texts-status {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  overflow-wrap: anywhere;
+}
+
+.political-texts-progress {
+  width: 100%;
+  height: 8px;
+  accent-color: var(--accent);
+}
+
+.political-texts-hint {
+  font-size: 14px;
+}
+
+.political-texts-library {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.political-texts-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.political-texts-title {
+  font-size: 18px;
+  font-weight: 650;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.political-texts-details {
+  font-size: 14px;
+}
+
+.political-texts-summary {
+  margin-top: 6px;
+}
+
+.political-texts-summary summary {
+  width: fit-content;
+  border-radius: 4px;
+  color: var(--accent);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.political-texts-summary p {
+  margin-top: 8px;
+  max-width: 68ch;
+  line-height: 1.6;
+}
