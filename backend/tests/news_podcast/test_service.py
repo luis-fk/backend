@@ -471,6 +471,13 @@ def test_default_prompts_leave_the_answer_format_to_the_schema() -> None:
         assert '"' + "item_ids" not in prompt
 
 
+def test_the_default_selection_weighs_how_many_outlets_reported_a_fact() -> None:
+    selection = " ".join(prompts.SELECTION_PROMPT.split())
+
+    assert "quantos veículos diferentes" in selection
+    assert "Conte cada veículo uma vez" in selection
+
+
 def every_placeholder(fields: tuple[str, ...]) -> str:
     return " ".join(f"{{{field}}}" for field in fields)
 
