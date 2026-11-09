@@ -258,7 +258,7 @@ def test_prompts_follow_the_configured_options() -> None:
     assert "em 20 a 30 minutos" in selection
     assert "Escolha de 13 a 20 histórias" in selection
     assert 'chamado "Resumo das 21"' in script
-    assert "O episódio sai às 21h de sábado, 7 de novembro" in script
+    assert "É o episódio das 21h de sábado, 7 de novembro" in script
     assert "uma fala curta com boa noite e a data" in script
     assert "entre 3400 e 5100 palavras" in script
 
@@ -279,7 +279,7 @@ def test_default_prompts_keep_the_morning_episode() -> None:
 
     assert "Escolha de 8 a 12 histórias" in selection
     assert 'chamado "Resumo das 7"' in script
-    assert "O episódio sai às 7h de sexta-feira, 6 de novembro" in script
+    assert "É o episódio das 7h de sexta-feira, 6 de novembro" in script
     assert "uma fala curta com bom dia e a data" in script
     assert "entre 2040 e 3060 palavras" in script
 
@@ -377,6 +377,31 @@ def test_episode_goes_out_as_a_single_voice_message(tmp_path: Path) -> None:
             return telegram.sent
 
     assert asyncio.run(scenario()) == [("-22", "🎙️ Resumo das 7")]
+
+
+def test_a_scheduled_episode_goes_out_as_soon_as_it_is_ready(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    report = EpisodeReport(
+        audio_path=tmp_path / "resumo.ogg",
+        duration_seconds=600.4,
+        caption="🎙️ Resumo das 7",
+    )
+    waits = record_waits(monkeypatch)
+
+    async def ready(*_args: object) -> EpisodeReport:
+        return report
+
+    async def scenario() -> list[tuple[str, str]]:
+        async with httpx.AsyncClient() as client:
+            telegram = FakeTelegram(client)
+            service = telegram_service(client, telegram, "-22")
+            monkeypatch.setattr(service, "_generate", ready)
+            await service.generate_episode(scheduled=True, send=True)
+            return telegram.sent
+
+    assert asyncio.run(scenario()) == [("-22", "🎙️ Resumo das 7")]
+    assert waits == []
 
 
 def test_chat_list_goes_only_to_the_admin_chat() -> None:

@@ -50,7 +50,7 @@ def spoken_time(send_at: time) -> str:
 
 
 def next_send(now: datetime, local_tz: ZoneInfo) -> datetime:
-    """The next full hour, in local time: a run that starts at 6h10 sends at 7h, so
-    the Railway cron alone sets the send time."""
+    """The hour the episode is named after: the next full hour, in local time. A run
+    that starts at 6h40 makes the 7h episode, so the Railway cron alone sets it."""
     local_now = now.astimezone(local_tz)
     return local_now.replace(minute=0, second=0, microsecond=0) + timedelta(hours=1)

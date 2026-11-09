@@ -45,19 +45,19 @@ def test_name_and_greeting_follow_the_send_time(
     assert spoken_time(send_at) == spoken
 
 
-def test_a_run_sends_at_the_next_full_hour() -> None:
-    now = datetime(2026, 11, 7, 6, 10, tzinfo=SAO_PAULO)
+def test_the_episode_is_named_after_the_next_full_hour() -> None:
+    now = datetime(2026, 11, 7, 6, 40, tzinfo=SAO_PAULO)
 
     assert next_send(now, SAO_PAULO) == datetime(2026, 11, 7, 7, 0, tzinfo=SAO_PAULO)
 
 
-def test_a_run_on_the_hour_sends_an_hour_later() -> None:
+def test_a_run_on_the_hour_makes_the_next_hours_episode() -> None:
     now = datetime(2026, 11, 7, 9, 0, tzinfo=SAO_PAULO)
 
     assert next_send(now, SAO_PAULO) == datetime(2026, 11, 7, 10, 0, tzinfo=SAO_PAULO)
 
 
-def test_the_send_time_is_local_and_can_fall_on_the_next_day() -> None:
+def test_the_episode_hour_is_local_and_can_fall_on_the_next_day() -> None:
     # 23h10 in São Paulo is 02h10 UTC.
     now = datetime(2026, 11, 8, 2, 10, tzinfo=ZoneInfo("UTC"))
 

@@ -74,7 +74,7 @@ for relevante, não force.
 
 SCRIPT_PROMPT = """
 Você escreve o roteiro de um podcast diário de notícias em português do Brasil, \
-chamado "{podcast_name}" e apresentado por {host_a} e {host_b}. O episódio sai às \
+chamado "{podcast_name}" e apresentado por {host_a} e {host_b}. É o episódio das \
 {send_time} de {today} e cobre o que aconteceu entre {window_start} e {window_end}.
 
 Formato:
