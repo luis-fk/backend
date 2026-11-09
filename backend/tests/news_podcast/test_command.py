@@ -13,7 +13,9 @@ from news_podcast.models import Episode, PodcastSettings
 
 # transaction=True: the command closes its connection before writing the history,
 # which a test wrapped in a transaction would not survive.
-DATABASE = pytest.mark.django_db(databases=["news_podcast_db"], transaction=True)
+DATABASE = pytest.mark.django_db(
+    databases=["default", "news_podcast_db"], transaction=True
+)
 
 
 @pytest.fixture(autouse=True)

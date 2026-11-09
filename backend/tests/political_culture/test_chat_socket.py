@@ -2,6 +2,7 @@ import asyncio
 from typing import Any
 
 import pytest
+from channels.layers import get_channel_layer
 from channels.routing import URLRouter
 from channels.testing import WebsocketCommunicator
 from pytest_django import Settings
@@ -69,3 +70,39 @@ def test_the_chat_socket_rejects_an_api_key() -> None:
     connected, _ = open_chat_socket(7, ["bearer", api_key(APP, 7)])
 
     assert not connected
+
+
+ANSWER = {"type": "chat.message", "message": {"role": "ai", "message": "Olá!"}}
+
+
+def users_chat_socket() -> WebsocketCommunicator:
+    """A client for user 7's chat socket, with their token."""
+    return WebsocketCommunicator(
+        URLRouter(websocket_urlpatterns),
+        "/ws/chat/7",
+        subprotocols=["bearer", user_token(APP, "7")],
+    )
+
+
+def test_the_chat_socket_relays_the_users_answers() -> None:
+    async def scenario() -> Any:
+        communicator = users_chat_socket()
+        await communicator.connect()
+        await get_channel_layer().group_send("chat_7", ANSWER)
+        received = await communicator.receive_json_from()
+        await communicator.disconnect()
+        return received
+
+    assert asyncio.run(scenario()) == {"role": "ai", "message": "Olá!"}
+
+
+def test_the_chat_socket_gets_nothing_meant_for_another_user() -> None:
+    async def scenario() -> bool:
+        communicator = users_chat_socket()
+        await communicator.connect()
+        await get_channel_layer().group_send("chat_8", ANSWER)
+        got_nothing: bool = await communicator.receive_nothing()
+        await communicator.disconnect()
+        return got_nothing
+
+    assert asyncio.run(scenario())

@@ -66,15 +66,12 @@ The Next.js frontend that serves their UIs lives in `../frontend`. `README.md` c
 - PDF downloads are concurrent via `asyncio.gather`
 - Name matching uses substring match on normalized text (not fuzzy/per-line matching)
 
-**Planned (no timeline):**
-- Write unit tests for `plants`, `political_culture` and `cfflch` beyond the API auth (pytest, in `tests/`)
-
 ## Testing
 - Unit tests run in CI (`uv run pytest` in `.github/workflows/backend-ci.yml` at the repository root) on every pull request that changes `backend/`.
 - **Target:** unit tests only, written cleanly and with full understanding — not just for coverage
 - **Location:** `tests/` folder (next to `manage.py`) mirroring the app structure
-- **Coverage:** `news_podcast` has tests (`tests/news_podcast/`, no network). For `plants`, `political_culture` and `cfflch` only the API auth is tested (`tests/<app>/`, plus `tests/backend/test_api_auth.py` and `tests/api_keys/`); do not assume other coverage there
-- **Setup:** pytest-django. Tests mock the app data, the LLMs and the external APIs. Two databases are real, in the tests that ask for them with `@pytest.mark.django_db`: `default`, for the API keys and the admin, and `news_podcast_db`, for the podcast settings and history. pytest-django creates and drops a `test_` copy of each, on the local PostgreSQL (run `make db-up` first) or on SQLite in CI. The settings need `API_TOKEN_SECRET` and `ESP32_DEVICE_KEY`; CI sets dummies, plus `OPENAI_API_KEY` because the chatbot views build their clients on import
+- **Coverage:** all four apps have tests in `tests/<app>/`; the API auth also has `tests/backend/test_api_auth.py` and `tests/api_keys/`
+- **Setup:** pytest-django. Tests mock the LLMs and the external APIs and never reach the network. The databases are real in the tests that ask for them with `@pytest.mark.django_db(databases=["default", "<app>_db"])`: always list `default`, or a file run on its own fails with "Circular dependency in TEST[DEPENDENCIES]". Add `transaction=True` only when the code under test closes connections or queries from worker threads. pytest-django creates and drops a `test_` copy of each database, on the local PostgreSQL (run `make db-up` first) or on in-memory SQLite in CI, and the tests must pass on both, so pgvector searches (`CosineDistance`, which SQLite lacks) stay out of the database tests. The settings need `API_TOKEN_SECRET` and `ESP32_DEVICE_KEY`; CI sets dummies, plus `OPENAI_API_KEY` because the chatbot views build their clients on import
 
 ## Non-negotiables
 The shared ones (learning-first, git managed by the user) are in the root `CLAUDE.md`.
