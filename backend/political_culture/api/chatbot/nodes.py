@@ -46,7 +46,9 @@ def general_chat(state: SquadState) -> SquadState:
 
     recent_chat_history = get_recent_chat_history_db(int(state["user_id"]))
 
-    response = agents.general_chat_agent(input, recent_chat_history)
+    response = agents.general_chat_agent(
+        input, recent_chat_history, int(state["user_id"])
+    )
 
     return {**state, "response": response}
 
@@ -81,7 +83,7 @@ def word_analysis(state: SquadState) -> SquadState:
         f"\n\nText: {state['input']} \n\nWord Count: {state['word_count']}"
     )
 
-    response = agents.word_analyist_agent(input)
+    response = agents.word_analyist_agent(input, int(state["user_id"]))
 
     return {**state, "word_analysis_response": response}
 
@@ -130,7 +132,9 @@ def wrap_up(state: SquadState) -> None:
     human_message: str = state["input"]
 
     chat_history = get_recent_chat_history_db(int(state["user_id"]))
-    updated_user_memory = agents.call_user_info_agent(human_message, chat_history)
+    updated_user_memory = agents.call_user_info_agent(
+        human_message, chat_history, state.get("memory")
+    )
 
     user_id = state["user_id"]
 

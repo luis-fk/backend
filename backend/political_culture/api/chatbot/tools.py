@@ -1,14 +1,9 @@
-from typing import Optional, cast
+from typing import Any, NamedTuple, Optional, cast
 
-from langchain_core.messages import (
-    AIMessage,
-    BaseMessage,
-    HumanMessage,
-)
-from langchain_core.tools import tool
+from django.db.models import Q
+from langchain_core.tools import BaseTool, tool
 
 from political_culture.models import (
-    ChatHistory,
     IdeologiesDefinition,
     Texts,
     TextWordCount,
@@ -23,98 +18,11 @@ def get_all_texts_info() -> list[
     """
     Return a list of all titles, authors and context summaries from the database.
     The list is a list of tuples, where each tuple contains the id, title,
-    author and context summary for each text.
+    ideology, author and context summary for each text.
     """
     texts_info = Texts.objects.filter(user_submitted_text=False).values_list(
         "id", "title", "ideology", "author", "content_description"
     )
-
-    return list(texts_info)
-
-
-@tool
-def get_text_word_count_by_id(text_id: int) -> TextWordCount | None:
-    """
-    Return a TextWordCount object for a given text_id.
-
-    Args:
-        text_id: The id of the text to retrieve the word count for.
-
-    Returns:
-        A TextWordCount object with the words and their frequencies,
-        or None if no object is found.
-    """
-    return (
-        TextWordCount.objects.filter(text_id=text_id)
-        .values_list("word_frequencies", flat=True)
-        .first()
-    )
-
-
-@tool
-def get_recent_chat_history(user_id: int) -> list[BaseMessage] | None:
-    """
-    Return a list of recent chat history messages for a given user_id.
-
-    The list contains the 5 most recent human messages and their corresponding AI
-    responses. The list is ordered in reverse chronological order (newest first).
-
-    Args:
-        user_id: The id of the user to retrieve the chat history for.
-
-    Returns:
-        A list of BaseMessage objects, or None if no messages are found.
-    """
-    human_messages = ChatHistory.objects.filter(user_id=user_id, role="human").order_by(
-        "id"
-    )[:5]
-
-    ai_messages = ChatHistory.objects.filter(user_id=user_id, role="ai").order_by("id")[
-        :5
-    ]
-
-    chat_history: list[BaseMessage] = []
-
-    for human, ai in zip(human_messages, ai_messages):
-        chat_history.append(HumanMessage(content=human.message))
-        chat_history.append(AIMessage(content=ai.message))
-
-    return chat_history
-
-
-@tool
-def get_user_memory(user_id: int) -> str | None:
-    """
-    Retrieve the memory associated with a given user_id.
-
-    Args:
-        user_id: The id of the user whose memory is to be retrieved.
-
-    Returns:
-        A string representation of the user's memory, or None if no memory is found.
-    """
-
-    user_memory = (
-        UserMemory.objects.filter(user_id=user_id)
-        .values_list("memory", flat=True)
-        .first()
-    )
-
-    return cast(str, user_memory)
-
-
-@tool
-def get_user_submitted_texts_info(
-    user_id: int,
-) -> list[tuple[int, Optional[str], Optional[str], Optional[str], Optional[str]]]:
-    """
-    Return a list of all titles, authors and context summaries from the database.
-    The list is a list of tuples, where each tuple contains the id, title,
-    author and context summary for each text.
-    """
-    texts_info = Texts.objects.filter(
-        user_submitted_text=True, user_id=user_id
-    ).values_list("id", "title", "ideology", "author", "content_description")
 
     return list(texts_info)
 
@@ -151,3 +59,68 @@ def get_ideology_definition(ideology_id: int) -> str:
     )
 
     return cast(str, ideologies)
+
+
+class UserTools(NamedTuple):
+    word_count: BaseTool
+    submitted_texts: BaseTool
+    memory: BaseTool
+
+
+def user_tools(user_id: int) -> UserTools:
+    """The tools that read one user's data, bound to the user of the conversation.
+    The model never picks the user, so it can't read another user's data."""
+
+    @tool
+    def get_text_word_count_by_id(text_id: int) -> dict[str, Any] | None:
+        """
+        Return the words and their frequencies for a given text_id.
+
+        Args:
+            text_id: The id of the text to retrieve the word count for.
+
+        Returns:
+            The words and their frequencies, or None if no text is found.
+        """
+        # Texts pasted in the chat belong to the user who pasted them.
+        visible = Q(text__user_submitted_text=False) | Q(text__user_id=user_id)
+        return cast(
+            dict[str, Any] | None,
+            TextWordCount.objects.filter(visible, text_id=text_id)
+            .values_list("word_frequencies", flat=True)
+            .first(),
+        )
+
+    @tool
+    def get_user_submitted_texts_info() -> list[
+        tuple[int, Optional[str], Optional[str], Optional[str], Optional[str]]
+    ]:
+        """
+        Return the texts the user pasted in the chat, as a list of tuples with the
+        id, title, ideology, author and context summary of each text.
+        """
+        texts_info = Texts.objects.filter(
+            user_submitted_text=True, user_id=user_id
+        ).values_list("id", "title", "ideology", "author", "content_description")
+
+        return list(texts_info)
+
+    @tool
+    def get_user_memory() -> str | None:
+        """
+        Retrieve what is known about the user from past conversations.
+
+        Returns:
+            The user's memory, or None if there is none yet.
+        """
+        user_memory = (
+            UserMemory.objects.filter(user_id=user_id)
+            .values_list("memory", flat=True)
+            .first()
+        )
+
+        return cast(str | None, user_memory)
+
+    return UserTools(
+        get_text_word_count_by_id, get_user_submitted_texts_info, get_user_memory
+    )

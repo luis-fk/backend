@@ -90,12 +90,13 @@ def add_text_word_count(text_db: Texts) -> TextWordCount:
 
 
 def get_recent_chat_history_db(user_id: int) -> list[BaseMessage]:
-    human_messages = ChatHistory.objects.filter(user_id=user_id, role="human").order_by(
-        "id"
-    )[:5]
-    ai_messages = ChatHistory.objects.filter(user_id=user_id, role="ai").order_by("id")[
-        :5
-    ]
+    """The user's last five exchanges, oldest first."""
+    human_messages = list(
+        ChatHistory.objects.filter(user_id=user_id, role="human").order_by("-id")[:5]
+    )[::-1]
+    ai_messages = list(
+        ChatHistory.objects.filter(user_id=user_id, role="ai").order_by("-id")[:5]
+    )[::-1]
 
     chat_history: list[BaseMessage] = []
 
