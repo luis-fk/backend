@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any, TypeVar
 
 import httpx
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 
 from news_podcast.api.episode import config
 from news_podcast.api.episode.articles import build_briefs
@@ -69,6 +69,9 @@ logger = logging.getLogger(__name__)
 
 T = TypeVar("T")
 MIN_SCRIPT_TURNS = 10
+# A failed answer, like invalid JSON, can be a one-off, so each model gets a second
+# try before the next one.
+ANSWERS_PER_MODEL = 2
 
 
 class EpisodeError(Exception):
@@ -196,6 +199,7 @@ class NewsPodcastService:
             system_prompt,
             format_for_selection(items, config.LOCAL_TZ),
             "selection",
+            StorySelection,
             parse,
         )
         save_debug("selection.json", [story.model_dump() for story in stories])
@@ -216,7 +220,7 @@ class NewsPodcastService:
         )
         user_prompt = format_briefs(briefs, words_per_minute(self.options))
         script = await self._ask_json(
-            system_prompt, user_prompt, "script", parse_script
+            system_prompt, user_prompt, "script", Script, parse_script
         )
 
         words = count_words(script.turns)
@@ -229,7 +233,11 @@ class NewsPodcastService:
         )
         try:
             longer = await self._ask_json(
-                system_prompt, f"{user_prompt}\n\n{expand}", "script", parse_script
+                system_prompt,
+                f"{user_prompt}\n\n{expand}",
+                "script",
+                Script,
+                parse_script,
             )
         except EpisodeError as error:
             logger.warning(f"Could not lengthen the script: {error}")
@@ -243,15 +251,31 @@ class NewsPodcastService:
         system_prompt: str,
         user_prompt: str,
         step: str,
+        answer_model: type[BaseModel],
         parse: Callable[[Any], T],
     ) -> T:
         gemini = self._require_gemini()
+        # The serialization schema requires the fields that have defaults too
+        # (json_schema_serialization_defaults_required), so Gemini writes them all.
+        schema = answer_model.model_json_schema(mode="serialization")
         errors: list[str] = []
+        attempts = [
+            model
+            for model in self._available_text_models()
+            for _ in range(ANSWERS_PER_MODEL)
+        ]
 
-        for model in self._available_text_models():
+        for model in attempts:
+            if model in self.unavailable_models:
+                continue
             try:
                 data, usage = await gemini.generate_json(
-                    model, system_prompt, user_prompt, step, config.THINKING_LEVEL
+                    model,
+                    system_prompt,
+                    user_prompt,
+                    step,
+                    config.THINKING_LEVEL,
+                    schema=schema,
                 )
                 self.usages.append(usage)
                 result = parse(answer_json(data))

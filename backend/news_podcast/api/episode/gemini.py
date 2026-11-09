@@ -27,7 +27,6 @@ RETRYABLE_STATUS = frozenset({429, 500, 502, 503, 504})
 PCM_SAMPLE_RATE = 24000
 PCM_SAMPLE_WIDTH = 2
 CHARS_PER_TOKEN = 4
-CODE_FENCE_PATTERN = re.compile(r"^```(?:json)?\s*|\s*```$")
 SECONDS_PATTERN = re.compile(r"([\d.]+)s")
 RATE_PATTERN = re.compile(r"rate=(\d+)")
 INPUT_TOKEN_KEYS = (
@@ -62,12 +61,15 @@ class GeminiClient:
         user_prompt: str,
         step: str,
         thinking_level: str | None = None,
+        *,
+        schema: dict[str, Any],
     ) -> tuple[dict[str, Any], Usage]:
-        """Returns the raw answer and its usage. The caller reads the JSON with
-        answer_json() after counting the usage, because a broken answer is billed
-        too."""
+        """Returns the raw answer and its usage. Gemini can only write JSON that
+        follows `schema`, a JSON Schema. The caller reads the JSON with answer_json()
+        after counting the usage, because a broken answer is billed too."""
         generation_config: dict[str, Any] = {
             "responseMimeType": "application/json",
+            "responseJsonSchema": schema,
             "maxOutputTokens": MAX_OUTPUT_TOKENS,
         }
         if thinking_level:
@@ -230,25 +232,23 @@ def extract_text(data: dict[str, Any]) -> str:
     )
     finish_reason = candidate.get("finishReason", "")
 
-    if finish_reason == "MAX_TOKENS":
-        logger.warning("Gemini stopped at the output token limit")
+    if finish_reason not in ("STOP", ""):
+        logger.warning(f"Gemini stopped before the end of its answer: {finish_reason}")
     if not text.strip():
         raise GeminiError(f"O Gemini devolveu um texto vazio ({finish_reason})")
     return text
 
 
 def parse_json_text(text: str) -> Any:
-    cleaned = CODE_FENCE_PATTERN.sub("", text.strip())
     try:
-        return json.loads(cleaned)
-    except json.JSONDecodeError:
-        start, end = cleaned.find("{"), cleaned.rfind("}")
-        if start != -1 and end > start:
-            try:
-                return json.loads(cleaned[start : end + 1])
-            except json.JSONDecodeError:
-                pass
-    raise GeminiError("O Gemini devolveu um JSON inválido")
+        return json.loads(text)
+    except json.JSONDecodeError as error:
+        around = text[max(error.pos - 150, 0) : error.pos + 150]
+        logger.warning(
+            f"Gemini's JSON breaks at character {error.pos} of {len(text)} "
+            f"({error.msg}): {around!r}"
+        )
+        raise GeminiError("O Gemini devolveu um JSON inválido") from error
 
 
 def text_usage(data: dict[str, Any], step: str, model: str) -> Usage:
