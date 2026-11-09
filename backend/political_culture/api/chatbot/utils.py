@@ -3,17 +3,13 @@ import re
 from typing import Any, Callable, Dict, Optional, Type, TypeVar
 
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
-from langchain_core.prompts import (
-    ChatPromptTemplate,
-    HumanMessagePromptTemplate,
-    SystemMessagePromptTemplate,
-)
 
 from political_culture.api.messages.serializers import ChatHistorySerializer
-from political_culture.api.utils import llm_4
-from political_culture.api.word_counter.prompts import TEXT_INFO_EXTRACTION_PROMPT
-from political_culture.api.word_counter.schemas import TitleAndAuthorSchema
-from political_culture.api.word_counter.service import count_words, word_picker
+from political_culture.api.word_counter.service import (
+    count_words,
+    extract_text_info,
+    word_picker,
+)
 from political_culture.models import ChatHistory, Texts, TextWordCount
 
 T = TypeVar("T")
@@ -34,27 +30,10 @@ def clean_html(html_string: str) -> str:
     return re.sub(r"<[^>]+>", "", html_string)
 
 
-def text_info_extractor(text: str) -> TitleAndAuthorSchema:
-    instructions_prompt = ChatPromptTemplate.from_messages(
-        [
-            SystemMessagePromptTemplate.from_template(TEXT_INFO_EXTRACTION_PROMPT),
-            HumanMessagePromptTemplate.from_template("{input}"),
-        ]
-    )
-
-    chain = instructions_prompt | llm_4.with_structured_output(
-        schema=TitleAndAuthorSchema, method="json_schema"
-    )
-
-    response = chain.invoke({"input": text})
-
-    return TitleAndAuthorSchema.model_validate(response)
-
-
 def add_text(
     text: str, user_id: int, *, user_submitted_text: Optional[bool] = False
 ) -> Texts:
-    text_data = text_info_extractor(text)
+    text_data = extract_text_info(text)
 
     title = text_data.title
     author = text_data.author
