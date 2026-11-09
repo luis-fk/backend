@@ -9,10 +9,9 @@ OUTPUT_DIR = APP_DIR.parent / "news_podcast_output"
 LOCAL_TZ = ZoneInfo("America/Sao_Paulo")
 
 NEWS_WINDOW_HOURS = 24
-# The Railway cron starts at :10 of the hour before the send time, so the scheduled
-# news window closes at :00 of that hour.
+# The Railway cron starts in the hour before the episode's hour, so the scheduled
+# news window closes at :00 of the hour the run starts in.
 NEWS_CUTOFF_HOURS_BEFORE_SEND = 1
-MAX_WAIT_SECONDS = 3 * 60 * 60
 
 # The DEFAULT_* values, the models, their prices and the styles only fill the settings
 # row in the Django admin when it is created (news_podcast/models.py); after that,

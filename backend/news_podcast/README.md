@@ -2,7 +2,7 @@
 
 Todo dia chega no Telegram uma mensagem de voz com dois apresentadores (Bia e Léo)
 contando o que aconteceu nas 24 horas anteriores, a partir dos feeds do `feeds.opml`. Ela
-chega às 7h e, no padrão, tem de 12 a 18 minutos (de 8 a 12 em 1,5x). Duração,
+chega perto das 7h e, no padrão, tem de 12 a 18 minutos (de 8 a 12 em 1,5x). Duração,
 velocidade, modelos, preços e prompts mudam no admin do Django (veja *Configurações*). O
 episódio é só essa mensagem de voz: o custo e o resultado de cada execução ficam no
 histórico do admin, e as fontes usadas, no log da execução no Railway.
@@ -20,7 +20,7 @@ configurações e o histórico. O resto é um management command.
 | Roteiro | `service.py` + prompt do roteiro | O modelo de texto escreve o diálogo com 170 palavras por minuto de episódio, vezes a velocidade (de 2.040 a 3.060 palavras no padrão), abrindo com uma escalada de 3 a 5 manchetes curtas, como nos telejornais. Se vier curto demais, pede uma versão mais longa uma vez. |
 | Voz | `api/episode/gemini.py` | O modelo de voz gera o diálogo com as duas vozes, em blocos de cerca de 650 palavras. Se o Gemini estiver fora do ar, o código espera e tenta de novo (veja *Bom saber*). |
 | Áudio | `api/episode/audio.py` | O ffmpeg junta os trechos, normaliza o volume e gera um OGG/Opus de 32 kbps (cerca de 4 MB para 15 minutos), o formato das mensagens de voz do Telegram. |
-| Envio | `api/episode/telegram.py` | `sendVoice` com o título e a data na legenda (por ser mensagem de voz, o Telegram mostra o botão de velocidade 1x, 1,5x, 2x). Na execução agendada, espera a hora cheia seguinte ao início (7h, com o cron das 6h10). Se algo falhar, chega uma mensagem dizendo em qual etapa. |
+| Envio | `api/episode/telegram.py` | `sendVoice` com o título e a data na legenda (por ser mensagem de voz, o Telegram mostra o botão de velocidade 1x, 1,5x, 2x). Sai assim que fica pronto, sem esperar a hora cheia. Se algo falhar, chega uma mensagem dizendo em qual etapa. |
 
 O episódio diário roda num serviço Cron do Railway (veja *Agendamento*).
 
@@ -38,7 +38,7 @@ O episódio diário roda num serviço Cron do Railway (veja *Agendamento*).
    Telegram: ele vai na variável `TELEGRAM_CHAT_ID` do serviço (veja *Agendamento*). Para
    mandar para um grupo, veja *Mandar para um grupo*.
 5. **Agendamento:** crie o serviço no Railway (abaixo). Daí em diante ele roda sozinho,
-   começa às 6h10 e envia às 7h.
+   começa às 6h40 e envia perto das 7h.
 6. **Testar:** no Railway, abra o serviço e clique em *Run now*, ou rode
    `railway cron run` na CLI.
 
@@ -48,7 +48,7 @@ Um serviço Cron no projeto do Railway, a partir do mesmo repositório:
 
 1. *New → GitHub Repo* com este repositório. Em *Settings*: Root Directory `/backend`,
    branch `main`, Custom Start Command `python manage.py news_podcast episode
-   --scheduled` e Cron Schedule `10 9 * * *` (6h10 em Brasília; o Railway usa UTC).
+   --scheduled` e Cron Schedule `40 9 * * *` (6h40 em Brasília; o Railway usa UTC).
 2. Em *Variables*: `RAILPACK_DEPLOY_APT_PACKAGES=ffmpeg` (instala o ffmpeg só neste
    serviço), `GEMINI_API_KEY`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`,
    `TELEGRAM_ADMIN_CHAT_ID` e `NEWS_PODCAST_DATABASE_URL`. O Django também exige, para
@@ -58,15 +58,17 @@ Um serviço Cron no projeto do Railway, a partir do mesmo repositório:
    `*_DATABASE_URL`. Para essas, valores fictícios servem (as URLs de banco podem ser
    `sqlite:///dummy.db`), porque o podcast só usa o banco dele.
 
-O episódio sai na hora cheia seguinte ao início da execução: com o cron às 6h10, ele é
-gerado e enviado às 7h, e o nome ("Resumo das 7") e o bom dia acompanham. Para mudar o
-horário ou a frequência, mude só o Cron Schedule, em UTC e no minuto 10 da hora anterior
-ao envio (`10 21 * * *` envia às 19h de Brasília). Uma execução só começa se a anterior já
-terminou.
+O episódio sai assim que fica pronto. O nome ("Resumo das 7") e o bom dia seguem a hora
+cheia seguinte ao início da execução, e as notícias vão até a hora cheia anterior: com o
+cron às 6h40, ele lê o que saiu até as 6h e chega perto das 7h. Para mudar o horário ou a
+frequência, mude só o Cron Schedule, em UTC e uns 20 minutos antes da hora do episódio
+(`40 21 * * *` envia perto das 19h de Brasília). Evite o episódio da meia-noite (cron
+entre 23h e 0h de Brasília): ele chegaria antes da meia-noite, já com a data do dia
+seguinte. Uma execução só começa se a anterior já terminou.
 
 Para rodar na mão, use o *Run now* do serviço ou `railway cron run`. Como é o mesmo
-comando do cron, o episódio sai na hora cheia seguinte e respeita a pausa. Rodando local
-sem `--scheduled`, ele sai assim que fica pronto.
+comando do cron, ele respeita a pausa e lê as notícias até a hora cheia em que começou.
+Rodando local sem `--scheduled`, ele lê as notícias até o momento em que começa.
 
 ## Mandar para um grupo
 
@@ -152,5 +154,6 @@ está no `.gitignore`.
 - Se o modelo de texto estiver sobrecarregado, o texto é feito com o reserva, e o resto
   da execução já vai direto para ele.
 - A voz não tem reserva: se o Gemini estiver fora do ar, o código espera 10 minutos e
-  depois 20 e tenta de novo. Se ainda falhar, ou se a cota do dia acabar, o episódio do
-  dia não sai e chega uma mensagem de erro no Telegram.
+  depois 20 e tenta de novo, e o episódio chega mais tarde na mesma medida. Se ainda
+  falhar, ou se a cota do dia acabar, o episódio do dia não sai e chega uma mensagem de
+  erro no Telegram.
