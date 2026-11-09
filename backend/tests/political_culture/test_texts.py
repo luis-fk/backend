@@ -31,6 +31,7 @@ from tests.api_tokens import bearer, make_token, user_token
 APP = "political-culture"
 DATABASES = pytest.mark.django_db(databases=["default", "political_culture_db"])
 THREAD = "political_culture.api.texts.service.threading.Thread"
+UPLOAD_ID = "2f6d9c1a-5b7e-4c3d-8a9f-0e1b2c3d4e5f"
 
 INFO = TitleAndAuthorSchema(
     reasoning="The cover names both.",
@@ -76,7 +77,11 @@ def auth() -> dict[str, str]:
 
 def upload(client: Client, content: bytes, name: str = "texto.pdf") -> Any:
     pdf = SimpleUploadedFile(name, content, content_type="application/pdf")
-    return client.post("/api/political-culture/texts", {"content": pdf}, headers=auth())
+    return client.post(
+        "/api/political-culture/texts",
+        {"content": pdf, "upload_id": UPLOAD_ID},
+        headers=auth(),
+    )
 
 
 def library_user(auth_user_id: int = 1) -> Users:
@@ -106,6 +111,12 @@ def models() -> Iterator[MagicMock]:
             [0.5] * 1536 for _ in texts
         ]
         yield MagicMock(embeddings=embeddings, info=info, picker=picker)
+
+
+@pytest.fixture(autouse=True)
+def nothing_being_read(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A test's uploads never really get read, so each test starts with none."""
+    monkeypatch.setattr(service, "_reading", set())
 
 
 @pytest.fixture
@@ -183,11 +194,51 @@ def test_a_pdf_is_read_in_the_background_from_a_copy(
     assert response.status_code == 202
     assert thread.call_args.kwargs["target"] is service._read_in_background
     path, file_hash, user_id, upload_id = thread.call_args.kwargs["args"]
-    assert response.json() == {"upload_id": upload_id}
+    assert response.json() == {"upload_id": UPLOAD_ID}
+    assert upload_id == UPLOAD_ID
     assert Path(path).read_bytes() == content
     assert file_hash == hashlib.sha256(content).hexdigest()
     assert user_id == 7
     thread.return_value.start.assert_called_once()
+
+
+@DATABASES
+@pytest.mark.parametrize("upload_id", [None, "upload-1"], ids=["none", "not a UUID"])
+def test_an_upload_needs_the_id_its_result_will_carry(
+    client: Client, temp_dir: Path, upload_id: str | None
+) -> None:
+    data: dict[str, Any] = {"content": SimpleUploadedFile("t.pdf", tiny_pdf("Lei"))}
+    if upload_id:
+        data["upload_id"] = upload_id
+
+    with patch(THREAD) as thread:
+        response = client.post("/api/political-culture/texts", data, headers=auth())
+
+    assert response.status_code == 400
+    thread.assert_not_called()
+    assert list(temp_dir.iterdir()) == []
+
+
+@DATABASES
+def test_a_pdf_being_read_is_refused_until_its_reading_ends(
+    client: Client, temp_dir: Path
+) -> None:
+    content = tiny_pdf("Liberdade")
+
+    with patch(THREAD) as thread:
+        assert upload(client, content).status_code == 202
+        assert upload(client, content).status_code == 409
+    assert len(list(temp_dir.iterdir())) == 1
+
+    with (
+        patch.object(service, "read_upload", return_value={"status": "failed"}),
+        patch.object(service, "notify_uploader"),
+        patch.object(service, "connections"),
+    ):
+        service._read_in_background(*thread.call_args.kwargs["args"])
+
+    with patch(THREAD):
+        assert upload(client, content).status_code == 202
 
 
 @DATABASES
@@ -291,6 +342,29 @@ def test_a_pdf_without_text_is_refused_before_any_model_call(
     models.embeddings.assert_not_called()
     models.info.assert_not_called()
     assert not Texts.objects.exists()
+
+
+@DATABASES
+def test_halves_of_surrogate_pairs_do_not_break_the_save(models: MagicMock) -> None:
+    # PyPDF can split a math font's character into two halves, or keep only one.
+    with pages("x\ud835\udc00y \ud835 z"):
+        text = word_counter.add_pdf_text("math.pdf", "hash", library_user().id)
+
+    text.refresh_from_db()
+    assert text.text == "x\U0001d400y \ufffd z"
+
+
+@DATABASES
+def test_a_long_title_and_author_are_cut_to_their_columns(models: MagicMock) -> None:
+    models.info.return_value = INFO.model_copy(
+        update={"title": "T" * 600, "author": "A" * 300}
+    )
+
+    with pages("Liberdade"):
+        text = word_counter.add_pdf_text("livro.pdf", "hash", library_user().id)
+
+    text.refresh_from_db()
+    assert (len(text.title or ""), len(text.author or "")) == (500, 255)
 
 
 @DATABASES
