@@ -13,10 +13,14 @@ class Users(models.Model):
         return str(self.auth_user_id)
 
 
+# Room for a subtitle and for several authors.
+TITLE_MAX_LENGTH = 500
+AUTHOR_MAX_LENGTH = 255
+
+
 class Texts(models.Model):
-    title = models.CharField(max_length=500, null=True, blank=True)
-    # Room for several authors.
-    author = models.CharField(max_length=255, null=True, blank=True)
+    title = models.CharField(max_length=TITLE_MAX_LENGTH, null=True, blank=True)
+    author = models.CharField(max_length=AUTHOR_MAX_LENGTH, null=True, blank=True)
     ideology = models.CharField(max_length=50, null=True, blank=True, default=None)
     text = models.TextField()
     content_description = models.TextField(null=True, blank=True)

@@ -22,7 +22,13 @@ from political_culture.api.word_counter.schemas import (
     TitleAndAuthorSchema,
     WordFrequencySquema,
 )
-from political_culture.models import TextChunks, Texts, TextWordCount
+from political_culture.models import (
+    AUTHOR_MAX_LENGTH,
+    TITLE_MAX_LENGTH,
+    TextChunks,
+    Texts,
+    TextWordCount,
+)
 
 # Enough for a title page, a table of contents and the start of an introduction.
 OPENING_CHARS = 8000
@@ -34,6 +40,20 @@ MAX_PICKER_WORDS = 2000
 
 class NoText(Exception):
     """The PDF has no text to read, like a scan without OCR."""
+
+
+def fit(value: str | None, max_length: int) -> str | None:
+    """A value the model wrote, cut to its column: PostgreSQL refuses a longer one,
+    which would lose a reading already paid for."""
+    return value[:max_length] if value else value
+
+
+def readable(text: str) -> str:
+    """PyPDF's text as PostgreSQL takes it: without NUL characters, and with the
+    halves of the surrogate pairs some math fonts produce rejoined, or replaced
+    when alone."""
+    text = text.replace("\x00", "")
+    return text.encode("utf-16", "surrogatepass").decode("utf-16", "replace")
 
 
 def extract_text_info(text: str) -> TitleAndAuthorSchema:
@@ -67,8 +87,8 @@ def text_sample(text: str, chunk_texts: list[str]) -> str:
 def save_text_info(text_db: Texts, chunk_texts: list[str]) -> None:
     info = extract_text_info(text_sample(text_db.text, chunk_texts))
 
-    text_db.title = info.title
-    text_db.author = info.author
+    text_db.title = fit(info.title, TITLE_MAX_LENGTH)
+    text_db.author = fit(info.author, AUTHOR_MAX_LENGTH)
     text_db.content_description = info.content_description
 
     text_db.save()
@@ -151,8 +171,7 @@ def add_pdf_text(path: str, file_hash: str, user_id: int) -> Texts:
     the rows are saved in one transaction, so a failure leaves nothing behind."""
     pages = PyPDFLoader(path).load()
     for page in pages:
-        # Some PDFs carry NUL characters, which PostgreSQL refuses in a text column.
-        page.page_content = page.page_content.replace("\x00", "")
+        page.page_content = readable(page.page_content)
     text = "".join(page.page_content for page in pages)
     if not text.strip():
         raise NoText()
@@ -168,8 +187,8 @@ def add_pdf_text(path: str, file_hash: str, user_id: int) -> Texts:
             user_id=user_id,
             text=text,
             file_hash=file_hash,
-            title=info.title,
-            author=info.author,
+            title=fit(info.title, TITLE_MAX_LENGTH),
+            author=fit(info.author, AUTHOR_MAX_LENGTH),
             content_description=info.content_description,
         )
         TextChunks.objects.bulk_create(

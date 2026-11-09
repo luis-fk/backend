@@ -11,6 +11,8 @@ PDF_HEADER_SEARCH = 1024
 
 class UploadSerializer(serializers.Serializer[Any]):
     content = serializers.FileField()
+    # Picked by the caller, who listens for it on the texts socket before sending.
+    upload_id = serializers.UUIDField()
 
     def validate_content(self, content: UploadedFile) -> UploadedFile:
         if content.size is None or content.size > MAX_PDF_BYTES:

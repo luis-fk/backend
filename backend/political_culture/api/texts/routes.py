@@ -32,14 +32,21 @@ class TextsApi(APIView):
 
         if not serializer.is_valid():
             logger.info(f"Upload refused: {serializer.errors}")
-            return Response({"error": "Send a PDF of up to 100 MB."}, status=400)
+            error = (
+                "Send a PDF of up to 100 MB."
+                if "content" in serializer.errors
+                else "Send an upload_id, a UUID that the result will carry."
+            )
+            return Response({"error": error}, status=400)
 
         pdf = serializer.validated_data["content"]
+        upload_id = str(serializer.validated_data["upload_id"])
         try:
-            upload_id = start_upload(pdf, int(user_id))
+            start_upload(pdf, int(user_id), upload_id)
         except DuplicateText:
             return Response(
-                {"error": "This PDF is already in the library."}, status=409
+                {"error": "This PDF is already in the library, or being read."},
+                status=409,
             )
 
         logger.info(f"Reading {pdf.name} for user {user_id} (upload {upload_id})")

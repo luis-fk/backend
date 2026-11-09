@@ -3,7 +3,6 @@ import logging
 import os
 import tempfile
 import threading
-import uuid
 from typing import TypedDict
 
 from asgiref.sync import async_to_sync
@@ -33,7 +32,13 @@ class LibraryText(TypedDict):
 
 
 class DuplicateText(Exception):
-    """The PDF is already in the library."""
+    """The PDF is already in the library, or being read."""
+
+
+# The hashes of the PDFs being read, so the same file sent again before its reading
+# ends isn't read and paid for twice. One process serves the API, so memory is enough.
+_reading: set[str] = set()
+_reading_lock = threading.Lock()
 
 
 def library_texts() -> list[LibraryText]:
@@ -69,21 +74,22 @@ def library_texts() -> list[LibraryText]:
     ]
 
 
-def start_upload(pdf: UploadedFile, user_id: int) -> str:
-    """Refuses a PDF already in the library, then reads it in the background, since
-    a book takes minutes. Returns the upload's id, which its result carries."""
+def start_upload(pdf: UploadedFile, user_id: int, upload_id: str) -> None:
+    """Refuses a PDF that is in the library or being read, then reads it in the
+    background, since a book takes minutes. The result carries upload_id, which the
+    page picks before sending, so it can't arrive before the page knows the id."""
     path, file_hash = _save_copy(pdf)
-    if Texts.objects.filter(file_hash=file_hash).exists():
+    try:
+        _claim(file_hash)
+    except BaseException:
         os.unlink(path)
-        raise DuplicateText()
+        raise
 
-    upload_id = uuid.uuid4().hex
     threading.Thread(
         target=_read_in_background,
         args=(path, file_hash, user_id, upload_id),
         daemon=True,
     ).start()
-    return upload_id
 
 
 def read_upload(
@@ -123,12 +129,21 @@ def _save_copy(pdf: UploadedFile) -> tuple[str, str]:
     return copy.name, digest.hexdigest()
 
 
+def _claim(file_hash: str) -> None:
+    with _reading_lock:
+        if file_hash in _reading or Texts.objects.filter(file_hash=file_hash).exists():
+            raise DuplicateText()
+        _reading.add(file_hash)
+
+
 def _read_in_background(
     path: str, file_hash: str, user_id: int, upload_id: str
 ) -> None:
     try:
         result = read_upload(path, file_hash, user_id, upload_id)
     finally:
+        with _reading_lock:
+            _reading.discard(file_hash)
         # The thread's own connections: Django only closes those of a request.
         connections.close_all()
     notify_uploader(user_id, result)

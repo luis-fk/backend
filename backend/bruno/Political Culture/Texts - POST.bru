@@ -12,8 +12,9 @@ post {
 
 body:multipart-form {
   content: @file()
+  upload_id: {{$randomUUID}}
 }
 
 docs {
-  A PDF of up to 100 MB. The answer is 202 with an `upload_id`, and the result arrives on the Texts WebSocket, which must be connected first.
+  A PDF of up to 100 MB and an `upload_id` (a UUID) that the result will carry. The answer is 202, or 409 when the PDF is in the library or being read; the result arrives on the Texts WebSocket, which must be connected first.
 }

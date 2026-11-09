@@ -19,6 +19,7 @@ from tests.api_tokens import (
 )
 
 APP = "political-culture"
+UPLOAD_ID = "2f6d9c1a-5b7e-4c3d-8a9f-0e1b2c3d4e5f"
 
 Send = Callable[[Client, int, dict[str, str]], HttpResponseBase]
 
@@ -49,7 +50,9 @@ def list_texts(
 def add_text(client: Client, user_id: int, headers: dict[str, str]) -> HttpResponseBase:
     pdf = SimpleUploadedFile("texto.pdf", b"%PDF-1.4", content_type="application/pdf")
     return client.post(
-        "/api/political-culture/texts", {"content": pdf}, headers=headers
+        "/api/political-culture/texts",
+        {"content": pdf, "upload_id": UPLOAD_ID},
+        headers=headers,
     )
 
 
@@ -98,11 +101,10 @@ def test_users_send_their_own_messages(client: Client) -> None:
 
 def test_texts_are_added_as_the_tokens_user(client: Client) -> None:
     with patch("political_culture.api.texts.routes.start_upload") as start_upload:
-        start_upload.return_value = "upload"
         response = add_text(client, 7, bearer(user_token(APP, "7")))
 
     assert response.status_code == 202
-    start_upload.assert_called_once_with(ANY, 7)
+    start_upload.assert_called_once_with(ANY, 7, UPLOAD_ID)
 
 
 @pytest.fixture
@@ -112,7 +114,7 @@ def app_data() -> Iterator[None]:
         patch.object(ChatHistory.objects, "filter"),
         patch.object(ChatBotApi, "llm"),
         patch("political_culture.api.texts.routes.library_texts", return_value=[]),
-        patch("political_culture.api.texts.routes.start_upload", return_value="x"),
+        patch("political_culture.api.texts.routes.start_upload"),
     ):
         yield
 
