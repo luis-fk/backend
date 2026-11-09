@@ -113,3 +113,4 @@ class EpisodeReport(BaseModel):
     audio_path: Path
     duration_seconds: float
     caption: str
+    script_words: int

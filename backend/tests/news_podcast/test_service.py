@@ -545,6 +545,7 @@ def test_episode_goes_out_as_a_single_voice_message(tmp_path: Path) -> None:
         audio_path=tmp_path / "resumo.ogg",
         duration_seconds=600.4,
         caption="🎙️ Resumo das 7",
+        script_words=1700,
     )
 
     async def scenario() -> list[tuple[str, str]]:
@@ -563,6 +564,7 @@ def test_a_scheduled_episode_goes_out_as_soon_as_it_is_ready(
         audio_path=tmp_path / "resumo.ogg",
         duration_seconds=600.4,
         caption="🎙️ Resumo das 7",
+        script_words=1700,
     )
     waits = record_waits(monkeypatch)
 
@@ -597,6 +599,7 @@ def test_a_refused_send_warns_the_admin_chat(
         audio_path=tmp_path / "resumo.ogg",
         duration_seconds=600.4,
         caption="🎙️ Resumo das 7",
+        script_words=1700,
     )
 
     async def ready(*_args: object) -> EpisodeReport:

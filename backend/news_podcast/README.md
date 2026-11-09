@@ -119,9 +119,12 @@ não salva: o admin mostra o erro no campo.
 ## Histórico
 
 Em *News podcast → Episodes*, uma linha por execução: hora de início (de Brasília),
-status (enviado, falhou ou, com `--no-send`, não enviado), duração, custo no plano pago
-em reais e, se falhou, a etapa e o erro. A página de cada execução mostra os tokens de
-cada resposta do Gemini. O áudio não fica guardado. O topo da lista mostra o custo total
+status (enviado, falhou ou, com `--no-send`, não enviado), duração, palavras por
+minuto, custo no plano pago em reais e, se falhou, a etapa e o erro. A página de cada
+execução mostra as palavras do roteiro e os tokens de cada resposta do Gemini. Na
+velocidade 1x, as palavras por minuto são o ritmo da voz: se ficarem longe de 170, o
+`NATURAL_WORDS_PER_MINUTE` do `config.py` precisa de ajuste, senão o episódio sai mais
+curto ou mais longo que o pedido. O áudio não fica guardado. O topo da lista mostra o custo total
 do que está filtrado (por mês ou por status). Uma execução pausada não aparece, e uma
 que falha no meio grava o custo do que já rodou.
 

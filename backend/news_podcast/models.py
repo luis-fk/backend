@@ -189,6 +189,11 @@ class Episode(models.Model):
     started_at = models.DateTimeField()
     status = models.CharField(max_length=10, choices=Status.choices)
     duration_seconds = models.FloatField(null=True, blank=True)
+    script_words = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Words in the script; with the length, they give the voice's pace.",
+    )
     cost_usd = models.FloatField(
         "cost (US$)", help_text="Paid-plan cost, at the prices in the settings."
     )

@@ -28,7 +28,7 @@ def no_keys(settings: Settings) -> None:
 
 
 def replace_episode(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    """Makes a voice answer that costs US$ 6 and a 15-minute episode."""
+    """Makes a voice answer that costs US$ 6 and a 15-minute episode of 2550 words."""
 
     async def make(
         service: NewsPodcastService, *, scheduled: bool, send: bool
@@ -37,7 +37,10 @@ def replace_episode(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
             Usage(step="voice", model=config.TTS_MODEL, output_tokens=1_000_000)
         )
         return EpisodeReport(
-            audio_path=tmp_path / "resumo.ogg", duration_seconds=900.0, caption="🎙️"
+            audio_path=tmp_path / "resumo.ogg",
+            duration_seconds=900.0,
+            caption="🎙️",
+            script_words=2550,
         )
 
     monkeypatch.setattr(NewsPodcastService, "generate_episode", make)
@@ -51,7 +54,7 @@ def replace_episode(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
         (["--no-send"], Episode.Status.NOT_SENT),
     ],
 )
-def test_a_run_is_saved_with_its_length_and_cost(
+def test_a_run_is_saved_with_its_length_words_and_cost(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
     args: list[str],
@@ -64,6 +67,7 @@ def test_a_run_is_saved_with_its_length_and_cost(
     episode = Episode.objects.get()
     assert episode.status == status
     assert episode.duration_seconds == 900.0
+    assert episode.script_words == 2550
     assert episode.cost_usd == pytest.approx(6.00)
     assert episode.usage == [
         {
