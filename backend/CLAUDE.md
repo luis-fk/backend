@@ -39,7 +39,14 @@ The Next.js frontend that serves their UIs lives in `../frontend`. `README.md` c
 
 ## Current state
 **Complete (stable):**
-- `political_culture`: word counter with LLM extraction, political chatbot with tools. pgvector is used to semantically search long reference texts that would otherwise exceed context limits. No near-term work planned.
+- `political_culture`: a shared texts library (`api/texts/`), the word counter with LLM extraction, and a political chatbot with tools. pgvector is used to semantically search long reference texts that would otherwise exceed context limits. Library decisions:
+  - Any user lists the library and adds PDFs of up to 100 MB. Only the Django admin edits or deletes a text, since a delete would remove it for everyone.
+  - A PDF already in the library, by its SHA-256 (`Texts.file_hash`), or still being read (a set in memory, enough for the single process) is refused with 409, so it isn't read and paid for twice.
+  - A book takes minutes, so `POST /api/political-culture/texts` answers 202 and a thread reads the PDF: embeddings, then title, author and summary, then word count, saved in one transaction. The result goes to the uploader's socket `ws/political-culture/texts/<userId>`, which isn't re-delivered, with the `upload_id` the page picked and sent: a PDF that fails at once may answer on the socket before the 202 arrives. A restart mid-reading loses the upload, and the user sends it again.
+  - Text from PyPDF loses its NUL characters and lone surrogate halves, and the model's title and author are cut to their columns: PostgreSQL refuses them, and the whole reading would fail after being paid for.
+  - The word picker gets only the 200 most frequent words (`MAX_PICKER_WORDS`): the analyses compare each text's key terms, and in a book about two thirds of the top 100 are function words, which the model drops.
+  - Each user ticks the library texts the AI uses in their analyses (`Texts.selected_by`, set with `PUT /api/political-culture/texts/<id>/selection`). Every text, old or new, starts unticked. The tools that read the library are built per user (`user_tools` in `chatbot/tools.py`), so they see only that user's ticked texts and the texts they pasted in the chat.
+  - The text search (`query_vectors`) returns the 3 best chunks, and the model can ask for the text around one of them (`get_surrounding_text`): at most 2 chunks before and after, in reading order (chunk ids, within the text). It answers only for chunks the search returned in the same answer, so the model can't walk through a text by guessing ids. Where two chunks meet, the overlap they repeat comes once when it has 20 characters or more, so a short heading at a seam can still repeat.
 - `cfflch`: admission status checker — searches Tavily for PDFs, downloads and parses them, streams results over WebSocket. Has its own dedicated database (`cfflch_db`).
 - `plants`: ESP32 data ingestion, OpenWeather integration for weather data, AI chatbot. The chatbot now has an extra `respond` node after tool execution so tool output is surfaced to the user correctly.
 
@@ -67,15 +74,12 @@ The Next.js frontend that serves their UIs lives in `../frontend`. `README.md` c
 - PDF downloads are concurrent via `asyncio.gather`
 - Name matching uses substring match on normalized text (not fuzzy/per-line matching)
 
-**Planned (no timeline):**
-- Write unit tests for `plants`, `political_culture` and `cfflch` beyond the API auth (pytest, in `tests/`)
-
 ## Testing
 - Unit tests run in CI (`uv run pytest` in `.github/workflows/backend-ci.yml` at the repository root) on every pull request that changes `backend/`.
 - **Target:** unit tests only, written cleanly and with full understanding — not just for coverage
 - **Location:** `tests/` folder (next to `manage.py`) mirroring the app structure
-- **Coverage:** `news_podcast` has tests (`tests/news_podcast/`, no network). For `plants`, `political_culture` and `cfflch` only the API auth is tested (`tests/<app>/`, plus `tests/backend/test_api_auth.py` and `tests/api_keys/`); do not assume other coverage there
-- **Setup:** pytest-django. Tests mock the app data, the LLMs and the external APIs. Two databases are real, in the tests that ask for them with `@pytest.mark.django_db`: `default`, for the API keys and the admin, and `news_podcast_db`, for the podcast settings and history. pytest-django creates and drops a `test_` copy of each, on the local PostgreSQL (run `make db-up` first) or on SQLite in CI. The settings need `API_TOKEN_SECRET` and `ESP32_DEVICE_KEY`; CI sets dummies, plus `OPENAI_API_KEY` because the chatbot views build their clients on import
+- **Coverage:** all four apps have tests in `tests/<app>/`; the API auth also has `tests/backend/test_api_auth.py` and `tests/api_keys/`
+- **Setup:** pytest-django. Tests mock the LLMs and the external APIs and never reach the network. The databases are real in the tests that ask for them with `@pytest.mark.django_db(databases=["default", "<app>_db"])`: always list `default`, or a file run on its own fails with "Circular dependency in TEST[DEPENDENCIES]". Add `transaction=True` only when the code under test closes connections or queries from worker threads. pytest-django creates and drops a `test_` copy of each database, on the local PostgreSQL (run `make db-up` first) or on in-memory SQLite in CI, and the tests must pass on both, so pgvector searches (`CosineDistance`, which SQLite lacks) stay out of the database tests. The settings need `API_TOKEN_SECRET` and `ESP32_DEVICE_KEY`; CI sets dummies, plus `OPENAI_API_KEY` because the chatbot views build their clients on import
 
 ## Non-negotiables
 The shared ones (learning-first, git managed by the user) are in the root `CLAUDE.md`.

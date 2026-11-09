@@ -1,16 +1,26 @@
-from typing import Any
+import json
+from collections.abc import Callable
+from typing import Any, NamedTuple
 from unittest.mock import patch
 
 import pytest
-from django.db.models import Q
+from django.db.models import F
+from django.db.models.functions import Abs
+from langchain_core.documents import Document
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, ToolMessage
 from langchain_core.messages.tool import invalid_tool_call, tool_call
 from langchain_core.runnables import RunnableLambda
 from langchain_core.tools import tool
 
 from political_culture.api.chatbot import agents
-from political_culture.api.chatbot.tools import user_tools
+from political_culture.api.chatbot import tools as chatbot_tools
+from political_culture.api.chatbot.tools import UserTools, user_tools
 from political_culture.api.chatbot.utils import get_recent_chat_history_db
+from political_culture.api.word_counter import service as word_counter
+from political_culture.api.word_counter.schemas import SurroundingText
+from political_culture.models import TextChunks, Texts, TextWordCount, Users
+
+DATABASES = pytest.mark.django_db(databases=["default", "political_culture_db"])
 
 
 @tool
@@ -29,6 +39,12 @@ def find_nothing() -> list[str]:
 def break_down() -> str:
     """Fail."""
     raise RuntimeError("database is down")
+
+
+@tool
+def describe() -> SurroundingText:
+    """Return a text around."""
+    return SurroundingText(before="Antes.", after="Depois.")
 
 
 class ScriptedModel:
@@ -73,6 +89,21 @@ def tool_reply(model: ScriptedModel) -> ToolMessage:
     reply = messages[-1]
     assert isinstance(reply, ToolMessage)
     return reply
+
+
+def test_a_tool_result_reaches_the_model_as_json(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _, model = answer_with(
+        monkeypatch,
+        [asks_for("describe", "call-1"), AIMessage(content="Pronto.")],
+        [describe],
+    )
+
+    assert json.loads(str(tool_reply(model).content)) == {
+        "before": "Antes.",
+        "after": "Depois.",
+    }
 
 
 def test_the_tools_the_model_asks_for_run_before_it_answers(
@@ -176,17 +207,244 @@ def test_the_memory_tool_reads_the_user_of_the_conversation() -> None:
     memories.filter.assert_called_once_with(user_id=7)
 
 
-def test_word_counts_only_come_from_the_library_or_the_user_own_texts() -> None:
-    with patch("political_culture.api.chatbot.tools.TextWordCount.objects") as counts:
-        counts.filter.return_value.values_list.return_value.first.return_value = {
-            "estado": 3
-        }
+class Library(NamedTuple):
+    """User me's view of the library: one text ticked by me, one ticked only by
+    another user, one ticked by no one, and a text each of them pasted in the chat."""
 
-        word_count = user_tools(7).word_count.invoke({"text_id": 12})
+    me: int
+    ticked: Texts
+    ticked_by_other: Texts
+    unticked: Texts
+    my_paste: Texts
+    other_paste: Texts
 
-    assert word_count == {"estado": 3}
-    visible = Q(text__user_submitted_text=False) | Q(text__user_id=7)
-    counts.filter.assert_called_once_with(visible, text_id=12)
+
+@pytest.fixture
+def library() -> Library:
+    me = Users.objects.create(auth_user_id=1)
+    other = Users.objects.create(auth_user_id=2)
+
+    def text(title: str, owner: Users, pasted: bool = False) -> Texts:
+        text = Texts.objects.create(
+            user=owner, title=title, text=title, user_submitted_text=pasted
+        )
+        TextWordCount.objects.create(
+            text=text, total_word_count=1, word_frequencies={title: 1}
+        )
+        return text
+
+    ticked = text("Marcado", other)
+    ticked_by_other = text("Marcado pelo outro", me)
+    ticked.selected_by.add(me)
+    ticked_by_other.selected_by.add(other)
+    return Library(
+        me.id,
+        ticked,
+        ticked_by_other,
+        text("Desmarcado", other),
+        text("Meu colado", me, pasted=True),
+        text("Colado pelo outro", other, pasted=True),
+    )
+
+
+@DATABASES
+def test_the_library_tool_lists_only_the_texts_the_user_ticked(
+    library: Library,
+) -> None:
+    texts = user_tools(library.me).library_texts.invoke({})
+
+    assert [text[0] for text in texts] == [library.ticked.id]
+
+
+@DATABASES
+def test_word_counts_come_from_ticked_texts_and_the_user_own_pastes(
+    library: Library,
+) -> None:
+    word_count = user_tools(library.me).word_count
+
+    readable = {
+        text.title
+        for text in library[1:]
+        if word_count.invoke({"text_id": text.id}) is not None
+    }
+
+    assert readable == {"Marcado", "Meu colado"}
+
+
+@DATABASES
+def test_the_text_search_reads_ticked_texts_and_the_user_own_pastes(
+    library: Library,
+) -> None:
+    # CosineDistance needs PostgreSQL, so only the filter runs on the database.
+    with (
+        patch("political_culture.api.chatbot.tools.OpenAIEmbeddings"),
+        patch("political_culture.api.chatbot.tools.TextChunks.objects") as chunks,
+    ):
+        user_tools(library.me).search_text.invoke({"text_id": 1, "query": "estado"})
+
+    assert chunks.filter.call_args.kwargs["text_id"] == 1
+    searched = chunks.filter.call_args.kwargs["text__in"]
+    assert set(searched.values_list("title", flat=True)) == {"Marcado", "Meu colado"}
+
+
+def chunks(text: Texts, *contents: str) -> list[TextChunks]:
+    return [
+        TextChunks.objects.create(text=text, chunk_text=content) for content in contents
+    ]
+
+
+def search_finds(tools: UserTools, chunk: TextChunks) -> None:
+    """Runs the text search with the vector math faked, so that chunk and the ones
+    next to it come first: CosineDistance needs PostgreSQL, and embeddings OpenAI."""
+    with (
+        patch.object(chatbot_tools, "OpenAIEmbeddings"),
+        patch.object(
+            chatbot_tools, "CosineDistance", return_value=Abs(F("id") - chunk.id)
+        ),
+    ):
+        tools.search_text.invoke({"text_id": chunk.text_id, "query": "estado"})
+
+
+def around(tools: UserTools, chunk: TextChunks, **counts: int) -> Any:
+    arguments: dict[str, int] = {"chunk_id": chunk.id, **counts}
+    return tools.surrounding_text.invoke(arguments)
+
+
+def found_around(user_id: int, chunk: TextChunks, **counts: int) -> Any:
+    """The text around chunk once the search returned it, in the same answer."""
+    tools = user_tools(user_id)
+    search_finds(tools, chunk)
+    return around(tools, chunk, **counts)
+
+
+@DATABASES
+def test_the_text_around_a_chunk_comes_from_its_text_in_reading_order(
+    library: Library,
+) -> None:
+    chunks(library.ticked, "Um.", "Dois.")
+    # Another upload at the same time takes the ids in between.
+    chunks(library.unticked, "De outro texto.")
+    third, _ = chunks(library.ticked, "Três.", "Quatro.")
+
+    assert found_around(library.me, third) == SurroundingText(
+        before="Dois.", after="Quatro."
+    )
+
+
+@DATABASES
+def test_the_text_around_a_chunk_is_at_most_two_chunks_each_way(
+    library: Library,
+) -> None:
+    parts = chunks(
+        library.ticked, "Um.", "Dois.", "Três.", "Quatro.", "Cinco.", "Seis."
+    )
+
+    assert found_around(
+        library.me, parts[2], chunks_before=5, chunks_after=5
+    ) == SurroundingText(before="Um.\n\nDois.", after="Quatro.\n\nCinco.")
+
+
+@DATABASES
+def test_what_two_chunks_repeat_at_their_seam_comes_once(library: Library) -> None:
+    _, middle, _ = chunks(
+        library.ticked,
+        "O começo do capítulo. Uma frase que os dois trechos repetem.",
+        "Uma frase que os dois trechos repetem. O meio do capítulo. Outra frase "
+        "repetida no fim.",
+        "Outra frase repetida no fim. O fim do capítulo.",
+    )
+
+    assert found_around(library.me, middle) == SurroundingText(
+        before="O começo do capítulo.", after="O fim do capítulo."
+    )
+
+
+@DATABASES
+def test_a_short_coincidence_at_a_seam_is_not_cut(library: Library) -> None:
+    _, next_page = chunks(
+        library.ticked, "O fim de uma página na cidade", "de manhã, a página seguinte."
+    )
+
+    assert found_around(library.me, next_page).before == "O fim de uma página na cidade"
+
+
+@DATABASES
+def test_only_the_texts_the_user_reads_have_text_around_their_chunks(
+    library: Library,
+) -> None:
+    (mine,) = chunks(library.my_paste, "Meu.")
+
+    assert found_around(library.me, mine) == SurroundingText(before="", after="")
+    for text in (library.unticked, library.ticked_by_other, library.other_paste):
+        (chunk,) = chunks(text, "Fora do alcance.")
+        assert found_around(library.me, chunk) is None
+
+
+@DATABASES
+def test_there_is_text_around_only_the_chunks_the_search_returned(
+    library: Library,
+) -> None:
+    parts = chunks(library.ticked, "Um.", "Dois.", "Três.", "Quatro.", "Cinco.")
+    tools = user_tools(library.me)
+    search_finds(tools, parts[0])
+
+    assert around(tools, parts[0]) == SurroundingText(before="", after="Dois.")
+    # An id next to them, which the model could guess, is not one the search returned.
+    assert around(tools, parts[4]) is None
+    # Another answer starts with nothing found.
+    assert around(user_tools(library.me), parts[0]) is None
+
+
+@DATABASES
+def test_the_text_around_a_chunk_rebuilds_its_page(library: Library) -> None:
+    page = " ".join(
+        f"A frase {n} do capítulo fala do Estado e do mercado." for n in range(190)
+    )
+    with patch.object(word_counter, "OpenAIEmbeddings"):
+        texts, _ = word_counter.get_embeddings([Document(page_content=page)])
+    parts = chunks(library.ticked, *texts)
+    assert len(parts) == 5
+
+    middle = found_around(library.me, parts[2], chunks_before=2, chunks_after=2)
+
+    assert " ".join([middle.before, texts[2], middle.after]) == page
+
+
+@pytest.mark.parametrize(
+    "ask",
+    [
+        pytest.param(lambda: agents.text_analyist_agent("Um texto.", 1), id="analysis"),
+        pytest.param(lambda: agents.general_chat_agent("Oi", [], 1), id="chat"),
+    ],
+)
+def test_the_agents_that_search_a_text_can_read_around_a_chunk(
+    ask: Callable[[], str],
+) -> None:
+    with patch.object(agents, "_answer_with_tools", return_value="Ok.") as answer:
+        ask()
+
+    names = {tool.name for tool in answer.call_args.args[1]}
+    assert {"query_vectors", "get_surrounding_text"} <= names
+
+
+@DATABASES
+@pytest.mark.parametrize(
+    "agent",
+    [
+        agents.word_analyist_agent,
+        agents.text_analyist_agent,
+        agents.text_ideology_analyist_agent,
+    ],
+)
+def test_the_analysis_agents_read_the_library_as_the_user(
+    library: Library, agent: Callable[[str, int], str]
+) -> None:
+    with patch.object(agents, "_invoke_tool_agent", return_value="Ok.") as invoke:
+        agent("Um texto.", library.me)
+
+    tools = {tool.name: tool for tool in invoke.call_args.args[1]}
+    listed = tools["get_all_texts_info"].invoke({})
+    assert [text[0] for text in listed] == [library.ticked.id]
 
 
 class Row:

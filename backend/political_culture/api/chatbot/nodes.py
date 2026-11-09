@@ -95,7 +95,7 @@ def text_analysis(state: SquadState) -> SquadState:
         f"Title: {state['title']} \nAuthor: {state['author']}\n\nText: {state['input']}"
     )
 
-    response = agents.text_analyist_agent(input)
+    response = agents.text_analyist_agent(input, int(state["user_id"]))
 
     return {**state, "text_analysis_response": response}
 
@@ -107,7 +107,7 @@ def text_ideology_analysis(state: SquadState) -> SquadState:
         f"Title: {state['title']} \nAuthor: {state['author']}\n\nText: {state['input']}"
     )
 
-    response = agents.text_ideology_analyist_agent(input)
+    response = agents.text_ideology_analyist_agent(input, int(state["user_id"]))
 
     return {**state, "ideology_analysis_response": response}
 
