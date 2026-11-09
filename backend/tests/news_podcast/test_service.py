@@ -31,7 +31,7 @@ from news_podcast.api.episode.service import (
     selection_prompt,
     send_chat_ids,
 )
-from news_podcast.api.episode.telegram import TelegramClient
+from news_podcast.api.episode.telegram import TelegramClient, TelegramError
 from news_podcast.models import PodcastSettings
 
 TURNS = [Turn(speaker="Bia", text="Bom dia")]
@@ -402,6 +402,42 @@ def test_a_scheduled_episode_goes_out_as_soon_as_it_is_ready(
 
     assert asyncio.run(scenario()) == [("-22", "🎙️ Resumo das 7")]
     assert waits == []
+
+
+class RefusingTelegram(FakeTelegram):
+    """Refuses the voice message, as a group does when the bot can't post in it."""
+
+    async def send_voice(
+        self, chat_id: str, voice_path: Path, caption: str, duration_seconds: int
+    ) -> None:
+        raise TelegramError("Telegram respondeu 400: not enough rights")
+
+
+def test_a_refused_send_warns_the_admin_chat(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    report = EpisodeReport(
+        audio_path=tmp_path / "resumo.ogg",
+        duration_seconds=600.4,
+        caption="🎙️ Resumo das 7",
+    )
+
+    async def ready(*_args: object) -> EpisodeReport:
+        return report
+
+    async def scenario() -> list[tuple[str, str]]:
+        async with httpx.AsyncClient() as client:
+            telegram = RefusingTelegram(client)
+            service = telegram_service(client, telegram, "-22", admin_chat_id="11")
+            monkeypatch.setattr(service, "_generate", ready)
+            with pytest.raises(TelegramError):
+                await service.generate_episode(scheduled=True, send=True)
+            return telegram.sent
+
+    sent = asyncio.run(scenario())
+
+    assert [chat_id for chat_id, _ in sent] == ["11"]
+    assert "<b>Etapa:</b> envio" in sent[0][1]
 
 
 def test_chat_list_goes_only_to_the_admin_chat() -> None:

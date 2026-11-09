@@ -81,9 +81,9 @@ O bot só envia para a conversa do `TELEGRAM_CHAT_ID`. Quem só abre o bot e man
    conversas que viu nas últimas 24 horas, com o número de cada uma. O grupo aparece com
    👥 e um número negativo.
 3. Troque `TELEGRAM_CHAT_ID` pelo número do grupo no serviço do Railway. Daí em diante o
-   resumo vai para o grupo. Os avisos de erro vão para o `TELEGRAM_ADMIN_CHAT_ID` (o
-   número da sua conversa com o bot), para não aparecerem no grupo; sem ele, vão para o
-   grupo também.
+   resumo vai para o grupo. Os avisos de erro, inclusive o de um envio que o grupo
+   recusou, vão para o `TELEGRAM_ADMIN_CHAT_ID` (o número da sua conversa com o bot),
+   para não aparecerem no grupo; sem ele, vão para o grupo também.
 
 Se o grupo não aparecer na lista (o Telegram só guarda as últimas 24 horas para o bot),
 mande `/start@nome_do_bot` no grupo e rode de novo. Se o Telegram transformar o grupo em
