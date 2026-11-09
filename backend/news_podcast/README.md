@@ -15,7 +15,7 @@ configurações e o histórico. O resto é um management command.
 | Etapa | Arquivo | O que acontece |
 |---|---|---|
 | Feeds | `api/episode/feeds.py` | Lê o OPML exportado do Feeder, baixa os 9 feeds em paralelo e mantém só o que saiu entre 6h de ontem e 6h de hoje. |
-| Seleção | `service.py` + prompt de seleção | O modelo de texto recebe todas as manchetes, junta as que falam do mesmo fato, aplica as regras editoriais e escolhe uma história para cada minuto e meio de episódio (de 8 a 12 no padrão), com o tempo de cada uma. |
+| Seleção | `service.py` + prompt de seleção | O modelo de texto recebe todas as manchetes, junta as que falam do mesmo fato, aplica as regras editoriais e, pesando quantos veículos diferentes deram cada fato (cada veículo conta uma vez), escolhe uma história para cada minuto e meio de episódio (de 8 a 12 no padrão), com o tempo de cada uma. |
 | Leitura | `api/episode/articles.py` | Para cada história, lê o texto completo de até 3 veículos (o ICL vem primeiro). Os demais veículos que deram a notícia entram como manchete. Páginas de vídeo, que não têm texto, não são lidas, e outro veículo fica com a vaga. Todos os feeds são de sites sem paywall. |
 | Roteiro | `service.py` + prompt do roteiro | O modelo de texto escreve o diálogo com 170 palavras por minuto de episódio, vezes a velocidade (de 2.040 a 3.060 palavras no padrão), abrindo com uma escalada de 3 a 5 manchetes curtas, como nos telejornais. Se vier curto demais, pede uma versão mais longa uma vez. |
 | Voz | `api/episode/gemini.py` | O modelo de voz gera o diálogo com as duas vozes, em blocos de cerca de 650 palavras. Se o Gemini estiver fora do ar, o código espera e tenta de novo (veja *Bom saber*). |

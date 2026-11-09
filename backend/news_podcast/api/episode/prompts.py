@@ -41,6 +41,12 @@ Sua tarefa:
 menos importante, e distribua o tempo para somar cerca de {target_minutes} minutos. \
 As principais podem ter de 2 a 3 minutos; as menores, cerca de 1 minuto.
 
+Para medir a importância de um fato, veja quantos veículos diferentes o \
+noticiaram: quanto mais veículos, mais importante ele tende a ser. Conte cada \
+veículo uma vez, por mais manchetes que ele tenha sobre o fato; um veículo que \
+publica muitas manchetes no dia não torna os assuntos dele mais importantes. Use \
+esse critério junto com as prioridades abaixo para escolher e ordenar as histórias.
+
 Prioridades, nesta ordem:
 - Política nacional, que deve estar sempre presente: governo, Congresso, STF, \
 eleições, partidos e políticas públicas.
