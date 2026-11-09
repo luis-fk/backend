@@ -1,5 +1,6 @@
 import json
 import logging
+from typing import Any
 
 from langchain_core.messages import BaseMessage, HumanMessage, ToolCall, ToolMessage
 from langchain_core.prompts import (
@@ -8,6 +9,7 @@ from langchain_core.prompts import (
     SystemMessagePromptTemplate,
 )
 from langchain_core.tools import BaseTool
+from pydantic import BaseModel
 
 from political_culture.api.chatbot import prompts
 from political_culture.api.chatbot import tools as chatbot_tools
@@ -49,6 +51,10 @@ def _answer_with_tools(messages: list[BaseMessage], tools: list[BaseTool]) -> st
     return str(final.content)
 
 
+def _as_json(value: Any) -> Any:
+    return value.model_dump() if isinstance(value, BaseModel) else str(value)
+
+
 def _run_tool(tool: BaseTool | None, call: ToolCall) -> ToolMessage:
     """Runs one call and gives the model the result as JSON text: OpenAI refuses an
     empty list as content. A failure goes back as text too, so the model can carry
@@ -61,7 +67,7 @@ def _run_tool(tool: BaseTool | None, call: ToolCall) -> ToolMessage:
     except Exception as error:
         logger.warning(f"Tool {call['name']} failed: {error}")
         return ToolMessage(f"Error: {error}", tool_call_id=call_id, status="error")
-    content = json.dumps(output, ensure_ascii=False, default=str)
+    content = json.dumps(output, ensure_ascii=False, default=_as_json)
     return ToolMessage(content, tool_call_id=call_id)
 
 
@@ -83,7 +89,11 @@ def word_analyist_agent(input: str, user_id: int) -> str:
 
 def text_analyist_agent(input: str, user_id: int) -> str:
     user_tools = chatbot_tools.user_tools(user_id)
-    tools = [user_tools.search_text, user_tools.library_texts]
+    tools = [
+        user_tools.search_text,
+        user_tools.surrounding_text,
+        user_tools.library_texts,
+    ]
     return _invoke_tool_agent(prompts.TEXT_ANALYSIS_PROMPT, tools, input)
 
 
@@ -137,6 +147,7 @@ def general_chat_agent(
     tools = [
         user_tools.library_texts,
         user_tools.search_text,
+        user_tools.surrounding_text,
         user_tools.word_count,
         user_tools.submitted_texts,
         user_tools.memory,
