@@ -1,0 +1,27 @@
+meta {
+  name: Admission Status WebSocket
+  type: ws
+  seq: 2
+}
+
+ws {
+  url: {{wsUrl}}/ws/cfflch/admission-status/bruno
+  body: ws
+  auth: none
+}
+
+headers {
+  Sec-WebSocket-Protocol: bearer, {{cfflchToken}}
+}
+
+body:ws {
+  name: message 1
+  type: json
+  content: '''
+    {}
+  '''
+}
+
+docs {
+  The WebSockets take only user tokens, not API keys: copy the site's token (the second value of the `Sec-WebSocket-Protocol` header of its WebSocket) into `cfflchToken`.
+}

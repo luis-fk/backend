@@ -1,0 +1,24 @@
+meta {
+  name: Admission Status
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/api/cfflch/admission-status/
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "names": ["Fulano de Tal", "Ciclano de Tal"],
+    "year": 2025,
+    "request_id": "bruno",
+    "class_name": "Turma A"
+  }
+}
+
+docs {
+  The results arrive on the Admission Status WebSocket of the same `request_id`, which must be connected first.
+}

@@ -1,0 +1,16 @@
+meta {
+  name: Word Counter
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/api/political-culture/word-counter
+  body: multipartForm
+  auth: inherit
+}
+
+body:multipart-form {
+  user_id: {{politicalCultureUserId}}
+  content: @file()
+}

@@ -1,0 +1,27 @@
+meta {
+  name: Chat WebSocket
+  type: ws
+  seq: 4
+}
+
+ws {
+  url: {{wsUrl}}/ws/chat/{{politicalCultureUserId}}
+  body: ws
+  auth: none
+}
+
+headers {
+  Sec-WebSocket-Protocol: bearer, {{politicalCultureToken}}
+}
+
+body:ws {
+  name: message 1
+  type: json
+  content: '''
+    {}
+  '''
+}
+
+docs {
+  The WebSockets take only user tokens, not API keys: copy the site's token (the second value of the `Sec-WebSocket-Protocol` header of its WebSocket) into `politicalCultureToken`.
+}
