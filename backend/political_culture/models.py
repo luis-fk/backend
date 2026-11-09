@@ -29,6 +29,11 @@ class Texts(models.Model):
     file_hash = models.CharField(max_length=64, unique=True, null=True, editable=False)
 
     user = models.ForeignKey(Users, on_delete=models.CASCADE, related_name="texts")
+    # The users whose analyses use this library text. A row exists only for a tick,
+    # so every text, old or new, starts unticked for everyone.
+    selected_by = models.ManyToManyField(
+        Users, related_name="selected_texts", blank=True
+    )
 
     def __str__(self) -> str:
         return f"Text {self.title} by {self.author}"

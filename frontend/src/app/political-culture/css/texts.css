@@ -91,10 +91,31 @@
   gap: 16px;
 }
 
-.political-texts-item {
+.political-texts-library-header {
   display: flex;
   flex-direction: column;
   gap: 4px;
+}
+
+/* The text on the left and its tick on the right; the tick wraps below on phones. */
+.political-texts-item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px 24px;
+}
+
+.political-texts-main {
+  display: flex;
+  flex: 1 1 320px;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.political-texts-pick {
+  flex-shrink: 0;
 }
 
 .political-texts-title {

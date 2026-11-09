@@ -71,8 +71,8 @@ def tiny_pdf(text: str) -> bytes:
     return pdf
 
 
-def auth() -> dict[str, str]:
-    return bearer(user_token(APP, "7"))
+def auth(user_id: int = 7) -> dict[str, str]:
+    return bearer(user_token(APP, str(user_id)))
 
 
 def upload(client: Client, content: bytes, name: str = "texto.pdf") -> Any:
@@ -167,6 +167,7 @@ def test_the_list_says_who_added_each_text_and_leaves_out_the_text(
             "description": None,
             "word_count": None,
             "added_by": None,
+            "selected": False,
         },
         {
             "id": manifesto.id,
@@ -175,8 +176,70 @@ def test_the_list_says_who_added_each_text_and_leaves_out_the_text(
             "description": "Um panfleto.",
             "word_count": 120,
             "added_by": "fulano",
+            "selected": False,
         },
     ]
+
+
+# Each user's ticks
+
+
+def tick(client: Client, user: Users, text_id: int, body: dict[str, Any]) -> Any:
+    return client.put(
+        f"/api/political-culture/texts/{text_id}/selection",
+        body,
+        content_type="application/json",
+        headers=auth(user.id),
+    )
+
+
+@DATABASES
+def test_users_tick_and_untick_texts_for_their_analyses(client: Client) -> None:
+    me = library_user(1)
+    text = library_text(library_user(2), "Manifesto")
+
+    assert tick(client, me, text.id, {"selected": True}).status_code == 204
+    assert list(text.selected_by.all()) == [me]
+    assert tick(client, me, text.id, {"selected": True}).status_code == 204
+    assert list(text.selected_by.all()) == [me]
+
+    assert tick(client, me, text.id, {"selected": False}).status_code == 204
+    assert not text.selected_by.exists()
+
+
+@DATABASES
+def test_the_list_shows_only_the_users_own_ticks(client: Client) -> None:
+    me, other = library_user(1), library_user(2)
+    mine = library_text(other, "Meu")
+    theirs = library_text(other, "Do outro")
+    mine.selected_by.add(me)
+    theirs.selected_by.add(other)
+
+    response = client.get("/api/political-culture/texts", headers=auth(me.id))
+
+    assert {text["title"]: text["selected"] for text in response.json()} == {
+        "Meu": True,
+        "Do outro": False,
+    }
+
+
+@DATABASES
+def test_only_library_texts_can_be_ticked(client: Client) -> None:
+    me = library_user(1)
+    pasted = library_text(me, "Colado no chat", user_submitted_text=True)
+
+    assert tick(client, me, pasted.id, {"selected": True}).status_code == 404
+    assert tick(client, me, pasted.id + 1, {"selected": True}).status_code == 404
+    assert not pasted.selected_by.exists()
+
+
+@DATABASES
+@pytest.mark.parametrize("body", [{}, {"selected": "talvez"}], ids=["none", "text"])
+def test_a_tick_needs_true_or_false(client: Client, body: dict[str, Any]) -> None:
+    text = library_text(library_user(2), "Manifesto")
+
+    assert tick(client, library_user(1), text.id, body).status_code == 400
+    assert not text.selected_by.exists()
 
 
 # The upload
@@ -315,6 +378,7 @@ def test_a_pdf_is_saved_with_its_chunks_info_and_word_count(
     assert len(chunk.vector) == 1536
     assert text.analysis.word_frequencies == {"liberdade": 2}
     assert text.analysis.total_word_count == 3
+    assert not text.selected_by.exists()
 
 
 @DATABASES

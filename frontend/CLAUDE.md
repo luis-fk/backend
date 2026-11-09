@@ -153,6 +153,7 @@ The Django backend runs at `NEXT_PUBLIC_SERVER_URL`. The endpoints the frontend 
 | political-culture | `/api/political-culture/chat-history/{userId}` | GET | Returns chat history |
 | political-culture | `/api/political-culture/texts` | GET | The shared library, newest first |
 | political-culture | `/api/political-culture/texts` | POST | Adds a PDF of up to 100 MB (`content`, and the page's `upload_id`): 202, or 409 when it is in the library or being read; the result comes via WebSocket |
+| political-culture | `/api/political-culture/texts/{id}/selection` | PUT | `{ selected }`: ticks or unticks the text for the user's analyses |
 | cfflch | `/api/cfflch/users/{name}` | GET | Login lookup |
 | cfflch | `/api/cfflch/admission-status/` | POST | Starts an admission search; results come via WebSocket |
 | cfflch | `/api/cfflch/admission-results/` | GET | Saved results for a `year` |
@@ -171,7 +172,7 @@ The plants chat endpoints have no `/plants` prefix in the backend, and its GET r
 
 ### Complete (stable)
 - `plants`: login, session, custom chat UI, chat history, message sending, React Markdown rendering
-- `political-culture`: login, session, custom chat UI, WebSocket streaming, chat history, React Markdown rendering, and the Textos page (the library and the PDF upload, with its progress and result). Texts are edited and deleted only in the Django admin.
+- `political-culture`: login, session, custom chat UI, WebSocket streaming, chat history, React Markdown rendering, and the Textos page (the library, the PDF upload with its progress and result, and each user's ticks on the texts the assistant uses in their analyses, all unticked at first). Texts are edited and deleted only in the Django admin.
 - `cfflch`: login, session, search form (names, year, optional class) with results streamed over WebSocket, results page by year with PDF and class filters, and approve, class change and delete on each result
 
 ### Known gaps

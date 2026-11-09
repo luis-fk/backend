@@ -23,3 +23,7 @@ class UploadSerializer(serializers.Serializer[Any]):
         if b"%PDF-" not in start:
             raise serializers.ValidationError("The file is not a PDF.")
         return content
+
+
+class SelectionSerializer(serializers.Serializer[Any]):
+    selected = serializers.BooleanField()

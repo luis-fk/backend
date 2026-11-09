@@ -1,0 +1,21 @@
+meta {
+  name: Text Selection - PUT
+  type: http
+  seq: 7
+}
+
+put {
+  url: {{baseUrl}}/api/political-culture/texts/1/selection
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "selected": true
+  }
+}
+
+docs {
+  Ticks or unticks a library text for the analyses of the key's user. Every text starts unticked.
+}
