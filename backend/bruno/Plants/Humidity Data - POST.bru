@@ -1,0 +1,23 @@
+meta {
+  name: Humidity Data - POST
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{baseUrl}}/api/esp32/humidity-data
+  body: json
+  auth: none
+}
+
+headers {
+  X-Device-Key: {{deviceKey}}
+}
+
+body:json {
+  {
+    "analogValue": 2048,
+    "digitalValue": 1,
+    "userId": "{{plantsUserId}}"
+  }
+}

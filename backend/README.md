@@ -32,6 +32,8 @@ The ESP32 sends the header `X-Device-Key: <ESP32_DEVICE_KEY>` to `/api/esp32/hum
 
 To call the API from Bruno, or to give someone access, create an API key in the Django admin (**API keys → Add**, in production too): a name saying who or what it is for, the app, and the user id (the `id` in that app's Users table). The admin shows the key once and stores only its hash, so a lost key is replaced with a new one. Send it as `Authorization: Bearer <key>`: it works like that user's token in that app, except on the WebSockets. To revoke it, uncheck **Active** (in the list or on its page) and save; it stops working at once.
 
+The Bruno collection in [`bruno/`](bruno/) documents the API. Its Local environment takes each app's API key and user id, the device key and, for the WebSockets, a user token, as secret variables, which Bruno keeps outside the files. The Production environment stays out of git.
+
 ## Deployment
 Railway deploys `main` (Root Directory `/backend`). Pull requests run Ruff, mypy and pytest in CI.
 

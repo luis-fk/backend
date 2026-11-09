@@ -24,6 +24,7 @@ The Next.js frontend that serves their UIs lives in `../frontend`. `README.md` c
 - **Parnas decomposition is intentional:** each app owns its full logic stack. Do not extract shared utilities across apps even if code looks duplicated — duplication is preferred over coupling. The exceptions, approved by the owner, are two pieces of project infrastructure, like `settings.py` and `asgi.py`: `backend/api_auth.py`, with the token, API key and device key checks every app uses, and the `api_keys` app, with the `ApiKey` model and its admin. The apps never import `api_keys`; its admin finds their Users models by name.
 - The `AppsRouter` automatically routes models to their app-specific database; Django's own apps and `api_keys` go to `default` (`DEFAULT_DB_APPS`). Never use `using=` manually in queries — the router handles it.
 - Separation of concerns: routes handle HTTP only, services contain business logic, serializers handle validation. Keep functions small.
+- **API documentation:** the Bruno collection in `bruno/`, with no Swagger. A new or changed endpoint updates its request there. Values that belong to one person (API keys, user ids, tokens) are secret variables of the Local environment, and bodies use made-up names, so the committed files stay generic.
 
 ## Coding conventions
 - **Files and functions:** `snake_case`
@@ -50,7 +51,8 @@ The Next.js frontend that serves their UIs lives in `../frontend`. `README.md` c
   - **Episode:** a single Telegram voice message (OGG/Opus via `sendVoice`) with a one-line caption, because only voice messages get the speed button. It opens with a TV-news "escalada" (3–5 short headlines, read with the emphatic headline style), without copying any real show. The voice model and styles were chosen by ear; the TTS has no speaking-rate parameter, so pace comes from the style, and `NATURAL_WORDS_PER_MINUTE` (170) must be recalibrated when the voice or the style changes.
   - **Feeds:** only open-access sites whose domain is in `FULL_TEXT_DOMAINS` (no paywalls, no sites that block automated reading); never bypass bot protection.
   - **Chats:** `TELEGRAM_CHAT_ID` is a single chat (a group, to reach more people). Error notices and the `chat-id` list go to `TELEGRAM_ADMIN_CHAT_ID`, falling back to `TELEGRAM_CHAT_ID`.
-  - **Fallbacks:** text falls back to the fallback model, and a model that fails (5xx, timeouts, quota) is skipped for the rest of the run. Voice has no fallback (the user prefers no episode over another voice): it retries after `VOICE_RETRY_MINUTES` and then fails with a Telegram message.
+  - **Text answers:** structured output. Each step sends its Pydantic model's serialization schema (`responseJsonSchema`), where every field is required and the field descriptions in `schemas.py` (in Portuguese) explain the format, so Gemini can only write JSON that follows it and the prompts never ask for JSON. An answer cut short can still break: the log shows the finish reason of an answer that stopped early and where its JSON breaks.
+  - **Fallbacks:** text falls back to the fallback model after a second try on the same one (`ANSWERS_PER_MODEL`), and a model that fails (5xx, timeouts, quota) is skipped for the rest of the run. Voice has no fallback (the user prefers no episode over another voice): it retries after `VOICE_RETRY_MINUTES` and then fails with a Telegram message.
   - **Kept out on purpose:** voice and plan variables, the Microsoft voice and the `samples` action; do not add them back unless asked.
 
 **cfflch behavior (since v2.0.0):**
@@ -67,7 +69,6 @@ The Next.js frontend that serves their UIs lives in `../frontend`. `README.md` c
 
 **Planned (no timeline):**
 - Write unit tests for `plants`, `political_culture` and `cfflch` beyond the API auth (pytest, in `tests/`)
-- Add API documentation
 
 ## Testing
 - Unit tests run in CI (`uv run pytest` in `.github/workflows/backend-ci.yml` at the repository root) on every pull request that changes `backend/`.

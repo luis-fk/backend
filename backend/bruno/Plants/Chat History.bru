@@ -1,0 +1,15 @@
+meta {
+  name: Chat History
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/api/chat-history/:userId/
+  body: none
+  auth: inherit
+}
+
+params:path {
+  userId: {{plantsUserId}}
+}

@@ -70,14 +70,6 @@ tempo comum, promoções e conteúdo de serviço trivial, como "veja como fazer"
 ICL Notícias: se houver alguma manchete do ICL Notícias relevante dentro das \
 prioridades, inclua pelo menos uma história que tenha um item do ICL. Se nada do ICL \
 for relevante, não force.
-
-Em "item_ids", liste todos os ids das manchetes daquele fato, de veículos diferentes \
-quando houver. Em "angle", diga numa frase o que o ouvinte precisa entender da \
-história. Use "politica", "economia", "mundo" ou "geral" em "category".
-
-Responda só com JSON neste formato:
-{{"stories": [{{"title": "...", "category": "politica", "minutes": 2.5, \
-"angle": "...", "item_ids": ["12", "48"]}}]}}
 """.strip()
 
 SCRIPT_PROMPT = """
@@ -108,18 +100,13 @@ confirmado, diga isso.
 Explique siglas pouco conhecidas na primeira vez. Escreva números, valores e datas \
 do jeito que soam naturais em voz alta.
 - Cada fala tem de 1 a 4 frases. Não escreva o nome de quem fala dentro do texto.
-
-Responda só com JSON neste formato, com "headline": true só nas manchetes da \
-escalada:
-{{"turns": [{{"speaker": "{host_a}", "text": "...", "headline": true}}, \
-{{"speaker": "{host_b}", "text": "..."}}]}}
 """.strip()
 
 EXPAND_PROMPT = """
 O roteiro abaixo ficou com {words} palavras, mas precisa ter entre {min_words} e \
-{max_words}. Reescreva o roteiro completo no mesmo formato JSON, com as mesmas \
-histórias e na mesma ordem, aprofundando contexto, explicações e consequências com \
-base nas fontes acima até atingir o tamanho.
+{max_words}. Reescreva o roteiro completo, com as mesmas histórias e na mesma ordem, \
+aprofundando contexto, explicações e consequências com base nas fontes acima até \
+atingir o tamanho.
 
 Roteiro atual:
 {script}

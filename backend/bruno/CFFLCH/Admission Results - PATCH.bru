@@ -1,0 +1,17 @@
+meta {
+  name: Admission Results - PATCH
+  type: http
+  seq: 4
+}
+
+patch {
+  url: {{baseUrl}}/api/cfflch/admission-results/1/
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "approved": true
+  }
+}
