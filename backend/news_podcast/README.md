@@ -157,3 +157,6 @@ está no `.gitignore`.
   depois 20 e tenta de novo, e o episódio chega mais tarde na mesma medida. Se ainda
   falhar, ou se a cota do dia acabar, o episódio do dia não sai e chega uma mensagem de
   erro no Telegram.
+- Uma execução que passa de 2 horas para e manda uma mensagem de erro: o Railway não
+  começa a execução agendada enquanto a anterior está rodando, e uma execução travada
+  bloquearia os dias seguintes.

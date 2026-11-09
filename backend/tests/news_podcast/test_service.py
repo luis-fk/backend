@@ -440,6 +440,51 @@ def test_a_refused_send_warns_the_admin_chat(
     assert "<b>Etapa:</b> envio" in sent[0][1]
 
 
+def test_a_run_past_the_time_limit_stops_and_warns_the_admin_chat(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(config, "MAX_RUN_MINUTES", 0.001)
+
+    async def scenario() -> list[tuple[str, str]]:
+        async with httpx.AsyncClient() as client:
+            telegram = FakeTelegram(client)
+            service = telegram_service(client, telegram, "-22", admin_chat_id="11")
+
+            async def stuck(*_args: object) -> EpisodeReport:
+                service.step = "montagem do áudio"
+                await asyncio.Event().wait()
+                raise AssertionError("unreachable")
+
+            monkeypatch.setattr(service, "_generate", stuck)
+            with pytest.raises(EpisodeError, match="passou de"):
+                # This outer limit only keeps the test from hanging.
+                await asyncio.wait_for(
+                    service.generate_episode(scheduled=True, send=True), timeout=5
+                )
+            return telegram.sent
+
+    sent = asyncio.run(scenario())
+
+    assert [chat_id for chat_id, _ in sent] == ["11"]
+    assert "<b>Etapa:</b> montagem do áudio" in sent[0][1]
+
+
+def test_a_timeout_inside_the_run_keeps_its_own_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def times_out(*_args: object) -> EpisodeReport:
+        raise TimeoutError("o ffmpeg demorou")
+
+    async def scenario() -> None:
+        async with httpx.AsyncClient() as client:
+            service = telegram_service(client, FakeTelegram(client), "-22")
+            monkeypatch.setattr(service, "_generate", times_out)
+            await service.generate_episode(scheduled=True, send=False)
+
+    with pytest.raises(TimeoutError, match="o ffmpeg demorou"):
+        asyncio.run(scenario())
+
+
 def test_chat_list_goes_only_to_the_admin_chat() -> None:
     sent = asyncio.run(report_chats(admin_chat_id="11"))
 

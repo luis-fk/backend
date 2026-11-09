@@ -112,10 +112,7 @@ class NewsPodcastService:
         # the previous day's window ended; a run without --scheduled reads up to now.
         scheduled_for = send_at if scheduled else None
         try:
-            report = await self._generate(now, send_at, scheduled_for)
-            if send:
-                self.step = "envio"
-                await self._deliver(report)
+            report = await self._make_and_send(now, send_at, scheduled_for, send)
         except Exception as error:
             logger.exception(f"Episode failed during '{self.step}'")
             if send:
@@ -124,6 +121,30 @@ class NewsPodcastService:
                 )
             raise
         return report
+
+    async def _make_and_send(
+        self,
+        now: datetime,
+        send_at: datetime,
+        scheduled_for: datetime | None,
+        send: bool,
+    ) -> EpisodeReport:
+        """Stops the run after MAX_RUN_MINUTES, at the await it is in. A call
+        running in a thread, like trafilatura's, can't be stopped."""
+        limit = asyncio.timeout(config.MAX_RUN_MINUTES * 60)
+        try:
+            async with limit:
+                report = await self._generate(now, send_at, scheduled_for)
+                if send:
+                    self.step = "envio"
+                    await self._deliver(report)
+                return report
+        except TimeoutError as error:
+            if not limit.expired():
+                raise
+            raise EpisodeError(
+                f"A execução passou de {config.MAX_RUN_MINUTES} minutos"
+            ) from error
 
     async def _generate(
         self, now: datetime, send_at: datetime, scheduled_for: datetime | None
