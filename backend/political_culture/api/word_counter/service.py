@@ -30,12 +30,15 @@ from political_culture.models import (
     TextWordCount,
 )
 
-# Enough for a title page, a table of contents and the start of an introduction.
+# What the model reads of a long text for its title, author and summary (text_sample):
+# the opening, enough for a title page, a table of contents and the start of an
+# introduction, plus a few chunks spread through the rest, so the summary covers the
+# whole text.
 OPENING_CHARS = 8000
 SAMPLED_PASSAGES = 3
-# A book has tens of thousands of different words. Its most frequent ones are enough
-# to pick from, and keep the call small.
-MAX_PICKER_WORDS = 2000
+# The key terms come from the most frequent words. In a book, function words fill about
+# two thirds of the top 100, so 200 leave the model about a hundred to pick from.
+MAX_PICKER_WORDS = 200
 
 
 class NoText(Exception):

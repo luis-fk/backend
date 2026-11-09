@@ -29,8 +29,6 @@ WORD_EXTRACTION_PROMPT = (
     "\n2) Represent key entities, concepts, or domain-specific terminology."
     "\n3) Are important for understanding the content, structure, or intent of the"
     " document."
-    "\n4) May include uncommon or high-signal terms, even if they are low in"
-    " frequency."
     "\nDo not return general-purpose or filler words (e.g., 'the', 'also', 'very')"
     " unless they carry domain-specific importance."
     "\nDo not rely solely on frequency — use the summary to infer what matters."
