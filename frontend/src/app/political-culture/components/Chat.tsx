@@ -172,7 +172,9 @@ export default function Chat(): React.ReactElement {
                 >
                   <ReactMarkdown
                     remarkPlugins={[remarkGfm]}
-                    disallowedElements={["pre", "code"]}
+                    // No images: loading one could send data from the reply to
+                    // any site its URL points to.
+                    disallowedElements={["pre", "code", "img"]}
                     unwrapDisallowed={true}
                   >
                     {msg.message}

@@ -1,5 +1,8 @@
 from django.contrib import admin
+from django.db.models import QuerySet
+from django.http import HttpRequest
 
+from political_culture.api.word_counter.service import analyse_again
 from political_culture.models import (
     ChatHistory,
     IdeologiesDefinition,
@@ -23,6 +26,15 @@ class TextsAdmin(admin.ModelAdmin):
     list_filter = ["ideology", "user_submitted_text"]
     search_fields = ["title", "author", "ideology"]
     raw_id_fields = ["user"]
+    actions = ["analyse_selected_again"]
+
+    @admin.action(description="Analyse again (title, author, summary, word count)")
+    def analyse_selected_again(
+        self, request: HttpRequest, queryset: QuerySet[Texts]
+    ) -> None:
+        for text in queryset:
+            analyse_again(text)
+        self.message_user(request, f"{queryset.count()} text(s) analysed again.")
 
 
 @admin.register(TextWordCount)
