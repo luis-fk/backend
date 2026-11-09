@@ -29,12 +29,13 @@ interface LibraryText {
   selected: boolean;
 }
 
-// The upload in progress: sending the file, then, once uploadId arrives, the
-// backend reading it.
+// The upload in progress: sending the file, then, once sent, the backend reading
+// it. The page picks the id, so a result that comes before the 202 still matches.
 interface Upload {
+  id: string;
   name: string;
   progress: number;
-  uploadId: string | null;
+  sent: boolean;
 }
 
 interface Notice {
@@ -56,7 +57,7 @@ function uploadError(error: unknown): string {
     case 400:
       return "Envie um PDF de até 100 MB.";
     case 409:
-      return "Este PDF já está na biblioteca.";
+      return "Este PDF já está na biblioteca, ou ainda está sendo lido.";
     default:
       return "Não foi possível enviar o PDF. Tente de novo.";
   }
@@ -133,22 +134,22 @@ export default function Texts(): React.ReactElement {
     return () => controller.abort();
   }, [token, serverUrl, reloads]);
 
-  useTextsSocket({
+  const socket = useTextsSocket({
     userId,
     token,
     serverUrl,
     onResult: (result) => {
       // Another tab's upload also fills the library.
       if (result.status === "ready") setReloads((count) => count + 1);
-      if (!upload || result.upload_id !== upload.uploadId) return;
+      if (!upload || result.upload_id !== upload.id) return;
       setUpload(null);
       setNotice(resultNotice(result, upload.name));
     },
-    onError: () => {
+    onClose: () => {
       if (!upload) return;
+      setUpload(null);
       setNotice({
-        message:
-          "A conexão caiu. Recarregue a página mais tarde para ver o texto na lista.",
+        message: `A conexão caiu durante ${upload.sent ? "a leitura" : "o envio"} de ${upload.name}. Recarregue a página: se a leitura terminar, o texto aparece na lista.`,
         severity: "error",
       });
     },
@@ -170,32 +171,33 @@ export default function Texts(): React.ReactElement {
 
   async function send(event: React.FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
-    if (!file || !token || !serverUrl || upload) return;
+    if (!file || !token || !serverUrl || upload || socket !== "open") return;
 
+    const id = crypto.randomUUID();
     const name = file.name;
     const form = new FormData();
     form.append("content", file);
-    setUpload({ name, progress: 0, uploadId: null });
+    form.append("upload_id", id);
+    setUpload({ id, name, progress: 0, sent: false });
+    // The updates below check the id: the result, or a dropped socket, may have
+    // ended this upload already.
+    const update = (change: Partial<Upload>): void =>
+      setUpload((current) =>
+        current?.id === id ? { ...current, ...change } : current,
+      );
 
     try {
-      const response = await axios.post<{ upload_id: string }>(
-        `${serverUrl}/api/political-culture/texts`,
-        form,
-        {
-          headers: { Authorization: `Bearer ${token}` },
-          onUploadProgress: (progress) =>
-            setUpload(
-              (current) =>
-                current && { ...current, progress: progress.progress ?? 0 },
-            ),
-        },
-      );
-      setUpload({ name, progress: 1, uploadId: response.data.upload_id });
+      await axios.post(`${serverUrl}/api/political-culture/texts`, form, {
+        headers: { Authorization: `Bearer ${token}` },
+        onUploadProgress: (progress) =>
+          update({ progress: progress.progress ?? 0 }),
+      });
+      update({ progress: 1, sent: true });
       setFile(null);
       if (fileInput.current) fileInput.current.value = "";
     } catch (error) {
       logger.error("Failed to upload a text", { name, error });
-      setUpload(null);
+      setUpload((current) => (current?.id === id ? null : current));
       setNotice({ message: uploadError(error), severity: "error" });
     }
   }
@@ -279,15 +281,22 @@ export default function Texts(): React.ReactElement {
         <button
           type="submit"
           className="button"
-          disabled={!file || !token || Boolean(upload)}
+          disabled={!file || !token || Boolean(upload) || socket !== "open"}
         >
           Adicionar texto
         </button>
       </form>
 
+      {socket === "closed" && (
+        <p className="form-error">
+          A conexão com o servidor caiu. Recarregue a página para adicionar
+          textos.
+        </p>
+      )}
+
       {upload && (
         <div className="political-texts-status" role="status">
-          {upload.uploadId === null ? (
+          {!upload.sent ? (
             <>
               <p>
                 Enviando {upload.name}… {Math.round(upload.progress * 100)}%

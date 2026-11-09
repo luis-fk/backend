@@ -254,6 +254,7 @@ def test_the_text_search_reads_ticked_texts_and_the_user_own_pastes(
     ):
         user_tools(library.me).search_text.invoke({"text_id": 1, "query": "estado"})
 
+    assert chunks.filter.call_args.kwargs["text_id"] == 1
     searched = chunks.filter.call_args.kwargs["text__in"]
     assert set(searched.values_list("title", flat=True)) == {"Marcado", "Meu colado"}
 
