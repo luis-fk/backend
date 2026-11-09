@@ -15,7 +15,7 @@ type ProjectConfig = {
 const PROJECTS: Record<string, ProjectConfig> = {
   "political-culture": {
     publicPaths: [""],
-    protectedPaths: ["chat"],
+    protectedPaths: ["chat", "texts"],
     defaultProtectedPath: "chat",
   },
   plants: {
