@@ -97,11 +97,21 @@ class PodcastSettingsAdmin(admin.ModelAdmin):
 
 @admin.register(Episode)
 class EpisodeAdmin(admin.ModelAdmin):
-    list_display = ["started", "status", "length", "cost", "short_error"]
+    list_display = ["started", "status", "length", "pace", "cost", "short_error"]
     list_filter = ["status"]
     date_hierarchy = "started_at"
-    fields = ["started", "status", "length", "cost", "cost_usd", "usage", "error"]
-    readonly_fields = ["started", "length", "cost"]
+    fields = [
+        "started",
+        "status",
+        "length",
+        "script_words",
+        "pace",
+        "cost",
+        "cost_usd",
+        "usage",
+        "error",
+    ]
+    readonly_fields = ["started", "length", "pace", "cost"]
 
     # The history is written by the runs only.
     def has_add_permission(self, request: HttpRequest) -> bool:
@@ -122,6 +132,13 @@ class EpisodeAdmin(admin.ModelAdmin):
             return "-"
         minutes, seconds = divmod(round(episode.duration_seconds), 60)
         return f"{minutes}:{seconds:02d}"
+
+    # At speed 1.0, the voice's own pace, the one NATURAL_WORDS_PER_MINUTE stands for.
+    @admin.display(description="words/min")
+    def pace(self, episode: Episode) -> str:
+        if not episode.script_words or not episode.duration_seconds:
+            return "-"
+        return f"{episode.script_words / (episode.duration_seconds / 60):.0f}"
 
     @admin.display(description="cost", ordering="cost_usd")
     def cost(self, episode: Episode) -> str:

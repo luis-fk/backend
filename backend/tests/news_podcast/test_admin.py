@@ -88,3 +88,24 @@ def test_the_history_shows_each_cost_and_the_total(admin_client: Client) -> None
     assert "R$\N{NO-BREAK SPACE}0,44" in page
     assert "<strong>R$ 0,99</strong>" in page
     assert admin_client.get(f"{EPISODES_URL}add/").status_code == 403
+
+
+@DATABASES
+def test_the_history_shows_the_voice_pace(admin_client: Client) -> None:
+    Episode.objects.create(
+        started_at=datetime(2026, 11, 9, 9, 40, tzinfo=UTC),
+        status=Episode.Status.SENT,
+        duration_seconds=900.0,
+        script_words=2550,
+        cost_usd=0.10,
+    )
+    Episode.objects.create(
+        started_at=datetime(2026, 11, 8, 9, 10, tzinfo=UTC),
+        status=Episode.Status.FAILED,
+        cost_usd=0.02,
+    )
+
+    page = admin_client.get(EPISODES_URL).content.decode()
+
+    assert '<td class="field-pace">170</td>' in page
+    assert '<td class="field-pace">-</td>' in page

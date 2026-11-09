@@ -202,7 +202,10 @@ class NewsPodcastService:
         )
         logger.info(f"Episode ready: {duration:.0f}s\n{caption}\n{details}")
         return EpisodeReport(
-            audio_path=audio_path, duration_seconds=duration, caption=caption
+            audio_path=audio_path,
+            duration_seconds=duration,
+            caption=caption,
+            script_words=count_words(script.turns),
         )
 
     async def _select_stories(

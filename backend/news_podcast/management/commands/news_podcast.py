@@ -106,6 +106,7 @@ def make_episode(*, scheduled: bool, send: bool) -> None:
         started_at=started_at,
         status=status,
         duration_seconds=run.report.duration_seconds if run.report else None,
+        script_words=run.report.script_words if run.report else None,
         cost_usd=total_cost_usd(run.usages, podcast_settings.prices()),
         usage=[usage.model_dump() for usage in run.usages],
         error=f"{run.step}: {run.error}" if run.error else "",
