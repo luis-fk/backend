@@ -1,6 +1,7 @@
 import asyncio
 import io
 import logging
+import re
 from collections.abc import Callable, Coroutine
 from typing import Any
 
@@ -14,6 +15,7 @@ from cfflch.api.admission_status.schemas import (
     StudentFoundResult,
     StudentNotFoundResult,
     StudentResult,
+    StudentSearchFailedResult,
 )
 from cfflch.api.admission_status.utils import normalize_text
 from cfflch.models import AdmissionPDF, AdmissionResult, ClassRoom
@@ -39,7 +41,9 @@ class AdmissionStatusService:
 
     async def _search_for_pdfs(
         self, student_name: str, year: int
-    ) -> tuple[str, list[dict[str, str]]]:
+    ) -> tuple[str, list[dict[str, str]] | None]:
+        """The query and the PDF links it found, or None for the links when the
+        search can't run."""
         query = (
             f"{student_name} aprovado classificado"
             f" convocado selecionado vestibular {year}"
@@ -49,7 +53,7 @@ class AdmissionStatusService:
 
         if not self.tavily_client:
             logger.error("Tavily API Key is not configured.")
-            return query, []
+            return query, None
 
         try:
             response = await self.tavily_client.search(
@@ -73,7 +77,7 @@ class AdmissionStatusService:
 
         except Exception as e:
             logger.error(f"Tavily search failed: {e}")
-            return query, []
+            return query, None
 
     async def _download_pdf(self, pdf_url: str) -> bytes | None:
         logger.info(f"Downloading PDF from {pdf_url}")
@@ -98,27 +102,30 @@ class AdmissionStatusService:
 
     async def _search_student_in_pdf(
         self, pdf_content: bytes, normalized_name: str
-    ) -> bool:
+    ) -> bool | None:
         return await asyncio.to_thread(
             self._search_student_in_pdf_sync, pdf_content, normalized_name
         )
 
     def _search_student_in_pdf_sync(
         self, pdf_content: bytes, normalized_name: str
-    ) -> bool:
+    ) -> bool | None:
+        """Whether the list has the name as whole words ("Ana de Tal" is not in
+        "Joana de Tal"), or None when the file can't be read."""
+        name = re.compile(rf"(?<!\w){re.escape(normalized_name)}(?!\w)")
         try:
             reader = PdfReader(io.BytesIO(pdf_content))
 
             for page in reader.pages:
                 text = page.extract_text()
 
-                if text and normalized_name in normalize_text(text):
+                if text and name.search(normalize_text(text)):
                     return True
 
             return False
         except Exception as e:
             logger.warning(f"Error searching text in PDF content: {e}")
-            return False
+            return None
 
     async def _process_student(
         self, student_name: str, year: int
@@ -132,12 +139,17 @@ class AdmissionStatusService:
         await asyncio.sleep(self.search_delay)
 
         not_found = StudentNotFoundResult(student_name=student_name)
+        failed = StudentSearchFailedResult(student_name=student_name)
+
+        if pdf_results is None:
+            return [failed]
 
         if not pdf_results:
             logger.info(f"No PDFs found for student in {year}.")
             return [not_found]
 
         async def process_pdf(pdf_info: dict[str, str]) -> StudentResult | None:
+            """The student's result in this list, or None when it can't be read."""
             pdf_url = pdf_info["url"]
             search_title = pdf_info["title"]
             pdf_content = await self._download_pdf(pdf_url)
@@ -150,8 +162,11 @@ class AdmissionStatusService:
                 pdf_content, normalized_student_name
             )
 
-            if not is_found:
+            if is_found is None:
                 return None
+
+            if not is_found:
+                return not_found
 
             logger.info(
                 f'SUCCESS! Student "{student_name}" FOUND in PDF from {pdf_url}'
@@ -166,7 +181,17 @@ class AdmissionStatusService:
             )
 
         pdf_matches = await asyncio.gather(*[process_pdf(p) for p in pdf_results])
-        found: list[StudentResult] = [r for r in pdf_matches if r is not None]
+        read = [r for r in pdf_matches if r is not None]
+
+        if not read:
+            logger.warning(
+                f"None of the lists found for the year {year} could be read."
+            )
+            return [failed]
+
+        found: list[StudentResult] = [
+            r for r in read if isinstance(r, StudentFoundResult)
+        ]
 
         if not found:
             logger.info(
@@ -281,6 +306,11 @@ class AdmissionStatusService:
         classroom: ClassRoom | None,
     ) -> None:
         for item in all_results:
+            # Not saved, so the next search of the name searches again instead of
+            # answering from the database.
+            if isinstance(item, StudentSearchFailedResult):
+                continue
+
             normalized_name = normalize_text(item.student_name)
             get_or_create_result = sync_to_async(
                 AdmissionResult.objects.get_or_create, thread_sensitive=False

@@ -103,9 +103,8 @@ def test_after_processing_the_answer_goes_to_the_users_socket(
 
 
 @DATABASES
-@pytest.mark.usefixtures("channel_layer")
-def test_a_failed_processing_is_logged_instead_of_raised(
-    caplog: pytest.LogCaptureFixture,
+def test_a_failed_processing_is_logged_and_reported_to_the_socket(
+    channel_layer: MagicMock, caplog: pytest.LogCaptureFixture
 ) -> None:
     user = Users.objects.create(auth_user_id=1)
 
@@ -116,3 +115,6 @@ def test_a_failed_processing_is_logged_instead_of_raised(
 
     assert f"Error in background processing for user {user.id}" in caplog.text
     assert "OpenAI is down" in caplog.text
+    channel_layer.group_send.assert_awaited_once_with(
+        f"chat_{user.id}", {"type": "chat.message", "message": {"failed": True}}
+    )

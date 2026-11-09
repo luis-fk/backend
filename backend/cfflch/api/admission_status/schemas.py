@@ -16,4 +16,12 @@ class StudentNotFoundResult(BaseModel):
     found: bool = False
 
 
-StudentResult = StudentFoundResult | StudentNotFoundResult
+class StudentSearchFailedResult(BaseModel):
+    """The search could not run, or none of the lists it found could be read."""
+
+    student_name: str
+    found: bool = False
+    failed: bool = True
+
+
+StudentResult = StudentFoundResult | StudentNotFoundResult | StudentSearchFailedResult

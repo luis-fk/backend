@@ -153,5 +153,7 @@ def test_deleting_a_result_deletes_its_lists(client: Client) -> None:
     )
 
     assert response.status_code == 204
+    # The test client drops the body of a 204, but not the length the view gave it.
+    assert response.headers["Content-Length"] == "0"
     assert list(AdmissionResult.objects.all()) == [beltrana]
     assert not AdmissionPDF.objects.exists()

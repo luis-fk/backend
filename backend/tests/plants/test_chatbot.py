@@ -119,9 +119,40 @@ def test_a_question_that_needs_the_web_is_answered_from_the_search(
     search_result = agents.web_answer.call_args.kwargs["messages"][-1]
     assert isinstance(search_result, ToolMessage)
     assert "Chuva amanhã" in search_result.content
+    assert saved_messages(user) == [
+        ("human", "Preciso regar amanhã?"),
+        ("ai", "Vai chover, não precisa regar."),
+    ]
     assert UserMemory.objects.get(user=user).memory == (
         "Mora em Curitiba e tem uma samambaia."
     )
+
+
+@DATABASES
+def test_the_chatbot_gets_only_the_last_five_exchanges(agents: Agents) -> None:
+    user = Users.objects.create(auth_user_id=1)
+    for number in range(1, 7):
+        ChatHistory.objects.create(
+            user=user, role="human", message=f"Pergunta {number}"
+        )
+        ChatHistory.objects.create(user=user, role="ai", message=f"Resposta {number}")
+    agents.chatbot.return_value = LLMAnswerSchema(reasoning="", message="Arr!")
+
+    ask(user, "Pergunta 7")
+
+    messages = agents.chatbot.call_args.kwargs["messages"]
+    assert [message.content for message in messages] == [
+        *[text for n in range(2, 7) for text in (f"Pergunta {n}", f"Resposta {n}")],
+        "Pergunta 7",
+    ]
+
+
+def test_the_web_search_prints_nothing(capsys: pytest.CaptureFixture[str]) -> None:
+    with patch.object(tools, "TavilySearchResults") as tavily:
+        tavily.return_value.invoke.return_value = [{"content": "Chuva amanhã"}]
+        tools.web_search.invoke({"web_search_input": "previsão de chuva"})
+
+    assert capsys.readouterr().out == ""
 
 
 def test_an_unknown_route_stops_the_chatbot() -> None:

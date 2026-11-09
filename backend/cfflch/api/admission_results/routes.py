@@ -4,6 +4,7 @@ from typing import Any
 from django.http import JsonResponse
 from rest_framework import status
 from rest_framework.request import Request
+from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from backend.api_auth import require_user_token
@@ -91,11 +92,11 @@ class AdmissionResultDetailApi(APIView):
             AdmissionResultSerializer(result).data, status=status.HTTP_200_OK
         )
 
-    def delete(self, request: Request, pk: int) -> JsonResponse:
+    def delete(self, request: Request, pk: int) -> JsonResponse | Response:
         require_user_token(request, "cfflch")
         result = self._get_object(pk)
         if isinstance(result, JsonResponse):
             return result
 
         result.delete()
-        return JsonResponse({}, status=status.HTTP_204_NO_CONTENT)
+        return Response(status=status.HTTP_204_NO_CONTENT)
