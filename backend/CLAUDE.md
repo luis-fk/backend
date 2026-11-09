@@ -24,6 +24,7 @@ The Next.js frontend that serves their UIs lives in `../frontend`. `README.md` c
 - **Parnas decomposition is intentional:** each app owns its full logic stack. Do not extract shared utilities across apps even if code looks duplicated — duplication is preferred over coupling. The exceptions, approved by the owner, are two pieces of project infrastructure, like `settings.py` and `asgi.py`: `backend/api_auth.py`, with the token, API key and device key checks every app uses, and the `api_keys` app, with the `ApiKey` model and its admin. The apps never import `api_keys`; its admin finds their Users models by name.
 - The `AppsRouter` automatically routes models to their app-specific database; Django's own apps and `api_keys` go to `default` (`DEFAULT_DB_APPS`). Never use `using=` manually in queries — the router handles it.
 - Separation of concerns: routes handle HTTP only, services contain business logic, serializers handle validation. Keep functions small.
+- **API documentation:** the Bruno collection in `bruno/`, with no Swagger. A new or changed endpoint updates its request there. Values that belong to one person (API keys, user ids, tokens) are secret variables of the Local environment, and bodies use made-up names, so the committed files stay generic.
 
 ## Coding conventions
 - **Files and functions:** `snake_case`
@@ -67,7 +68,6 @@ The Next.js frontend that serves their UIs lives in `../frontend`. `README.md` c
 
 **Planned (no timeline):**
 - Write unit tests for `plants`, `political_culture` and `cfflch` beyond the API auth (pytest, in `tests/`)
-- Add API documentation
 
 ## Testing
 - Unit tests run in CI (`uv run pytest` in `.github/workflows/backend-ci.yml` at the repository root) on every pull request that changes `backend/`.

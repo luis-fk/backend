@@ -1,0 +1,16 @@
+meta {
+  name: Admission Results - GET
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}/api/cfflch/admission-results/?year=2025
+  body: none
+  auth: inherit
+}
+
+params:query {
+  year: 2025
+  ~class_room_id: 1
+}

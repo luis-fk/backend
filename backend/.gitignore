@@ -2,6 +2,6 @@
 *__pycache__
 .env
 .mypy_cache
-bruno
+bruno/environments/Production.bru
 .ruff_cache
 news_podcast_output

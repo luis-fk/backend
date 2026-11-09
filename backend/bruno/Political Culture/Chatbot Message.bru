@@ -1,0 +1,22 @@
+meta {
+  name: Chatbot Message
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/api/political-culture/chatbot/message
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "user_id": "{{politicalCultureUserId}}",
+    "text": "Quais textos da biblioteca falam de liberalismo?"
+  }
+}
+
+docs {
+  The answer arrives on the Chat WebSocket.
+}
