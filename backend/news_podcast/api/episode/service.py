@@ -113,6 +113,9 @@ class NewsPodcastService:
         scheduled_for = send_at if scheduled else None
         try:
             report = await self._generate(now, send_at, scheduled_for)
+            if send:
+                self.step = "envio"
+                await self._deliver(report)
         except Exception as error:
             logger.exception(f"Episode failed during '{self.step}'")
             if send:
@@ -120,10 +123,6 @@ class NewsPodcastService:
                     self.telegram, self.admin_chat_id, self.step, error
                 )
             raise
-
-        if send:
-            self.step = "envio"
-            await self._deliver(report)
         return report
 
     async def _generate(
