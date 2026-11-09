@@ -55,9 +55,10 @@ HEADLINE_TTS_STYLE = (
 TTS_CHUNK_WORDS = 650
 AUDIO_TOKENS_PER_SECOND = 25
 VOICE_RETRY_MINUTES = (10, 20)
+TEXT_RETRY_MINUTES = (10, 20)
 # Railway doesn't start a scheduled run while the previous one is still running, so a
-# stuck run would block the next days. Two hours fit a run that waits for the voice
-# retries.
+# stuck run would block the next days. Two hours fit a run that waits for the text and
+# the voice retries.
 MAX_RUN_MINUTES = 120
 
 BRL_PER_USD = 5.50

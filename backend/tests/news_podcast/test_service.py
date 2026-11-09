@@ -1,5 +1,6 @@
 import asyncio
-from collections.abc import Sequence
+import json
+from collections.abc import Callable, Sequence
 from datetime import date, datetime, time
 from pathlib import Path
 from typing import Any
@@ -10,6 +11,7 @@ import pytest
 from news_podcast.api.episode import config, prompts
 from news_podcast.api.episode.gemini import (
     GeminiClient,
+    GeminiError,
     GeminiQuotaExhaustedError,
     GeminiUnavailableError,
 )
@@ -24,6 +26,7 @@ from news_podcast.api.episode.schemas import (
     Usage,
 )
 from news_podcast.api.episode.service import (
+    MIN_SCRIPT_TURNS,
     EpisodeError,
     NewsPodcastService,
     expand_prompt,
@@ -199,7 +202,7 @@ def test_broken_answers_still_count_in_the_cost() -> None:
             gemini = FakeGemini(client, voice_failures=[], text='{"turns": [')
             service = make_service(client, gemini)
             with pytest.raises(EpisodeError, match="JSON inválido"):
-                await service._ask_json(
+                await service._ask_each_model(
                     "system", "user", "script", Script, lambda data: data
                 )
             return service.usages
@@ -210,6 +213,180 @@ def test_broken_answers_still_count_in_the_cost() -> None:
         config.TEXT_FALLBACK_MODEL,
         config.TEXT_FALLBACK_MODEL,
     ]
+
+
+MAIN = config.TEXT_MODEL
+FALLBACK = config.TEXT_FALLBACK_MODEL
+BUSY = GeminiUnavailableError("Gemini respondeu 503: high demand")
+OUT_OF_QUOTA = GeminiQuotaExhaustedError("Gemini respondeu 429: quota")
+ANSWER = '{"ok": true}'
+
+
+class ScriptedGemini(FakeGemini):
+    """Each text model answers, or fails, as its list in `outcomes` says, call by
+    call."""
+
+    def __init__(
+        self,
+        http_client: httpx.AsyncClient,
+        outcomes: dict[str, list[str | Exception]],
+    ) -> None:
+        super().__init__(http_client, voice_failures=[])
+        self.outcomes = outcomes
+
+    async def generate_json(
+        self,
+        model: str,
+        system_prompt: str,
+        user_prompt: str,
+        step: str,
+        thinking_level: str | None = None,
+        *,
+        schema: dict[str, Any],
+    ) -> tuple[dict[str, Any], Usage]:
+        self.text_models.append(model)
+        if not self.outcomes[model]:
+            raise AssertionError(f"{model} was asked more times than expected")
+        outcome = self.outcomes[model].pop(0)
+        if isinstance(outcome, Exception):
+            raise outcome
+        answer = {"candidates": [{"content": {"parts": [{"text": outcome}]}}]}
+        return answer, Usage(step=step, model=model)
+
+
+def ask_scripted(
+    outcomes: dict[str, list[str | Exception]],
+    parse: Callable[[Any], Any] = lambda data: data,
+) -> tuple[list[str], EpisodeError | None]:
+    """Asks for one answer; returns the models asked, in order, and the error."""
+
+    async def scenario() -> tuple[list[str], EpisodeError | None]:
+        async with httpx.AsyncClient() as client:
+            gemini = ScriptedGemini(client, outcomes)
+            service = make_service(client, gemini)
+            try:
+                await service._ask_json(
+                    "system", "user", "script", StorySelection, parse
+                )
+            except EpisodeError as error:
+                return gemini.text_models, error
+            return gemini.text_models, None
+
+    return asyncio.run(scenario())
+
+
+def test_text_waits_and_asks_every_model_again_when_none_answers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    waits = record_waits(monkeypatch)
+
+    asked, error = ask_scripted({MAIN: [BUSY, BUSY], FALLBACK: [BUSY, ANSWER]})
+
+    assert error is None
+    assert waits == [config.TEXT_RETRY_MINUTES[0] * 60]
+    assert asked == [MAIN, FALLBACK, MAIN, FALLBACK]
+
+
+def test_text_gives_up_after_the_last_retry(monkeypatch: pytest.MonkeyPatch) -> None:
+    waits = record_waits(monkeypatch)
+    rounds = len(config.TEXT_RETRY_MINUTES) + 1
+
+    _, error = ask_scripted({MAIN: [BUSY] * rounds, FALLBACK: [BUSY] * rounds})
+
+    assert error is not None
+    assert waits == [minutes * 60 for minutes in config.TEXT_RETRY_MINUTES]
+
+
+def test_the_text_waits_are_shared_by_the_whole_run(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    waits = record_waits(monkeypatch)
+
+    async def scenario() -> EpisodeError | None:
+        async with httpx.AsyncClient() as client:
+            gemini = ScriptedGemini(
+                client, {MAIN: [BUSY] * 3, FALLBACK: [BUSY, BUSY, ANSWER, BUSY]}
+            )
+            service = make_service(client, gemini)
+            await service._ask_json(
+                "system", "user", "selection", StorySelection, lambda data: data
+            )
+            try:
+                await service._ask_json(
+                    "system", "user", "script", StorySelection, lambda data: data
+                )
+            except EpisodeError as error:
+                return error
+            return None
+
+    error = asyncio.run(scenario())
+
+    assert error is not None
+    assert waits == [minutes * 60 for minutes in config.TEXT_RETRY_MINUTES]
+
+
+def test_text_does_not_wait_when_the_answers_are_bad(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    waits = record_waits(monkeypatch)
+
+    def reject(_data: Any) -> Any:
+        raise GeminiError("a seleção veio sem notícias válidas")
+
+    asked, error = ask_scripted(
+        {MAIN: [ANSWER, ANSWER], FALLBACK: [ANSWER, ANSWER]}, parse=reject
+    )
+
+    assert error is not None
+    assert waits == []
+    assert asked == [MAIN, MAIN, FALLBACK, FALLBACK]
+
+
+def test_text_does_not_wait_when_the_daily_quota_is_over(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    waits = record_waits(monkeypatch)
+
+    _, error = ask_scripted({MAIN: [OUT_OF_QUOTA], FALLBACK: [OUT_OF_QUOTA]})
+
+    assert error is not None
+    assert waits == []
+
+
+def test_a_model_out_of_quota_is_not_asked_again_after_the_wait(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    record_waits(monkeypatch)
+
+    asked, error = ask_scripted({MAIN: [OUT_OF_QUOTA], FALLBACK: [BUSY, ANSWER]})
+
+    assert error is None
+    assert asked == [MAIN, FALLBACK, FALLBACK]
+
+
+def test_lengthening_the_script_does_not_wait_for_the_models(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    waits = record_waits(monkeypatch)
+    turn = {"speaker": "Bia", "text": "Bom dia", "headline": False}
+    short_script = json.dumps({"turns": [turn] * MIN_SCRIPT_TURNS})
+    start = datetime(2026, 11, 9, 6, 0, tzinfo=config.LOCAL_TZ)
+
+    async def scenario() -> Script:
+        async with httpx.AsyncClient() as client:
+            gemini = ScriptedGemini(
+                client,
+                {MAIN: [BUSY] * 3, FALLBACK: [short_script, BUSY, BUSY, BUSY]},
+            )
+            service = make_service(client, gemini)
+            return await service._write_script(
+                [], start, start, start.date(), time(7, 0)
+            )
+
+    script = asyncio.run(scenario())
+
+    assert len(script.turns) == MIN_SCRIPT_TURNS
+    assert waits == []
 
 
 def test_voice_waits_and_tries_again_when_gemini_is_unavailable(

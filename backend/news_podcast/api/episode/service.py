@@ -99,7 +99,11 @@ class NewsPodcastService:
         self.step = "início"
         # Every Gemini answer, kept as the run goes, so a failed run has its cost too.
         self.usages: list[Usage] = []
+        # Text models that are down get asked again after a wait; the ones out of quota
+        # don't.
         self.unavailable_models: set[str] = set()
+        self.exhausted_models: set[str] = set()
+        self.text_retry_minutes = list(config.TEXT_RETRY_MINUTES)
         self.voice_retry_minutes = list(config.VOICE_RETRY_MINUTES)
 
     async def generate_episode(self, *, scheduled: bool, send: bool) -> EpisodeReport:
@@ -254,7 +258,8 @@ class NewsPodcastService:
             self.podcast_settings.expand_prompt, self.options, script
         )
         try:
-            longer = await self._ask_json(
+            # One round and no wait: the short script will do.
+            longer = await self._ask_each_model(
                 system_prompt,
                 f"{user_prompt}\n\n{expand}",
                 "script",
@@ -276,6 +281,33 @@ class NewsPodcastService:
         answer_model: type[BaseModel],
         parse: Callable[[Any], T],
     ) -> T:
+        """When no text model answers well and one of them is marked down, waits
+        TEXT_RETRY_MINUTES and asks them all again. The waits are shared by the whole
+        run."""
+        while True:
+            try:
+                return await self._ask_each_model(
+                    system_prompt, user_prompt, step, answer_model, parse
+                )
+            except EpisodeError:
+                # With no model down, bad answers and a used-up quota don't get better
+                # with time.
+                if not (self.unavailable_models and self.text_retry_minutes):
+                    raise
+            minutes = self.text_retry_minutes.pop(0)
+            logger.warning(f"No text model answered; asking again in {minutes} min")
+            await asyncio.sleep(minutes * 60)
+            self.unavailable_models.clear()
+
+    async def _ask_each_model(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        step: str,
+        answer_model: type[BaseModel],
+        parse: Callable[[Any], T],
+    ) -> T:
+        """One round: asks each available text model up to ANSWERS_PER_MODEL times."""
         gemini = self._require_gemini()
         # The serialization schema requires the fields that have defaults too
         # (json_schema_serialization_defaults_required), so Gemini writes them all.
@@ -288,7 +320,7 @@ class NewsPodcastService:
         ]
 
         for model in attempts:
-            if model in self.unavailable_models:
+            if model not in self._available_text_models():
                 continue
             try:
                 data, usage = await gemini.generate_json(
@@ -301,11 +333,16 @@ class NewsPodcastService:
                 )
                 self.usages.append(usage)
                 result = parse(answer_json(data))
+            except GeminiQuotaExhaustedError as error:
+                self.exhausted_models.add(model)
+                logger.warning(
+                    f"{model} is out of quota, skipping it from now on: {error}"
+                )
+                errors.append(f"{model}: {error}")
+                continue
             except GeminiUnavailableError as error:
                 self.unavailable_models.add(model)
-                logger.warning(
-                    f"{model} is unavailable, skipping it from now on: {error}"
-                )
+                logger.warning(f"{model} is unavailable, skipping it for now: {error}")
                 errors.append(f"{model}: {error}")
                 continue
             except (GeminiError, ValidationError) as error:
@@ -321,7 +358,7 @@ class NewsPodcastService:
         return [
             model
             for model in self.podcast_settings.text_models()
-            if model not in self.unavailable_models
+            if model not in self.unavailable_models | self.exhausted_models
         ]
 
     async def _narrate(self, turns: list[Turn], workdir: Path) -> list[Path]:
