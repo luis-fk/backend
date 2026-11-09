@@ -458,8 +458,8 @@ def test_the_word_picker_gets_only_the_most_frequent_words(
 
     word_counter.word_picker(words, "Um livro.")
 
-    assert f"'palavra{word_counter.MAX_PICKER_WORDS - 1}'" in prompts[0]
-    assert f"'palavra{word_counter.MAX_PICKER_WORDS}'" not in prompts[0]
+    assert "'palavra199'" in prompts[0]
+    assert "'palavra200'" not in prompts[0]
 
 
 # How an upload ends
