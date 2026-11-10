@@ -133,7 +133,8 @@ export default function Chat(): React.ReactElement {
     try {
       await axios.post(
         `${serverUrl}/api/political-culture/chatbot/message`,
-        { user_id: userId, text: userMsg },
+        // The language is for /help, which the backend answers in it.
+        { user_id: userId, text: userMsg, language: lang },
         { headers: { Authorization: `Bearer ${token}` } },
       );
     } catch (error) {
@@ -144,7 +145,7 @@ export default function Chat(): React.ReactElement {
       setErrorMessage(expired(error) ? common.session.expired : t.sendFailed);
       setSending(false);
     }
-  }, [sending, input, serverUrl, userId, token, common, t]);
+  }, [sending, input, serverUrl, userId, token, lang, common, t]);
 
   return (
     <main className="political-chat">
