@@ -8,6 +8,7 @@ from django.db import close_old_connections
 from langgraph.graph.state import CompiledStateGraph
 
 from political_culture.api.chatbot.graph import build_graph
+from political_culture.api.chatbot.help import answer_help, is_help
 from political_culture.api.chatbot.schemas import SquadState
 from political_culture.api.chatbot.utils import singleton, wrap_up_get_response
 from political_culture.models import UserMemory
@@ -26,10 +27,10 @@ class LLM:
 
         logger.info("Schema built successfully")
 
-    def process_text(self, text: str, user_id: int) -> None:
+    def process_text(self, text: str, user_id: int, language: str) -> None:
         threading.Thread(
             target=self._background_process,
-            args=(text, user_id),
+            args=(text, user_id, language),
             daemon=True,
         ).start()
 
@@ -37,12 +38,12 @@ class LLM:
 
         return
 
-    def _background_process(self, text: str, user_id: int) -> None:
+    def _background_process(self, text: str, user_id: int, language: str) -> None:
         close_old_connections()
         logger.info(f"Processing message for user {user_id}")
 
         try:
-            message = self._answer(text, user_id)
+            message = self._answer(text, user_id, language)
         except Exception:
             logger.exception(f"Error in background processing for user {user_id}")
             # The page waits for a message on the socket after each question.
@@ -54,7 +55,10 @@ class LLM:
                 f"chat_{user_id}", {"type": "chat.message", "message": message}
             )
 
-    def _answer(self, text: str, user_id: int) -> dict[str, Any]:
+    def _answer(self, text: str, user_id: int, language: str) -> dict[str, Any]:
+        if is_help(text):
+            return answer_help(text, user_id, language)
+
         if not self.graph:
             raise RuntimeError("No LLM graph available")
 

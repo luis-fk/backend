@@ -31,7 +31,11 @@ class ChatBotApi(APIView):
 
             cleaned_text = clean_html(text)
 
-            self.llm.process_text(text=cleaned_text, user_id=int(user_id))
+            self.llm.process_text(
+                text=cleaned_text,
+                user_id=int(user_id),
+                language=serializer.validated_data["language"],
+            )
 
             return Response(
                 {"user_id": user_id, "response": "accepted"},

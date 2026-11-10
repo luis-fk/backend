@@ -107,7 +107,7 @@ def test_users_send_their_own_messages(client: Client) -> None:
         response = send_message(client, 7, bearer(user_token(APP, "7")))
 
     assert response.status_code == 200
-    llm.process_text.assert_called_once_with(text="Olá", user_id=7)
+    llm.process_text.assert_called_once_with(text="Olá", user_id=7, language="pt-BR")
 
 
 def test_texts_are_added_as_the_tokens_user(client: Client) -> None:
