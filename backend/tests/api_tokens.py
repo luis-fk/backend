@@ -5,7 +5,9 @@ from typing import Any
 
 import jwt
 from django.conf import settings
+from django.contrib.auth import get_user_model
 
+from api_keys.app_users import users_model
 from api_keys.models import ApiKey
 
 
@@ -20,6 +22,18 @@ def make_token(**claims: Any) -> str:
 
 def user_token(app: str, user_id: str = "7") -> str:
     return make_token(sub=user_id, app=app, purpose="user")
+
+
+def saved_person(app: str, *, is_active: bool = True, active: bool = True) -> str:
+    """Saves an auth user with is_active and their row in app's Users with active,
+    and returns their id in app; the test needs the default and app databases."""
+    auth_user = get_user_model().objects.create_user(
+        username=f"person-in-{app}", is_active=is_active
+    )
+    row = users_model(app)._default_manager.create(
+        auth_user_id=auth_user.pk, active=active
+    )
+    return str(row.pk)
 
 
 def login_token(app: str) -> str:

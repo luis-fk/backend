@@ -1,6 +1,7 @@
 import json
 import logging
 
+from channels.db import database_sync_to_async
 from channels.generic.websocket import AsyncWebsocketConsumer
 
 from backend.api_auth import websocket_user_id
@@ -13,7 +14,12 @@ class ChatConsumer(AsyncWebsocketConsumer):  # type: ignore[misc]
         self.user_id = self.scope["url_route"]["kwargs"]["userId"]
         self.room_group_name = f"chat_{self.user_id}"
 
-        if websocket_user_id(self.scope, "political-culture") != self.user_id:
+        if (
+            await database_sync_to_async(websocket_user_id)(
+                self.scope, "political-culture"
+            )
+            != self.user_id
+        ):
             logger.info(f"WebSocket rejected for user {self.user_id}")
             await self.close()
             return

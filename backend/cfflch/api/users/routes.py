@@ -21,15 +21,17 @@ class UserApi(APIView):
 
         AuthUser = get_user_model()
         try:
-            auth_user = AuthUser.objects.using("default").get(username=name)
+            auth_user = AuthUser.objects.using("default").get(
+                username=name, is_active=True
+            )
         except AuthUser.DoesNotExist:
-            logger.info(f"User {name} not found in auth DB")
+            logger.info(f"User {name} not found or inactive in auth DB")
             return Response({"error": "User not found."}, status=404)
 
         try:
-            app_user = Users.objects.get(auth_user_id=auth_user.id)
+            app_user = Users.objects.get(auth_user_id=auth_user.id, active=True)
         except Users.DoesNotExist:
-            logger.info(f"User {name} not found in cfflch DB")
+            logger.info(f"User {name} not found or blocked in cfflch DB")
             return Response({"error": "User not found."}, status=404)
 
         serializer = UserSerializer(app_user)

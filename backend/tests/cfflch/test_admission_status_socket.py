@@ -8,7 +8,12 @@ from channels.testing import WebsocketCommunicator
 from pytest_django import Settings
 
 from cfflch.api.admission_status.routing import websocket_urlpatterns
-from tests.api_tokens import api_key, login_token, user_token
+from tests.api_tokens import api_key, login_token, saved_person, user_token
+
+# The consumers check the person in the database when a socket opens, through
+# database_sync_to_async, which also tidies its thread's connections: every test
+# here may touch the database.
+pytestmark = pytest.mark.django_db(databases=["default", "cfflch_db"])
 
 
 @pytest.fixture(autouse=True)
@@ -60,7 +65,6 @@ def test_the_status_socket_rejects_a_login_token() -> None:
     assert not connected
 
 
-@pytest.mark.django_db
 def test_the_status_socket_rejects_an_api_key() -> None:
     connected, _ = open_status_socket(["bearer", api_key("cfflch")])
 
@@ -114,3 +118,20 @@ def test_the_status_socket_gets_nothing_from_other_searches() -> None:
         return got_nothing
 
     assert asyncio.run(scenario())
+
+
+@pytest.mark.access_check
+@pytest.mark.django_db(databases=["default", "cfflch_db"], transaction=True)
+@pytest.mark.parametrize(
+    ("is_active", "active", "connects"),
+    [(True, True, True), (False, True, False), (True, False, False)],
+    ids=["can use the app", "Active unticked", "app unticked"],
+)
+def test_the_status_socket_lets_in_only_people_who_can_use_cfflch(
+    is_active: bool, active: bool, connects: bool
+) -> None:
+    user_id = saved_person("cfflch", is_active=is_active, active=active)
+
+    connected, _ = open_status_socket(["bearer", user_token("cfflch", user_id)])
+
+    assert connected is connects

@@ -13,6 +13,7 @@ from tests.api_tokens import (
     bearer,
     login_token,
     make_token,
+    saved_person,
     unknown_api_key,
     user_token,
 )
@@ -147,4 +148,25 @@ def test_the_login_lookup_runs_with_a_login_token(client: Client) -> None:
         response = find_user(client, bearer(login_token("cfflch")))
 
     assert response.status_code == 404
-    using.return_value.get.assert_called_once_with(username="ana")
+    using.return_value.get.assert_called_once_with(username="ana", is_active=True)
+
+
+@pytest.mark.access_check
+@pytest.mark.django_db(databases=["default", "cfflch_db"])
+@pytest.mark.usefixtures("empty_database")
+@pytest.mark.parametrize(
+    ("send", "status"), [(list_class_rooms, 200), (start_search, 202)]
+)
+@pytest.mark.parametrize(
+    ("is_active", "active"),
+    [(True, True), (False, True), (True, False)],
+    ids=["can use cfflch", "Active unticked", "cfflch unticked"],
+)
+def test_only_people_who_can_use_cfflch_get_in(
+    client: Client, send: Send, status: int, is_active: bool, active: bool
+) -> None:
+    """start_search is an async view: the check runs through sync_to_async."""
+    user_id = saved_person("cfflch", is_active=is_active, active=active)
+    expected = status if is_active and active else 401
+
+    assert send(client, bearer(user_token("cfflch", user_id))).status_code == expected

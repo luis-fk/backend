@@ -1,5 +1,6 @@
 import json
 
+from channels.db import database_sync_to_async
 from channels.generic.websocket import AsyncWebsocketConsumer
 
 from backend.api_auth import websocket_user_id
@@ -10,7 +11,10 @@ class AdmissionStatusConsumer(AsyncWebsocketConsumer):  # type: ignore[misc]
         self.request_id = self.scope["url_route"]["kwargs"]["requestId"]
         self.group_name = f"admission_status_{self.request_id}"
 
-        if websocket_user_id(self.scope, "cfflch") is None:
+        if (
+            await database_sync_to_async(websocket_user_id)(self.scope, "cfflch")
+            is None
+        ):
             await self.close()
             return
 

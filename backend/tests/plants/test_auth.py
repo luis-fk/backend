@@ -15,6 +15,7 @@ from tests.api_tokens import (
     bearer,
     login_token,
     make_token,
+    saved_person,
     unknown_api_key,
     user_token,
 )
@@ -169,7 +170,7 @@ def test_the_login_lookup_runs_with_a_login_token(client: Client) -> None:
         response = find_user(client, bearer(login_token("plants")))
 
     assert response.status_code == 404
-    using.return_value.get.assert_called_once_with(username="ana")
+    using.return_value.get.assert_called_once_with(username="ana", is_active=True)
 
 
 @pytest.mark.parametrize("key", ["", "wrong-key"], ids=["no key", "wrong key"])
@@ -214,3 +215,20 @@ def test_a_valid_reading_is_saved(client: Client, settings: Settings) -> None:
     acreate.assert_awaited_once_with(
         analog_value=512, digital_value=1, temperature=25.0, humidity=60, user_id=7
     )
+
+
+@pytest.mark.access_check
+@pytest.mark.django_db(databases=["default", "plants_db"])
+@pytest.mark.parametrize(
+    ("is_active", "active", "status"),
+    [(True, True, 200), (False, True, 401), (True, False, 401)],
+    ids=["can use plants", "Active unticked", "plants unticked"],
+)
+def test_only_people_who_can_use_plants_get_in(
+    client: Client, is_active: bool, active: bool, status: int
+) -> None:
+    user_id = saved_person("plants", is_active=is_active, active=active)
+
+    response = get_history(client, int(user_id), bearer(user_token("plants", user_id)))
+
+    assert response.status_code == status

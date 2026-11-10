@@ -8,9 +8,15 @@ from channels.testing import WebsocketCommunicator
 from pytest_django import Settings
 
 from political_culture.api.messages.routing import websocket_urlpatterns
-from tests.api_tokens import api_key, make_token, user_token
+from tests.api_tokens import api_key, make_token, saved_person, user_token
 
 APP = "political-culture"
+
+
+# The consumers check the person in the database when a socket opens, through
+# database_sync_to_async, which also tidies its thread's connections: every test
+# here may touch the database.
+pytestmark = pytest.mark.django_db(databases=["default", "political_culture_db"])
 
 
 @pytest.fixture(autouse=True)
@@ -65,7 +71,6 @@ def test_the_chat_socket_rejects_other_tokens(claims: dict[str, str]) -> None:
     assert not connected
 
 
-@pytest.mark.django_db
 def test_the_chat_socket_rejects_an_api_key() -> None:
     connected, _ = open_chat_socket(7, ["bearer", api_key(APP, 7)])
 
@@ -106,3 +111,20 @@ def test_the_chat_socket_gets_nothing_meant_for_another_user() -> None:
         return got_nothing
 
     assert asyncio.run(scenario())
+
+
+@pytest.mark.access_check
+@pytest.mark.django_db(databases=["default", "political_culture_db"], transaction=True)
+@pytest.mark.parametrize(
+    ("is_active", "active", "connects"),
+    [(True, True, True), (False, True, False), (True, False, False)],
+    ids=["can use the app", "Active unticked", "app unticked"],
+)
+def test_the_chat_socket_lets_in_only_people_who_can_use_the_app(
+    is_active: bool, active: bool, connects: bool
+) -> None:
+    user_id = saved_person(APP, is_active=is_active, active=active)
+
+    connected, _ = open_chat_socket(int(user_id), ["bearer", user_token(APP, user_id)])
+
+    assert connected is connects
