@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { Schibsted_Grotesk } from "next/font/google";
+import { commonDictionary } from "@/app/dictionary";
+import { LOCALES, type Locale, toLocale } from "@/app/i18n";
 
 import "@/app/globals.css";
 
@@ -9,9 +11,21 @@ const sans = Schibsted_Grotesk({
   display: "swap",
 });
 
-export const metadata: Metadata = {
-  title: "Projetos",
-};
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ lang: string }>;
+}): Promise<Metadata> {
+  return { title: commonDictionary[toLocale((await params).lang)].title };
+}
+
+// Every page is prerendered in each language, and any other first segment
+// gives a 404.
+export function generateStaticParams(): { lang: Locale }[] {
+  return LOCALES.map((lang) => ({ lang }));
+}
+
+export const dynamicParams = false;
 
 // Applies the theme saved by ThemeToggle (the "theme" cookie) before the first
 // paint, so nothing flashes on load, and again when the browser restores the
@@ -32,15 +46,19 @@ const THEME_SCRIPT = `(function () {
   });
 })();`;
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
+  params,
 }: Readonly<{
   children: React.ReactNode;
-}>): React.ReactElement {
+  params: Promise<{ lang: string }>;
+}>): Promise<React.ReactElement> {
+  const lang = toLocale((await params).lang);
+
   // The script sets data-theme before React hydrates, so React must not treat
   // the attribute as a mismatch.
   return (
-    <html lang="pt-BR" className={sans.variable} suppressHydrationWarning>
+    <html lang={lang} className={sans.variable} suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
       </head>

@@ -4,8 +4,12 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef } from "react";
 import { logout } from "@/app/actions/session";
+import LanguageLink from "@/app/components/LanguageLink";
 import ThemeToggle from "@/app/components/ThemeToggle";
+import { commonDictionary } from "@/app/dictionary";
+import { localePath } from "@/app/i18n";
 import { PROJECTS, type ProjectKey } from "@/app/projects";
+import { useLocale } from "@/app/useLocale";
 
 type NavLink = { href: string; label: string };
 
@@ -19,8 +23,10 @@ export default function AppHeader({
   links = [],
 }: AppHeaderProps): React.ReactElement {
   const pathname = usePathname();
+  const lang = useLocale();
   const menuRef = useRef<HTMLDetailsElement>(null);
-  const name = PROJECTS.find((item) => item.key === project)?.name ?? project;
+  const t = commonDictionary[lang];
+  const name = t.projects[project].name;
 
   // A <details> only closes from its own summary; close it on Escape or a click outside.
   useEffect(() => {
@@ -74,7 +80,7 @@ export default function AppHeader({
         className="project-switcher"
         onBlur={closeWhenFocusLeaves}
       >
-        <summary aria-label={`${name}, trocar de projeto`}>
+        <summary aria-label={t.header.switchProject(name)}>
           <span className="dot" data-project={project} aria-hidden="true" />
           {name}
           <svg
@@ -93,24 +99,24 @@ export default function AppHeader({
           </svg>
         </summary>
         <nav
-          aria-label="Projetos"
+          aria-label={t.header.projectsNav}
           className="project-menu"
           onClick={closeOnLinkClick}
         >
           {PROJECTS.map((item) => (
             <Link
               key={item.key}
-              href={item.href}
+              href={localePath(lang, item.path)}
               data-project={item.key}
               aria-current={item.key === project ? "true" : undefined}
             >
               <span className="dot" aria-hidden="true" />
-              {item.name}
+              {t.projects[item.key].name}
             </Link>
           ))}
           <hr />
-          <Link href="/" className="all-projects">
-            Todos os projetos
+          <Link href={localePath(lang, "/")} className="all-projects">
+            {t.header.allProjects}
           </Link>
         </nav>
       </details>
@@ -128,11 +134,15 @@ export default function AppHeader({
             ))}
           </nav>
         )}
+        <LanguageLink />
         <ThemeToggle />
         {/* Each app has its own session, so this ends only this app's. */}
-        <form action={logout.bind(null, project)} className="app-header-logout">
+        <form
+          action={logout.bind(null, lang, project)}
+          className="app-header-logout"
+        >
           <button type="submit" className="text-button">
-            Sair
+            {t.header.logout}
           </button>
         </form>
       </div>

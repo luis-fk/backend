@@ -3,6 +3,8 @@
 import { useLayoutEffect, useSyncExternalStore } from "react";
 import { saveTheme } from "@/app/actions/theme";
 import { logger } from "@/app/api/log/client-logger";
+import { commonDictionary } from "@/app/dictionary";
+import { useLocale } from "@/app/useLocale";
 
 type Theme = "light" | "dark";
 
@@ -39,6 +41,7 @@ function serverTheme(): Theme {
 
 export default function ThemeToggle(): React.ReactElement {
   const theme = useSyncExternalStore(subscribe, currentTheme, serverTheme);
+  const t = commonDictionary[useLocale()];
 
   // When React renders <html> again in the browser (after a hydration mismatch,
   // such as a translator changing the page, or on a remount in development), it
@@ -65,7 +68,7 @@ export default function ThemeToggle(): React.ReactElement {
       type="button"
       role="switch"
       aria-checked={theme === "dark"}
-      aria-label="Modo escuro"
+      aria-label={t.theme.dark}
       className="theme-toggle"
       onClick={toggle}
     >

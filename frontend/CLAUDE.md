@@ -8,7 +8,7 @@ It lives in `frontend/` of the monorepo, next to the Django backend in `../backe
 ## Tech stack
 - **Framework:** Next.js 16 (App Router, Turbopack for dev and build). Next 16 changed APIs and conventions, so read the relevant guide in `node_modules/next/dist/docs/` (the docs of the installed version) before writing Next-specific code; `AGENTS.md`, which `next dev` writes, says the same for other agents.
 - **UI Library:** React 19 + TypeScript 5 (strict mode)
-- **Styling:** plain CSS and native HTML elements, no component library (MUI was removed in the redesign), no Tailwind and no PostCSS config. `src/app/globals.css` holds the design tokens and the shared patterns; `data-project="<key>"` sets the app's accent color. Each color token is a `light-dark()` pair, picked by `color-scheme`: it follows the system until the theme switch (`ThemeToggle`) saves a choice in the `theme` cookie (through the `saveTheme` Server Action), which an inline script in the root layout turns into `<html data-theme>` before the first paint. The script reads the cookie in the browser because `cookies()` in the root layout would render every page on demand; this way the pages are static (Next's guide "Preventing flash before hydration"), and `ThemeToggle` puts the theme back if React renders `<html>` again in the browser. A page that shows something from the current time calls `await connection()` to render on each request, as the cfflch search and results pages do for their year lists: prerendered, they would keep the build's year. Font: Schibsted Grotesk through `next/font`. UI text is in Portuguese (pt-BR), sentence case.
+- **Styling:** plain CSS and native HTML elements, no component library (MUI was removed in the redesign), no Tailwind and no PostCSS config. `src/app/globals.css` holds the design tokens and the shared patterns; `data-project="<key>"` sets the app's accent color. Each color token is a `light-dark()` pair, picked by `color-scheme`: it follows the system until the theme switch (`ThemeToggle`) saves a choice in the `theme` cookie (through the `saveTheme` Server Action), which an inline script in the root layout turns into `<html data-theme>` before the first paint. The script reads the cookie in the browser because `cookies()` in the root layout would render every page on demand; this way the pages are static (Next's guide "Preventing flash before hydration"), and `ThemeToggle` puts the theme back if React renders `<html>` again in the browser. A page that shows something from the current time calls `await connection()` to render on each request, as the cfflch search and results pages do for their year lists: prerendered, they would keep the build's year. Font: Schibsted Grotesk through `next/font`. UI text is in Brazilian Portuguese and English, in sentence case, from the dictionaries (see Languages).
 - **Auth:** Jose 5 for JWT encryption (HS256): the sessions, stored in `httpOnly` cookies and managed via Next.js server actions and the proxy, and the tokens the backend checks
 - **HTTP:** Axios for REST calls to the Django backend
 - **WebSocket:** Native browser `WebSocket` API (no library), managed via custom hooks
@@ -22,17 +22,44 @@ It lives in `frontend/` of the monorepo, next to the Django backend in `../backe
 ## Architecture
 
 ### Multi-app structure
-Each app lives under `src/app/<app-name>/` and is fully self-contained for UI logic:
+Each app lives under `src/app/[lang]/<app-name>/` and is fully self-contained for UI logic:
 
 ```
 src/
-├── proxy.ts                     # Auth routing for all apps
+├── proxy.ts                     # Language and auth routing for all apps
 ├── types.d.ts                   # Lets TypeScript import .css files
 └── app/
-    ├── layout.tsx               # Root layout: font, globals.css, pt-BR, the theme script
+    ├── [lang]/                  # Every page, once per language (pt-BR, en)
+    │   ├── layout.tsx           # Root layout: <html lang>, font, globals.css, the theme script
+    │   ├── page.tsx             # Home page: the list of projects
+    │   ├── not-found.tsx        # The 404 page, in the path's language
+    │   ├── [...rest]/page.tsx   # Any unknown path: notFound()
+    │   ├── plants/
+    │   │   ├── page.tsx         # Login page
+    │   │   ├── actions/login.ts # Login server action
+    │   │   ├── components/      # Chat, LoginForm
+    │   │   ├── css/
+    │   │   └── (routes)/chat/
+    │   ├── political-culture/
+    │   │   ├── page.tsx
+    │   │   ├── actions/login.ts
+    │   │   ├── components/      # Chat, LoginForm, Texts
+    │   │   ├── css/
+    │   │   ├── hooks/           # useChatSocket.ts, useTextsSocket.ts
+    │   │   └── (routes)/chat/ and (routes)/texts/
+    │   └── cfflch/
+    │       ├── page.tsx
+    │       ├── actions/login.ts
+    │       ├── components/      # login-form, search-form, results-table, result-card
+    │       ├── css/
+    │       ├── hooks/use-admission-search.ts
+    │       ├── types.ts
+    │       └── (routes)/search/ and (routes)/results/
+    ├── i18n.ts                  # The languages and the path helpers (localePath, toLocale)
+    ├── useLocale.ts             # Client hook: the page's language
+    ├── dictionary.ts            # The shared texts in both languages
     ├── globals.css              # Design tokens and shared patterns
     ├── projects.ts              # The project list (home page and project switcher)
-    ├── page.tsx                 # Home page: the list of projects
     ├── icon.svg                 # Site icon
     ├── actions/                 # Shared session code
     │   ├── api-token.ts         # Server-only: signs the API tokens (user and login)
@@ -42,55 +69,47 @@ src/
     │   ├── theme.ts             # "use server": saveTheme, which sets the theme cookie
     │   └── useSession.ts        # Client hook that reads the app's session and API token through getSession
     ├── components/              # Shared infrastructure components
-    │   ├── AppHeader.tsx        # App header: project switcher (<details>), the app's nav, theme switch, "Sair"
+    │   ├── AppHeader.tsx        # App header: project switcher (<details>), the app's nav, language link, theme switch, "Sair"
+    │   ├── CornerControls.tsx   # Language link and theme switch for the pages without the header
+    │   ├── LanguageLink.tsx     # Link to the same page in the other language
     │   ├── ThemeToggle.tsx      # Light/dark switch, saves the choice in the "theme" cookie
     │   └── Toast.tsx            # Toast (top-right, hides after 5 s, severity prop)
-    ├── api/log/                 # Client log endpoint
-    │   ├── route.ts
-    │   └── client-logger.ts
-    ├── plants/
-    │   ├── page.tsx             # Login page
-    │   ├── actions/login.ts     # Login server action
-    │   ├── components/          # Chat, LoginForm
-    │   ├── css/
-    │   └── (routes)/chat/
-    ├── political-culture/
-    │   ├── page.tsx
-    │   ├── actions/login.ts
-    │   ├── components/          # Chat, LoginForm, Texts
-    │   ├── css/
-    │   ├── hooks/               # useChatSocket.ts, useTextsSocket.ts
-    │   └── (routes)/chat/ and (routes)/texts/
-    └── cfflch/
-        ├── page.tsx
-        ├── actions/login.ts
-        ├── components/          # login-form, search-form, results-table, result-card
-        ├── css/
-        ├── hooks/use-admission-search.ts
-        ├── types.ts
-        └── (routes)/search/ and (routes)/results/
+    └── api/log/                 # Client log endpoint (outside [lang])
+        ├── route.ts
+        └── client-logger.ts
 ```
 
 ### Shared vs app-specific
-- **Shared:** session code, the API tokens and the login limit (`src/app/actions/`), the logger (`src/app/api/log/`), the proxy, `globals.css` (tokens; fields, buttons, lists, the login layout, the header, the theme switch, the toast), `projects.ts`, and the infrastructure components `AppHeader`, `ThemeToggle` and `Toast` (`src/app/components/`).
+- **Shared:** the languages (`i18n.ts`, `useLocale.ts`, `dictionary.ts`), session code, the API tokens and the login limit (`src/app/actions/`), the logger (`src/app/api/log/`), the proxy, `globals.css` (tokens; fields, buttons, lists, the login layout, the header, the theme switch, the toast), `projects.ts`, and the infrastructure components `AppHeader`, `CornerControls`, `LanguageLink`, `ThemeToggle` and `Toast` (`src/app/components/`).
 - **App-specific:** everything else, including each app's login server action, feature components, CSS, and hooks. Do not create shared feature UI across apps — duplication is preferred over coupling (each chat keeps its own markup and CSS). Exception: site infrastructure with no app-specific logic, like the header, the theme switch and the toast.
 
 ### Adding a project
-1. An entry in `src/app/projects.ts` (and its key in `ProjectKey`).
+1. An entry in `src/app/projects.ts` (and its key in `ProjectKey`), and its name and description in both languages in `src/app/dictionary.ts`.
 2. An accent color in `globals.css` (light and dark) and its `[data-project="<key>"]` rule.
 3. Its routes in the `PROJECTS` map of `src/proxy.ts`.
-4. The app folder: a login page with the shared `.auth` classes and `<ThemeToggle />` as the first child of `main.auth`, and `(routes)/layout.tsx` with `<div className="app-shell" data-project="<key>">` and `<AppHeader project="<key>" />`.
+4. The app folder under `src/app/[lang]/`, with its texts in a `dictionary.ts` of its own: a login page with the shared `.auth` classes and `<CornerControls />` as the first child of `main.auth`, and `(routes)/layout.tsx` with `<div className="app-shell" data-project="<key>">` and `<AppHeader project="<key>" />`.
 5. Its login action, copied from another app's `actions/login.ts` (the attempt limit, `createLoginToken("<key>")`, `createSession(id, "<key>")`), and backend checks with the same key: the key names the session cookie (`session-<key>`) and goes in the token's `app` claim, so a different key on either side gives 401 on every call.
 
 ### Proxy
-`src/proxy.ts` handles auth routing for all apps. It is what Next.js called middleware before version 16, and it runs on the Node.js runtime (the Edge runtime is not available in a proxy). The `PROJECTS` map must be updated when a new app is added — add the app name, its `publicPaths`, `protectedPaths`, and `defaultProtectedPath`. Each app has its own session cookie, `session-<app>`.
+`src/proxy.ts` handles the language and auth routing for all apps (see Languages for the language part). It is what Next.js called middleware before version 16, and it runs on the Node.js runtime (the Edge runtime is not available in a proxy). The `PROJECTS` map must be updated when a new app is added — add the app name, its `publicPaths`, `protectedPaths`, and `defaultProtectedPath`. Each app has its own session cookie, `session-<app>`.
+
+### Languages
+The site is in Brazilian Portuguese and English, with the language as the first segment of every path (`/pt-BR/plants/chat`, `/en/plants/chat`), as Next's internationalization guide recommends.
+- **Routing:** every page lives under `src/app/[lang]/`. The root layout's `generateStaticParams` prerenders each page in both languages, and `dynamicParams = false` turns any other first segment into a 404. `<html lang>` is the segment.
+- **Paths without a language** (old links, bookmarks, `/`): the proxy redirects to the same path and query in the `lang` cookie's language, else the browser's (`Accept-Language`), else Portuguese. The proxy sets `lang` (one year) on every page whose language differs from the cookie, so the last language used wins.
+- **Texts:** `src/app/dictionary.ts` holds the shared texts and each app's `dictionary.ts` its own, as `Record<Locale, …>`. The English object has the Portuguese one's type (`const en: …Dictionary = …`), so a missing text fails the build; texts with values in them are functions. Server code reads the language with `toLocale((await params).lang)`, client code with `useLocale()`. Every internal link and redirect goes through `localePath(lang, path)`.
+- **Numbers** shown to people use `toLocaleString(lang)`; years don't, since pt-BR would print 2.026.
+- **Route params:** typed by hand as `{ params: Promise<{ lang: string }> }`. The generated `PageProps`/`LayoutProps` types live in `.next/`, which the CI's typecheck (no build) doesn't have.
+- **Language link:** `LanguageLink` points to the same page in the other language, named in it ("English", "Português"); the header on phones shows its code ("EN", "PT"). The header holds it next to the theme switch, and `CornerControls` puts both in the corner of the pages without a header. Its prefetch is off: a prefetch goes through the proxy, which would save the other language in the cookie.
+- **Switching language** remounts the page under the new `[lang]`: unsent text and the progress of a running search or upload are dropped, while the search or upload goes on in the backend.
+- **404:** an unknown path under a language reaches `[...rest]/page.tsx`, which calls `notFound()`. With the root layout in a dynamic segment, Next's server answers every 404 with an error shell (status 404) and the browser then draws `not-found.tsx` inside the layout. Next's fix for this is the experimental `global-not-found`, which the site doesn't use.
 
 ### Auth flow
-1. User submits the app's login form → the app's server action `login()` (`src/app/<app>/actions/login.ts`) checks the attempt limit, then calls the backend `GET /api/<app>/users/{name}` with a login token (the name goes through `encodeURIComponent`)
+1. User submits the app's login form → the app's server action `login(lang, formData)` (`src/app/[lang]/<app>/actions/login.ts`), which answers in the page's language (in Portuguese for an unknown one), checks the attempt limit, then calls the backend `GET /api/<app>/users/{name}` with a login token (the name goes through `encodeURIComponent`)
 2. On success: `createSession(userId, "<app>")` signs a JWT with Jose (HS256, 7 days) holding the user id and the app, and sets it as the `httpOnly` cookie `session-<app>`. A session only counts for its own app (`decrypt` checks it), so a cookie copied from another app doesn't log in there
-3. The proxy reads the cookie on every request: it redirects unauthenticated users from protected pages to `/<app>` (login page), and logged-in users from the login page to the app's default page
-4. Client components read the session via the `useSession("<app>")` hook to get `userId` and `token`; it is `undefined` while loading and `null` when there is no valid session. Call the backend only once `token` is there; without a session, show "Não foi possível carregar a sua sessão. Recarregue a página."
-5. "Sair", in the app header, calls the Server Action `logout("<app>")`: it deletes the app's session cookie and goes back to the login page. A user token already signed still works until it expires, since the tokens are stateless
+3. The proxy reads the cookie on every request: it redirects unauthenticated users from protected pages to `/<lang>/<app>` (login page), and logged-in users from the login page to the app's default page, in the same language
+4. Client components read the session via the `useSession("<app>")` hook to get `userId` and `token`; it is `undefined` while loading and `null` when there is no valid session. Call the backend only once `token` is there; without a session, show the common dictionary's `session.loadFailed` (`commonDictionary[lang].session.loadFailed`)
+5. "Sair", in the app header, calls the Server Action `logout(lang, "<app>")`: it deletes the app's session cookie and goes back to the login page in the same language. A user token already signed still works until it expires, since the tokens are stateless
 
 `session.ts` is a `"use server"` file, so every export is a Server Action that anyone can call with a POST request: it only exports `getSession` and `logout`, which read or end the caller's own session. `session-cookie.ts` (which creates the session), `api-token.ts` and `login-limit.ts` are plain server modules (`import "server-only"`), so their functions can't be called from outside.
 
@@ -102,7 +121,7 @@ Every backend endpoint needs a token: an HS256 JWT signed with `API_TOKEN_SECRET
 - An axios error carries its request's headers, so the client logger hides `Authorization` before sending a log.
 
 ### Login attempt limit
-`src/app/actions/login-limit.ts`: 5 wrong names from the same visitor within an hour block that visitor for an hour, in every app (`login()` then answers "Muitas tentativas. Tente de novo em até 1 hora." without calling the backend). The visitor is `x-real-ip` (set by Railway's edge), then the first `x-forwarded-for` entry. Each attempt counts before the lookup, so parallel attempts can't get past the limit; a found name or an error other than a 404 takes its attempt back. Only time clears the wrong names, so logging in with a known name can't reset the limit. The counts live in memory, which is enough for the single Railway instance; they reset on each deploy.
+`src/app/actions/login-limit.ts`: 5 wrong names from the same visitor within an hour block that visitor for an hour, in every app (`login()` then answers its dictionary's `tooManyAttempts`, in the page's language, without calling the backend). The visitor is `x-real-ip` (set by Railway's edge), then the first `x-forwarded-for` entry. Each attempt counts before the lookup, so parallel attempts can't get past the limit; a found name or an error other than a 404 takes its attempt back. Only time clears the wrong names, so logging in with a known name can't reset the limit. The counts live in memory, which is enough for the single Railway instance; they reset on each deploy.
 
 ### WebSocket pattern
 - **political-culture:** `hooks/useChatSocket.ts` connects on mount to `ws(s)://<server>/ws/chat/<userId>`, so it is open before any message is sent, and `hooks/useTextsSocket.ts` to `ws(s)://<server>/ws/political-culture/texts/<userId>`, which says how each PDF upload ended. Its callbacks go through `useEffectEvent`, so a new callback doesn't reconnect the socket and lose a result. The page picks each upload's id (`crypto.randomUUID()`) and sends it with the file, since a PDF that fails at once can answer before the 202. The page only uploads while the socket is open; a closed socket (a backend deploy closes it) is not reopened, and the page asks for a reload, as the chat does.
@@ -182,7 +201,7 @@ The plants chat endpoints have no `/plants` prefix in the backend, and its GET r
 
 ## Non-negotiables
 The shared ones (learning-first, git managed by the user) are in the root `CLAUDE.md`.
-- **App isolation.** No shared feature components across apps. Each app owns its full component tree; only site infrastructure (`AppHeader`, `ThemeToggle`, `Toast`, `globals.css`) is shared.
+- **App isolation.** No shared feature components across apps. Each app owns its full component tree; only site infrastructure (`AppHeader`, `CornerControls`, `LanguageLink`, `ThemeToggle`, `Toast`, `globals.css`) is shared.
 - **Backend contract matters.** The WebSocket-before-POST constraint is non-negotiable: political-culture connects on mount, and cfflch waits for `onopen` before each POST.
 - **No tests yet.** Vitest or Jest is not installed. Do not write tests unless explicitly asked.
 - **TypeScript strict.** All new code must pass `tsc --noEmit` cleanly.
