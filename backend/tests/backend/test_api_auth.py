@@ -16,7 +16,7 @@ from backend.api_auth import (
     require_user_token,
     websocket_user_id,
 )
-from tests.api_tokens import api_key, bearer, make_token, user_token
+from tests.api_tokens import api_key, api_key_for, bearer, make_token, user_token
 
 
 def request_with(headers: dict[str, str]) -> HttpRequest:
@@ -81,6 +81,16 @@ def test_an_api_key_gives_its_user_id_and_records_its_use() -> None:
 
     assert require_user_token(request, "plants") == "7"
     assert ApiKey.objects.get().last_used_at is not None
+
+
+@pytest.mark.django_db
+def test_a_key_for_several_apps_acts_as_the_person_in_each() -> None:
+    request = request_with(bearer(api_key_for({"plants": 7, "cfflch": 3})))
+
+    assert require_user_token(request, "plants") == "7"
+    assert require_user_token(request, "cfflch") == "3"
+    with pytest.raises(InvalidToken):
+        require_user_token(request, "political-culture")
 
 
 def test_another_users_id_gets_403() -> None:

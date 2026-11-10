@@ -23,7 +23,8 @@ const ptBR = {
   },
   chat: {
     title: "Chat",
-    greeting: "Olá! Como posso ajudar você hoje?",
+    greeting:
+      "Olá! Como posso ajudar você hoje? Envie /help para ver o que eu sei fazer.",
     conversation: "Conversa",
     loadingHistory: "Carregando o histórico…",
     messageLabel: "Mensagem",
@@ -107,7 +108,7 @@ const en: PoliticalCultureDictionary = {
   },
   chat: {
     title: "Chat",
-    greeting: "Hi! How can I help you today?",
+    greeting: "Hi! How can I help you today? Send /help to see what I can do.",
     conversation: "Conversation",
     loadingHistory: "Loading the history…",
     messageLabel: "Message",

@@ -170,7 +170,7 @@ The Django backend runs at `NEXT_PUBLIC_SERVER_URL`. The endpoints the frontend 
 | plants | `/api/chatbot/message` | POST | Sends a chat message; the answer comes in the response |
 | plants | `/api/chat-history/{userId}/` | GET | Returns chat history |
 | political-culture | `/api/political-culture/users/{name}` | GET | Login lookup |
-| political-culture | `/api/political-culture/chatbot/message` | POST | Sends a chat message; the answer comes via WebSocket |
+| political-culture | `/api/political-culture/chatbot/message` | POST | Sends a chat message (`user_id`, `text`, and the page's `language`, which `/help` answers in); the answer comes via WebSocket |
 | political-culture | `/api/political-culture/chat-history/{userId}` | GET | Returns chat history |
 | political-culture | `/api/political-culture/texts` | GET | The shared library, newest first |
 | political-culture | `/api/political-culture/texts` | POST | Adds a PDF of up to 100 MB (`content`, and the page's `upload_id`): 202, or 409 when it is in the library or being read; the result comes via WebSocket |

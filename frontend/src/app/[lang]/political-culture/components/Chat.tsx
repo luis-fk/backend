@@ -55,36 +55,51 @@ export default function Chat(): React.ReactElement {
     if (!userId || !token || !serverUrl) return;
 
     const controller = new AbortController();
-    axios
-      .get<MessageType[]>(
-        `${serverUrl}/api/political-culture/chat-history/${userId}`,
-        {
-          headers: { Authorization: `Bearer ${token}` },
-          signal: controller.signal,
-        },
-      )
-      .then((res) => {
-        if (res.status === 200 && res.data.length > 0) {
-          setMessages(res.data);
+    const options = {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: controller.signal,
+    };
+
+    async function load(): Promise<void> {
+      try {
+        const history = await axios.get<MessageType[]>(
+          `${serverUrl}/api/political-culture/chat-history/${userId}`,
+          options,
+        );
+        if (history.data.length > 0) {
+          setMessages(history.data);
+          return;
         }
-      })
-      .catch((err: unknown) => {
+      } catch (err) {
         if (axios.isCancel(err)) return;
-        logger.error("Failed to fetch chat history", {
-          userId,
-          error: err,
-        });
+        logger.error("Failed to fetch chat history", { userId, error: err });
         setErrorMessage(
           expired(err) ? common.session.expired : t.historyFailed,
         );
-      })
-      .finally(() => {
-        // Ignore runs that were cleaned up.
-        if (!controller.signal.aborted) setLoadingHistory(false);
-      });
+        return;
+      }
+
+      // An empty chat opens with the help, which the backend keeps; the
+      // greeting stays if it can't be read.
+      try {
+        const help = await axios.get<{ message: string }>(
+          `${serverUrl}/api/political-culture/chatbot/help`,
+          { ...options, params: { language: lang } },
+        );
+        setMessages([{ message: help.data.message, role: "ai" }]);
+      } catch (err) {
+        if (axios.isCancel(err)) return;
+        logger.error("Failed to fetch the chat help", { error: err });
+      }
+    }
+
+    load().finally(() => {
+      // Ignore runs that were cleaned up.
+      if (!controller.signal.aborted) setLoadingHistory(false);
+    });
 
     return () => controller.abort();
-  }, [userId, token, serverUrl, common, t]);
+  }, [userId, token, serverUrl, lang, common, t]);
 
   const handleNewMessage = useCallback((message: MessageType): void => {
     setMessages((previous) => [...previous, message]);
@@ -133,7 +148,8 @@ export default function Chat(): React.ReactElement {
     try {
       await axios.post(
         `${serverUrl}/api/political-culture/chatbot/message`,
-        { user_id: userId, text: userMsg },
+        // The language is for /help, which the backend answers in it.
+        { user_id: userId, text: userMsg, language: lang },
         { headers: { Authorization: `Bearer ${token}` } },
       );
     } catch (error) {
@@ -144,7 +160,7 @@ export default function Chat(): React.ReactElement {
       setErrorMessage(expired(error) ? common.session.expired : t.sendFailed);
       setSending(false);
     }
-  }, [sending, input, serverUrl, userId, token, common, t]);
+  }, [sending, input, serverUrl, userId, token, lang, common, t]);
 
   return (
     <main className="political-chat">

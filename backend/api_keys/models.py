@@ -15,21 +15,24 @@ def hash_key(key: str) -> str:
 
 
 class ApiKey(models.Model):
-    """A key that calls one app's API as one of its users, from Bruno for example.
+    """A key that calls the API of one or more apps as one person, from Bruno for
+    example.
 
     Only its hash is stored: the admin shows the key once, when it creates it.
     """
 
     name = models.CharField(max_length=100, help_text="Who or what the key is for.")
-    app = models.CharField(
-        max_length=20,
-        choices=[
-            ("plants", "plants"),
-            ("political-culture", "political-culture"),
-            ("cfflch", "cfflch"),
-        ],
+    auth_user_id = models.BigIntegerField(
+        null=True,
+        blank=True,
+        help_text="The person: their id in the auth users table. Empty only on an old "
+        "key whose user was already gone when keys started covering several apps.",
     )
-    user_id = models.BigIntegerField(help_text="The id in the app's Users table.")
+    users = models.JSONField(
+        default=dict,
+        help_text="The person's id in each app's Users table, by app; the key works "
+        "only in these apps.",
+    )
     prefix = models.CharField(max_length=PREFIX_LENGTH, editable=False)
     key_hash = models.CharField(max_length=64, unique=True, editable=False)
     active = models.BooleanField(default=True)

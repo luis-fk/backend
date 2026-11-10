@@ -7,7 +7,8 @@ from rest_framework.views import APIView
 
 from backend.api_auth import require_same_user, require_user_token
 from political_culture.api.chatbot.chatbot import LLM
-from political_culture.api.chatbot.serializers import MessageSerializer
+from political_culture.api.chatbot.help import first_message
+from political_culture.api.chatbot.serializers import HelpSerializer, MessageSerializer
 from political_culture.api.chatbot.utils import clean_html
 
 logger = logging.getLogger(__name__)
@@ -31,7 +32,11 @@ class ChatBotApi(APIView):
 
             cleaned_text = clean_html(text)
 
-            self.llm.process_text(text=cleaned_text, user_id=int(user_id))
+            self.llm.process_text(
+                text=cleaned_text,
+                user_id=int(user_id),
+                language=serializer.validated_data["language"],
+            )
 
             return Response(
                 {"user_id": user_id, "response": "accepted"},
@@ -41,3 +46,17 @@ class ChatBotApi(APIView):
             logger.error("Error processing user text")
 
             return Response({"error": "Invalid request data"}, status=400)
+
+
+class ChatHelpApi(APIView):
+    def get(self, request: Any, *args: Any, **kwargs: Any) -> Response:
+        require_user_token(request, "political-culture")
+        serializer = HelpSerializer(data=request.query_params)
+
+        if not serializer.is_valid():
+            return Response({"error": "Invalid request data"}, status=400)
+
+        return Response(
+            {"message": first_message(serializer.validated_data["language"])},
+            status=status.HTTP_200_OK,
+        )

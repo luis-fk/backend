@@ -30,7 +30,9 @@ Every API endpoint checks a token ([`backend/api_auth.py`](backend/api_auth.py))
 
 The ESP32 sends the header `X-Device-Key: <ESP32_DEVICE_KEY>` to `/api/esp32/humidity-data`.
 
-To call the API from Bruno, or to give someone access, create an API key in the Django admin (**API keys → Add**, in production too): a name saying who or what it is for, the app, and the user id (the `id` in that app's Users table). The admin shows the key once and stores only its hash, so a lost key is replaced with a new one. Send it as `Authorization: Bearer <key>`: it works like that user's token in that app, except on the WebSockets. To revoke it, uncheck **Active** (in the list or on its page) and save; it stops working at once.
+To call the API from Bruno, or to give someone access, create an API key in the Django admin (**API keys → Add**, in production too): a name saying who or what it is for, the person, and the apps the key works in, one or several (the person must already be in each one; their user page adds them). The admin shows the key once and stores only its hash, so a lost key is replaced with a new one. Send it as `Authorization: Bearer <key>`: in each of its apps it works like that person's token, except on the WebSockets. To revoke it, uncheck **Active** (in the list or on its page) and save; it stops working at once.
+
+To give someone access to the site, add them in **Users → Add** and tick their apps: the user form creates their row in each app's Users table, and the user list shows each person's apps.
 
 The Bruno collection in [`bruno/`](bruno/) documents the API. Its Local environment takes each app's API key and user id, the device key and, for the WebSockets, a user token, as secret variables, which Bruno keeps outside the files. The Production environment stays out of git.
 
