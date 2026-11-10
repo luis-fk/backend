@@ -27,8 +27,15 @@ def login_token(app: str) -> str:
 
 
 def api_key(app: str, user_id: int = 7, active: bool = True) -> str:
-    """Saves an API key and returns it; the test needs the django_db mark."""
-    row = ApiKey(name="test", app=app, user_id=user_id, active=active)
+    """Saves an API key for one app and returns it; the test needs the django_db
+    mark."""
+    return api_key_for({app: user_id}, active)
+
+
+def api_key_for(users: dict[str, int], active: bool = True) -> str:
+    """Saves an API key for several apps, with the person's id in each, and
+    returns it; the test needs the django_db mark."""
+    row = ApiKey(name="test", users=users, active=active)
     key = row.generate_key()
     row.save()
     return key

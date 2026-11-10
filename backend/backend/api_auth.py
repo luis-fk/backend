@@ -5,8 +5,8 @@ The frontend signs HS256 JWTs with API_TOKEN_SECRET:
 - a login token, {app, purpose: "login"}, for the login lookup by name.
 The app keys are "plants", "political-culture" and "cfflch".
 
-Over HTTP, an active API key (the api_keys app) works wherever a user token does, as
-its user in its app. The WebSockets take only user tokens.
+Over HTTP, an active API key (the api_keys app) works wherever a user token does, in
+each app it covers, as its person's user there. The WebSockets take only user tokens.
 """
 
 import hmac
@@ -107,15 +107,15 @@ def _request_user_id(request: HttpRequest, app: str) -> str | None:
 
 
 def _api_key_user_id(key: str, app: str) -> str | None:
-    """The user id of an active API key for app, or None. Records the key's use."""
-    api_key = ApiKey.objects.filter(
-        key_hash=hash_key(key), app=app, active=True
-    ).first()
-    if api_key is None:
+    """The person's user id in app for an active API key that covers app, or None.
+    Records the key's use."""
+    api_key = ApiKey.objects.filter(key_hash=hash_key(key), active=True).first()
+    user_id = api_key.users.get(app) if api_key else None
+    if api_key is None or user_id is None:
         return None
     api_key.last_used_at = timezone.now()
     api_key.save(update_fields=["last_used_at"])
-    return str(api_key.user_id)
+    return str(user_id)
 
 
 def _user_id(token: str, app: str) -> str | None:
