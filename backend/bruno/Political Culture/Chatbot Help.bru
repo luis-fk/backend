@@ -1,0 +1,19 @@
+meta {
+  name: Chatbot Help
+  type: http
+  seq: 8
+}
+
+get {
+  url: {{baseUrl}}/api/political-culture/chatbot/help?language=pt-BR
+  body: none
+  auth: inherit
+}
+
+params:query {
+  language: pt-BR
+}
+
+docs {
+  The first message of an empty chat: what the bot does, ending with a line about `/help`, in `language` (`pt-BR`, the default, or `en`). It isn't saved in the history.
+}

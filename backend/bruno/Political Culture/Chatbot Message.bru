@@ -13,10 +13,13 @@ post {
 body:json {
   {
     "user_id": "{{politicalCultureUserId}}",
-    "text": "Quais textos da biblioteca falam de liberalismo?"
+    "text": "Quais textos da biblioteca falam de liberalismo?",
+    "language": "pt-BR"
   }
 }
 
 docs {
   The answer arrives on the Chat WebSocket.
+
+  `language` (`pt-BR` or `en`, default `pt-BR`) is the page's language. Only the `/help` answer uses it: the text "/help" gets a fixed list of what the bot does, without the model, and both stay in the history. Any other message is answered in the language it is written in.
 }
