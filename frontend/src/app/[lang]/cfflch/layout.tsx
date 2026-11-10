@@ -1,8 +1,16 @@
 import type { Metadata } from "next";
+import { commonDictionary } from "@/app/dictionary";
+import { toLocale } from "@/app/i18n";
 
-export const metadata: Metadata = {
-  title: { default: "CFFLCH", template: "%s | CFFLCH" },
-};
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ lang: string }>;
+}): Promise<Metadata> {
+  const name =
+    commonDictionary[toLocale((await params).lang)].projects.cfflch.name;
+  return { title: { default: name, template: `%s | ${name}` } };
+}
 
 export default function CfflchLayout({
   children,

@@ -3,7 +3,9 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import axios from "axios";
 import { logger } from "@/app/api/log/client-logger";
+import { useLocale } from "@/app/useLocale";
 import { errorMessage } from "@/cfflch/api-errors";
+import { cfflchDictionary } from "@/cfflch/dictionary";
 
 export type PdfEntry = { url: string; search_title: string };
 
@@ -49,6 +51,8 @@ export function useAdmissionSearch(
   const [results, setResults] = useState<AdmissionResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const lang = useLocale();
+  const t = cfflchDictionary[lang].search;
 
   const wsRef = useRef<WebSocket | null>(null);
 
@@ -133,9 +137,7 @@ export function useAdmissionSearch(
 
       ws.onerror = (event: Event) => {
         logger.error("cfflch WebSocket error", { requestId, event });
-        setError(
-          "Não foi possível conectar ao servidor. Recarregue a página e tente de novo.",
-        );
+        setError(t.connectError);
         setLoading(false);
       };
 
@@ -171,14 +173,12 @@ export function useAdmissionSearch(
         );
       } catch (err) {
         logger.error("cfflch POST failed", { error: err });
-        setError(
-          errorMessage(err, "Não foi possível iniciar a busca. Tente de novo."),
-        );
+        setError(errorMessage(lang, err, t.startError));
         setLoading(false);
         ws.close();
       }
     },
-    [serverUrl, token],
+    [serverUrl, token, lang, t],
   );
 
   return {

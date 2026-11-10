@@ -5,7 +5,9 @@ import axios from "axios";
 import { logger } from "@/app/api/log/client-logger";
 import { SavedAdmissionResult, ClassRoom, ResultChanges } from "@/cfflch/types";
 import Toast from "@/app/components/Toast";
+import { useLocale } from "@/app/useLocale";
 import { errorMessage } from "@/cfflch/api-errors";
+import { cfflchDictionary } from "@/cfflch/dictionary";
 
 interface ResultCardProps {
   result: SavedAdmissionResult;
@@ -24,6 +26,8 @@ export default function ResultCard({
   onDeleted,
   onUpdated,
 }: ResultCardProps): React.ReactElement {
+  const lang = useLocale();
+  const t = cfflchDictionary[lang].resultCard;
   const [approved, setApproved] = useState(result.approved);
   const [classRoomId, setClassRoomId] = useState(result.class_room_id);
   const [error, setError] = useState<string | null>(null);
@@ -46,14 +50,9 @@ export default function ResultCard({
         error: err,
       });
       setApproved(previous);
-      setError(
-        errorMessage(
-          err,
-          "Não foi possível atualizar a aprovação. Tente de novo.",
-        ),
-      );
+      setError(errorMessage(lang, err, t.approvalError));
     }
-  }, [approved, result.id, serverUrl, token, onUpdated]);
+  }, [approved, result.id, serverUrl, token, onUpdated, lang, t]);
 
   const handleClassChange = useCallback(
     async (e: React.ChangeEvent<HTMLSelectElement>): Promise<void> => {
@@ -75,17 +74,15 @@ export default function ResultCard({
           error: err,
         });
         setClassRoomId(prev);
-        setError(
-          errorMessage(err, "Não foi possível mudar a turma. Tente de novo."),
-        );
+        setError(errorMessage(lang, err, t.classError));
       }
     },
-    [classRoomId, result.id, serverUrl, token, onUpdated],
+    [classRoomId, result.id, serverUrl, token, onUpdated, lang, t],
   );
 
   const handleDelete = useCallback(async (): Promise<void> => {
     if (!serverUrl || !token) return;
-    if (!confirm(`Excluir o resultado de ${result.student_name}?`)) return;
+    if (!confirm(t.confirmDelete(result.student_name))) return;
 
     try {
       await axios.delete(
@@ -95,14 +92,9 @@ export default function ResultCard({
       onDeleted(result.id);
     } catch (err) {
       logger.error("Failed to delete result", { id: result.id, error: err });
-      setError(
-        errorMessage(
-          err,
-          "Não foi possível excluir o resultado. Tente de novo.",
-        ),
-      );
+      setError(errorMessage(lang, err, t.deleteError));
     }
-  }, [result.id, result.student_name, serverUrl, token, onDeleted]);
+  }, [result.id, result.student_name, serverUrl, token, onDeleted, lang, t]);
 
   const pdfUrls = result.pdf_urls ?? [];
   const nameId = `result-name-${result.id}`;
@@ -126,9 +118,7 @@ export default function ResultCard({
             </a>
           ))
         ) : (
-          <span className="result-missing muted">
-            Não aparece em nenhuma lista
-          </span>
+          <span className="result-missing muted">{t.notOnAnyList}</span>
         )}
       </div>
 
@@ -140,15 +130,15 @@ export default function ResultCard({
             onChange={handleApprovedToggle}
             aria-describedby={nameId}
           />
-          Aprovado
+          {t.approved}
         </label>
         <select
           className="select select-compact"
-          aria-label={`Turma de ${result.student_name}`}
+          aria-label={t.classOf(result.student_name)}
           value={classRoomId ?? ""}
           onChange={handleClassChange}
         >
-          <option value="">Sem turma</option>
+          <option value="">{t.noClass}</option>
           {classrooms.map((c) => (
             <option key={c.id} value={c.id}>
               {c.name}
@@ -159,9 +149,9 @@ export default function ResultCard({
           type="button"
           className="text-button text-button-danger"
           onClick={handleDelete}
-          aria-label={`Excluir ${result.student_name}`}
+          aria-label={t.deleteLabel(result.student_name)}
         >
-          Excluir
+          {t.delete}
         </button>
       </div>
 

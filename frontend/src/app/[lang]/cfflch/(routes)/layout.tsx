@@ -1,5 +1,6 @@
 import AppHeader from "@/app/components/AppHeader";
 import { localePath, toLocale } from "@/app/i18n";
+import { cfflchDictionary } from "@/cfflch/dictionary";
 
 export default async function RoutesLayout({
   children,
@@ -9,9 +10,10 @@ export default async function RoutesLayout({
   params: Promise<{ lang: string }>;
 }>): Promise<React.ReactElement> {
   const lang = toLocale((await params).lang);
+  const t = cfflchDictionary[lang].tabs;
   const links = [
-    { href: localePath(lang, "/cfflch/search"), label: "Buscar" },
-    { href: localePath(lang, "/cfflch/results"), label: "Resultados" },
+    { href: localePath(lang, "/cfflch/search"), label: t.search },
+    { href: localePath(lang, "/cfflch/results"), label: t.results },
   ];
 
   return (

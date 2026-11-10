@@ -7,8 +7,12 @@ import { logger } from "@/app/api/log/client-logger";
 import { SavedAdmissionResult, ClassRoom, ResultChanges } from "@/cfflch/types";
 import ResultCard from "@/cfflch/components/result-card";
 import Toast from "@/app/components/Toast";
+import { commonDictionary } from "@/app/dictionary";
+import type { Locale } from "@/app/i18n";
+import { useLocale } from "@/app/useLocale";
 import "@/cfflch/css/results.css";
 import { errorMessage } from "@/cfflch/api-errors";
+import { cfflchDictionary } from "@/cfflch/dictionary";
 
 interface ResultsTableProps {
   serverUrl: string | undefined;
@@ -16,19 +20,24 @@ interface ResultsTableProps {
 
 type PdfFilter = "all" | "found" | "not-found";
 
-const PDF_FILTERS: { value: PdfFilter; label: string }[] = [
-  { value: "all", label: "Todos" },
-  { value: "found", label: "Com PDF" },
-  { value: "not-found", label: "Sem PDF" },
-];
+// Their labels are the dictionary's pdfFilters.
+const PDF_FILTERS: readonly PdfFilter[] = ["all", "found", "not-found"];
 
-function countLabel(count: number, singular: string, plural: string): string {
-  return `${count} ${count === 1 ? singular : plural}`;
+// "3 alunos": the number in the page's language, and the word the dictionary
+// gives for that count, since each language has its own plural.
+function countLabel(
+  count: number,
+  word: (count: number) => string,
+  lang: Locale,
+): string {
+  return `${count.toLocaleString(lang)} ${word(count)}`;
 }
 
 export default function ResultsTable({
   serverUrl,
 }: ResultsTableProps): React.ReactElement {
+  const lang = useLocale();
+  const t = cfflchDictionary[lang].results;
   const [currentYear] = useState(() => new Date().getFullYear());
   const years = Array.from(
     { length: currentYear - 2000 + 1 },
@@ -65,16 +74,11 @@ export default function ResultsTable({
       .catch((err: unknown) => {
         if (axios.isCancel(err)) return;
         logger.error("Failed to fetch classrooms", { error: err });
-        setError(
-          errorMessage(
-            err,
-            "Não foi possível carregar as turmas. Tente de novo.",
-          ),
-        );
+        setError(errorMessage(lang, err, t.classesError));
       });
 
     return () => controller.abort();
-  }, [serverUrl, token]);
+  }, [serverUrl, token, lang, t]);
 
   useEffect(() => {
     if (!serverUrl || !token) return;
@@ -99,17 +103,12 @@ export default function ResultsTable({
           year,
           error: err,
         });
-        setError(
-          errorMessage(
-            err,
-            "Não foi possível carregar os resultados. Tente de novo.",
-          ),
-        );
+        setError(errorMessage(lang, err, t.resultsError));
         setLoaded({ year, failed: true });
       });
 
     return () => controller.abort();
-  }, [serverUrl, token, year]);
+  }, [serverUrl, token, year, lang, t]);
 
   const handleDeleted = useCallback((id: number): void => {
     setResults((prev) => prev.filter((r) => r.id !== id));
@@ -141,19 +140,19 @@ export default function ResultsTable({
   const summary =
     loading || failed || filtered.length === 0
       ? null
-      : `${countLabel(filtered.length, "aluno", "alunos")}, ${countLabel(approvedCount, "aprovado", "aprovados")}`;
+      : `${countLabel(filtered.length, t.summary.students, lang)}, ${countLabel(approvedCount, t.summary.approved, lang)}`;
 
   return (
     <main className="page">
       <div className="page-header">
-        <h1 className="page-title">Resultados</h1>
+        <h1 className="page-title">{t.title}</h1>
         <p className="muted results-summary">{summary}</p>
       </div>
 
       <div className="results-toolbar">
         <div className="field">
           <label htmlFor="year-input" className="field-label">
-            Ano
+            {t.yearLabel}
           </label>
           <select
             id="year-input"
@@ -175,21 +174,21 @@ export default function ResultsTable({
 
         <div className="field">
           <span id="pdf-filter-label" className="field-label">
-            Listas
+            {t.listsLabel}
           </span>
           <div
             className="segmented"
             role="group"
             aria-labelledby="pdf-filter-label"
           >
-            {PDF_FILTERS.map((option) => (
+            {PDF_FILTERS.map((filter) => (
               <button
-                key={option.value}
+                key={filter}
                 type="button"
-                aria-pressed={pdfFilter === option.value}
-                onClick={() => setPdfFilter(option.value)}
+                aria-pressed={pdfFilter === filter}
+                onClick={() => setPdfFilter(filter)}
               >
-                {option.label}
+                {t.pdfFilters[filter]}
               </button>
             ))}
           </div>
@@ -197,7 +196,7 @@ export default function ResultsTable({
 
         <div className="field">
           <label htmlFor="class-filter" className="field-label">
-            Turma
+            {t.classLabel}
           </label>
           <select
             id="class-filter"
@@ -209,7 +208,7 @@ export default function ResultsTable({
               )
             }
           >
-            <option value="">Todas as turmas</option>
+            <option value="">{t.allClasses}</option>
             {classrooms.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.name}
@@ -220,19 +219,15 @@ export default function ResultsTable({
       </div>
 
       {session === null ? (
-        <p className="muted">
-          Não foi possível carregar a sua sessão. Recarregue a página.
-        </p>
+        <p className="muted">{commonDictionary[lang].session.loadFailed}</p>
       ) : loading ? (
-        <p className="muted">Carregando resultados…</p>
+        <p className="muted">{t.loading}</p>
       ) : failed ? (
-        <p className="muted">
-          Não foi possível carregar os resultados de {year}.
-        </p>
+        <p className="muted">{t.failed(year)}</p>
       ) : results.length === 0 ? (
-        <p className="muted">Nenhum resultado para {year}.</p>
+        <p className="muted">{t.empty(year)}</p>
       ) : filtered.length === 0 ? (
-        <p className="muted">Nenhum resultado com esses filtros.</p>
+        <p className="muted">{t.noMatches}</p>
       ) : (
         <ul className="list">
           {filtered.map((result) => (

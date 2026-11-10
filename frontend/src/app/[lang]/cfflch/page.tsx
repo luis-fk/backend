@@ -1,6 +1,8 @@
 import Link from "next/link";
 import CornerControls from "@/app/components/CornerControls";
+import { commonDictionary } from "@/app/dictionary";
 import LoginForm from "@/cfflch/components/login-form";
+import { cfflchDictionary } from "@/cfflch/dictionary";
 import { localePath, toLocale } from "@/app/i18n";
 
 export default async function Home({
@@ -9,6 +11,7 @@ export default async function Home({
   params: Promise<{ lang: string }>;
 }): Promise<React.ReactElement> {
   const lang = toLocale((await params).lang);
+  const t = cfflchDictionary[lang].login;
 
   return (
     <main className="auth" data-project="cfflch">
@@ -17,14 +20,14 @@ export default async function Home({
         <div className="auth-intro">
           <div className="auth-brand">
             <span className="dot" aria-hidden="true" />
-            CFFLCH
+            {commonDictionary[lang].projects.cfflch.name}
           </div>
-          <h1 className="auth-title">Entrar</h1>
-          <p className="muted">Use o nome que foi cadastrado para você.</p>
+          <h1 className="auth-title">{t.title}</h1>
+          <p className="muted">{t.intro}</p>
         </div>
         <LoginForm />
         <Link href={localePath(lang, "/")} className="auth-back">
-          Voltar para os projetos
+          {t.back}
         </Link>
       </div>
     </main>
