@@ -1,19 +1,15 @@
 from typing import Any
 
 from django import forms
-from django.apps import apps
 from django.contrib import admin
+from django.contrib.auth import get_user_model
+from django.contrib.auth.admin import UserAdmin
+from django.contrib.auth.forms import AdminUserCreationForm, UserChangeForm
 from django.http import HttpRequest, HttpResponse
 from django.template.response import TemplateResponse
 
+from api_keys.app_users import USERS_MODELS, add_to_apps, apps_of, users_model
 from api_keys.models import ApiKey
-
-# Looked up by name, so this app doesn't import the others.
-USERS_MODELS = {
-    "plants": "plants.Users",
-    "political-culture": "political_culture.Users",
-    "cfflch": "cfflch.Users",
-}
 
 
 class ApiKeyForm(forms.ModelForm):
@@ -23,7 +19,7 @@ class ApiKeyForm(forms.ModelForm):
         user_id = cleaned_data.get("user_id")
         # Only the add form has these fields.
         if app and user_id is not None:
-            users = apps.get_model(USERS_MODELS[app])
+            users = users_model(app)
             if not users.objects.filter(pk=user_id).exists():
                 self.add_error("user_id", f"{app} has no user with id {user_id}.")
         return cleaned_data
@@ -85,3 +81,53 @@ class ApiKeyAdmin(admin.ModelAdmin):
         return TemplateResponse(
             request, "admin/api_keys/apikey/key_created.html", context
         )
+
+
+def apps_field(help_text: str) -> forms.MultipleChoiceField:
+    return forms.MultipleChoiceField(
+        choices=[(app, app) for app in USERS_MODELS],
+        widget=forms.CheckboxSelectMultiple,
+        required=False,
+        help_text=help_text,
+    )
+
+
+class UserCreationWithAppsForm(AdminUserCreationForm):
+    apps = apps_field("The apps the person can sign in to.")
+
+
+class UserChangeWithAppsForm(UserChangeForm):
+    apps = apps_field(
+        "Ticking an app adds the person to it. Unticking doesn't remove them: that "
+        "would delete their data in the app, so it is done in the app's Users "
+        "table, which lists what goes with it."
+    )
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        self.fields["apps"].initial = apps_of(self.instance.pk)
+
+
+# The admin's user pages, with the apps each person is in: Django's own, which
+# the auth app registers first, plus an apps field.
+User = get_user_model()
+admin.site.unregister(User)
+
+
+@admin.register(User)
+class UserWithAppsAdmin(UserAdmin):
+    add_form = UserCreationWithAppsForm
+    form = UserChangeWithAppsForm
+    add_fieldsets = (*UserAdmin.add_fieldsets, ("Apps", {"fields": ("apps",)}))
+    fieldsets = (*(UserAdmin.fieldsets or ()), ("Apps", {"fields": ("apps",)}))
+    list_display = (*UserAdmin.list_display, "app_list")
+
+    @admin.display(description="apps")
+    def app_list(self, obj: Any) -> str:
+        return ", ".join(apps_of(obj.pk)) or "-"
+
+    def save_model(
+        self, request: HttpRequest, obj: Any, form: forms.ModelForm, change: bool
+    ) -> None:
+        super().save_model(request, obj, form, change)
+        add_to_apps(obj.pk, form.cleaned_data.get("apps", []))
