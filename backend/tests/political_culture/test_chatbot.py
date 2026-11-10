@@ -167,3 +167,47 @@ def test_help_tells_what_the_bot_does_without_the_model_and_keeps_it_in_the_hist
         f"chat_{user.id}",
         {"type": "chat.message", "message": {"role": "ai", "message": help_text}},
     )
+
+
+@pytest.mark.parametrize(
+    ("language", "opening", "ending"),
+    [
+        ("pt-BR", "Posso ajudar", "Você pode usar o comando /help quando precisar."),
+        ("en", "I can help", "You can use the /help command whenever you need it."),
+    ],
+)
+def test_an_empty_chat_opens_with_the_help_and_a_reminder_of_the_command(
+    client: Client, language: str, opening: str, ending: str
+) -> None:
+    response = client.get(
+        "/api/political-culture/chatbot/help",
+        {"language": language},
+        headers=bearer(user_token("political-culture", "7")),
+    )
+
+    assert response.status_code == 200
+    message = response.json()["message"]
+    assert message.startswith(opening)
+    assert message.endswith(ending)
+
+
+def test_the_first_message_is_in_portuguese_without_a_language(client: Client) -> None:
+    response = client.get(
+        "/api/political-culture/chatbot/help",
+        headers=bearer(user_token("political-culture", "7")),
+    )
+
+    assert response.status_code == 200
+    assert response.json()["message"].startswith("Posso ajudar")
+
+
+def test_the_first_message_in_a_language_the_site_lacks_gets_400(
+    client: Client,
+) -> None:
+    response = client.get(
+        "/api/political-culture/chatbot/help",
+        {"language": "fr"},
+        headers=bearer(user_token("political-culture", "7")),
+    )
+
+    assert response.status_code == 400

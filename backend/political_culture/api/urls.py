@@ -1,12 +1,13 @@
 from django.urls import path
 
-from political_culture.api.chatbot.routes import ChatBotApi
+from political_culture.api.chatbot.routes import ChatBotApi, ChatHelpApi
 from political_culture.api.messages.routes import MessagesApi
 from political_culture.api.texts.routes import TextsApi, TextSelectionApi
 from political_culture.api.users.routes import UserApi
 
 chatbot_urls = [
     path("api/political-culture/chatbot/message", ChatBotApi.as_view(), name="message"),
+    path("api/political-culture/chatbot/help", ChatHelpApi.as_view(), name="chat_help"),
 ]
 
 texts_urls = [

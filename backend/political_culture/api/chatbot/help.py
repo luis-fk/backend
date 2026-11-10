@@ -39,6 +39,16 @@ HELP_TEXTS = {
 }
 
 
+FIRST_MESSAGE_ENDINGS = {
+    "pt-BR": "Você pode usar o comando /help quando precisar.",
+    "en": "You can use the /help command whenever you need it.",
+}
+
+
+def first_message(language: str) -> str:
+    return f"{HELP_TEXTS[language]}\n\n{FIRST_MESSAGE_ENDINGS[language]}"
+
+
 def is_help(text: str) -> bool:
     return text.strip().lower() == HELP_COMMAND
 

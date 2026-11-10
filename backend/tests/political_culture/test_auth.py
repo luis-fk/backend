@@ -67,11 +67,17 @@ def add_text(client: Client, user_id: int, headers: dict[str, str]) -> HttpRespo
     )
 
 
+def get_help(client: Client, user_id: int, headers: dict[str, str]) -> HttpResponseBase:
+    return client.get(
+        "/api/political-culture/chatbot/help?language=en", headers=headers
+    )
+
+
 def find_user(client: Client, headers: dict[str, str]) -> HttpResponseBase:
     return client.get("/api/political-culture/users/ana", headers=headers)
 
 
-ALL = [get_history, send_message, list_texts, add_text, select_text]
+ALL = [get_history, send_message, list_texts, add_text, select_text, get_help]
 OWN_DATA = [get_history, send_message]
 
 
@@ -141,6 +147,7 @@ def app_data() -> Iterator[None]:
         (list_texts, 200),
         (add_text, 202),
         (select_text, 204),
+        (get_help, 200),
     ],
 )
 def test_api_keys_act_as_their_user(client: Client, send: Send, status: int) -> None:
