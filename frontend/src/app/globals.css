@@ -2,13 +2,16 @@
 
 /* Each color has a light and a dark value, and light-dark() picks one from
    color-scheme: the system preference, unless the theme switch saved a choice
-   (<html data-theme>, set by the root layout from the "theme" cookie). */
+   (<html data-theme>, set by the root layout's script from the "theme"
+   cookie). */
 :root {
   color-scheme: light dark;
   --bg: light-dark(#ffffff, #141618);
   --surface: light-dark(#f2f3f1, #1e2124);
   --line: light-dark(#e2e4e0, #2e3236);
-  --field-line: light-dark(#d3d6d0, #3a3f44);
+  /* Field borders: at least 3:1 against --bg and --surface, the contrast a
+     field's edge needs to be seen (WCAG 1.4.11). */
+  --field-line: light-dark(#878b85, #686e74);
   --ink: light-dark(#17191c, #ecedee);
   --muted: light-dark(#5f646b, #a0a6ad);
   --danger: light-dark(#a1281f, #f08a80);
@@ -368,6 +371,11 @@ textarea {
   margin-left: auto;
 }
 
+/* A flex box, so the form is as tall as its button and stays centered. */
+.app-header-logout {
+  display: flex;
+}
+
 .app-nav {
   display: flex;
   gap: 28px;
@@ -484,9 +492,11 @@ textarea {
   color: var(--muted);
 }
 
-/* On phones the app's links move to a row of their own below, like tabs, so the
-   project and the theme switch keep the first row. */
-@media (max-width: 480px) {
+/* On phones the app's links move to a row of their own below, like tabs, with
+   "Sair" at its end, so the project and the theme switch keep the first row
+   (without links, "Sair" stays in it). In one row, the longest project name,
+   the links, the switch and "Sair" need about 500px. */
+@media (max-width: 520px) {
   /* Centers the 40px switcher in a 63px first row (the 64px header minus its
      border), as on desktop. */
   .project-switcher {
@@ -501,9 +511,15 @@ textarea {
     margin-left: auto;
   }
 
+  /* A basis the first row can't hold, so the links start the second row and,
+     growing, push "Sair" to its end. */
   .app-nav {
     order: 1;
-    width: 100%;
+    flex: 1 0 70%;
+  }
+
+  .app-header-logout {
+    order: 2;
   }
 
   .app-nav a {
@@ -533,7 +549,7 @@ textarea {
 }
 
 .theme-toggle:hover {
-  background: var(--field-line);
+  background: light-dark(#d3d6d0, #3a3f44);
 }
 
 .theme-toggle-knob {

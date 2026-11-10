@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef } from "react";
+import { logout } from "@/app/actions/session";
 import ThemeToggle from "@/app/components/ThemeToggle";
 import { PROJECTS, type ProjectKey } from "@/app/projects";
 
@@ -128,6 +129,12 @@ export default function AppHeader({
           </nav>
         )}
         <ThemeToggle />
+        {/* Each app has its own session, so this ends only this app's. */}
+        <form action={logout.bind(null, project)} className="app-header-logout">
+          <button type="submit" className="text-button">
+            Sair
+          </button>
+        </form>
       </div>
     </header>
   );

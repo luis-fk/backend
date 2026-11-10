@@ -108,17 +108,31 @@ export default function Texts(): React.ReactElement {
   const [upload, setUpload] = useState<Upload | null>(null);
   const [notice, setNotice] = useState<Notice | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
+  // A list read while a tick was being saved may come back with the old tick,
+  // so it is read again: these count the saves in flight and the saves done.
+  const ticksSaving = useRef(0);
+  const ticksSaved = useRef(0);
+  const reloadAfterTicks = useRef(false);
 
   useEffect(() => {
     if (!token || !serverUrl) return;
 
     const controller = new AbortController();
+    const savedBefore = ticksSaved.current;
     axios
       .get<LibraryText[]>(`${serverUrl}/api/political-culture/texts`, {
         headers: { Authorization: `Bearer ${token}` },
         signal: controller.signal,
       })
       .then((res) => {
+        if (ticksSaving.current > 0) {
+          reloadAfterTicks.current = true;
+          return;
+        }
+        if (ticksSaved.current !== savedBefore) {
+          setReloads((count) => count + 1);
+          return;
+        }
         setLibrary(res.data);
         setLoadFailed(false);
       })
@@ -215,6 +229,9 @@ export default function Texts(): React.ReactElement {
     if (!token || !serverUrl) return;
     const selected = !text.selected;
     markSelected(text.id, selected);
+    ticksSaving.current += 1;
+    // Saves that overlap can reach the server in any order.
+    if (ticksSaving.current > 1) reloadAfterTicks.current = true;
 
     try {
       await axios.put(
@@ -225,6 +242,9 @@ export default function Texts(): React.ReactElement {
     } catch (error) {
       logger.error("Failed to save a text's tick", { id: text.id, error });
       markSelected(text.id, !selected);
+      // The revert assumes the server kept the old tick, which a lost answer
+      // or another save in flight can make wrong.
+      reloadAfterTicks.current = true;
       setNotice({
         message:
           axios.isAxiosError(error) && error.response?.status === 401
@@ -232,6 +252,13 @@ export default function Texts(): React.ReactElement {
             : "Não foi possível salvar a sua escolha. Tente de novo.",
         severity: "error",
       });
+    } finally {
+      ticksSaving.current -= 1;
+      ticksSaved.current += 1;
+      if (ticksSaving.current === 0 && reloadAfterTicks.current) {
+        reloadAfterTicks.current = false;
+        setReloads((count) => count + 1);
+      }
     }
   }
 
