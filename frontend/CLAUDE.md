@@ -8,7 +8,7 @@ It lives in `frontend/` of the monorepo, next to the Django backend in `../backe
 ## Tech stack
 - **Framework:** Next.js 16 (App Router, Turbopack for dev and build). Next 16 changed APIs and conventions, so read the relevant guide in `node_modules/next/dist/docs/` (the docs of the installed version) before writing Next-specific code; `AGENTS.md`, which `next dev` writes, says the same for other agents.
 - **UI Library:** React 19 + TypeScript 5 (strict mode)
-- **Styling:** plain CSS and native HTML elements, no component library (MUI was removed in the redesign), no Tailwind and no PostCSS config. `src/app/globals.css` holds the design tokens and the shared patterns; `data-project="<key>"` sets the app's accent color. Each color token is a `light-dark()` pair, picked by `color-scheme`: it follows the system until the theme switch (`ThemeToggle`) saves a choice in the `theme` cookie (through the `saveTheme` Server Action), which the root layout turns into `<html data-theme>`. Reading that cookie makes every page render on demand. Font: Schibsted Grotesk through `next/font`. UI text is in Portuguese (pt-BR), sentence case.
+- **Styling:** plain CSS and native HTML elements, no component library (MUI was removed in the redesign), no Tailwind and no PostCSS config. `src/app/globals.css` holds the design tokens and the shared patterns; `data-project="<key>"` sets the app's accent color. Each color token is a `light-dark()` pair, picked by `color-scheme`: it follows the system until the theme switch (`ThemeToggle`) saves a choice in the `theme` cookie (through the `saveTheme` Server Action), which an inline script in the root layout turns into `<html data-theme>` before the first paint. The script reads the cookie in the browser because `cookies()` in the root layout would render every page on demand; this way the pages are static (Next's guide "Preventing flash before hydration"), and `ThemeToggle` puts the theme back if React renders `<html>` again in the browser. A page that shows something from the current time calls `await connection()` to render on each request, as the cfflch search and results pages do for their year lists: prerendered, they would keep the build's year. Font: Schibsted Grotesk through `next/font`. UI text is in Portuguese (pt-BR), sentence case.
 - **Auth:** Jose 5 for JWT encryption (HS256): the sessions, stored in `httpOnly` cookies and managed via Next.js server actions and the proxy, and the tokens the backend checks
 - **HTTP:** Axios for REST calls to the Django backend
 - **WebSocket:** Native browser `WebSocket` API (no library), managed via custom hooks
@@ -29,7 +29,7 @@ src/
 ├── proxy.ts                     # Auth routing for all apps
 ├── types.d.ts                   # Lets TypeScript import .css files
 └── app/
-    ├── layout.tsx               # Root layout: font, globals.css, pt-BR, theme cookie
+    ├── layout.tsx               # Root layout: font, globals.css, pt-BR, the theme script
     ├── globals.css              # Design tokens and shared patterns
     ├── projects.ts              # The project list (home page and project switcher)
     ├── page.tsx                 # Home page: the list of projects

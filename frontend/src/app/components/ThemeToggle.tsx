@@ -1,6 +1,6 @@
 "use client";
 
-import { useSyncExternalStore } from "react";
+import { useLayoutEffect, useSyncExternalStore } from "react";
 import { saveTheme } from "@/app/actions/theme";
 import { logger } from "@/app/api/log/client-logger";
 
@@ -8,8 +8,9 @@ type Theme = "light" | "dark";
 
 const DARK_QUERY = "(prefers-color-scheme: dark)";
 
-// The theme lives in <html data-theme>: the root layout sets it from the
-// "theme" cookie, and without a saved choice the system preference applies.
+// The theme lives in <html data-theme>: the root layout's script sets it from
+// the "theme" cookie before the first paint, and without a saved choice the
+// system preference applies.
 function currentTheme(): Theme {
   const saved = document.documentElement.dataset.theme;
   if (saved === "light" || saved === "dark") return saved;
@@ -38,6 +39,18 @@ function serverTheme(): Theme {
 
 export default function ThemeToggle(): React.ReactElement {
   const theme = useSyncExternalStore(subscribe, currentTheme, serverTheme);
+
+  // When React renders <html> again in the browser (after a hydration mismatch,
+  // such as a translator changing the page, or on a remount in development), it
+  // drops the data-theme the root layout's script set. Put the saved theme back
+  // before paint, but only when it is missing: right after a toggle, the cookie
+  // may still hold the old choice. Same pattern as the script in layout.tsx.
+  useLayoutEffect(() => {
+    const root = document.documentElement;
+    if (root.dataset.theme) return;
+    const saved = document.cookie.match(/(?:^|; )theme=(light|dark)(?:;|$)/);
+    if (saved) root.dataset.theme = saved[1];
+  }, []);
 
   function toggle(): void {
     const next: Theme = currentTheme() === "dark" ? "light" : "dark";

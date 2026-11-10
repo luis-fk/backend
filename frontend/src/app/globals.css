@@ -2,7 +2,8 @@
 
 /* Each color has a light and a dark value, and light-dark() picks one from
    color-scheme: the system preference, unless the theme switch saved a choice
-   (<html data-theme>, set by the root layout from the "theme" cookie). */
+   (<html data-theme>, set by the root layout's script from the "theme"
+   cookie). */
 :root {
   color-scheme: light dark;
   --bg: light-dark(#ffffff, #141618);
