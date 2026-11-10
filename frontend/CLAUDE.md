@@ -37,11 +37,12 @@ src/
     ├── actions/                 # Shared session code
     │   ├── api-token.ts         # Server-only: signs the API tokens (user and login)
     │   ├── login-limit.ts       # Server-only: the login attempt limit
-    │   ├── session.ts           # "use server": JWT sign/verify, getSession (with the API token), createSession
+    │   ├── session-cookie.ts    # Server-only: the session JWT and its cookie (createSession, decrypt, deleteSession)
+    │   ├── session.ts           # "use server": getSession (with the API token) and logout
     │   ├── theme.ts             # "use server": saveTheme, which sets the theme cookie
     │   └── useSession.ts        # Client hook that reads the app's session and API token through getSession
     ├── components/              # Shared infrastructure components
-    │   ├── AppHeader.tsx        # App header: project switcher (<details>), the app's nav, theme switch
+    │   ├── AppHeader.tsx        # App header: project switcher (<details>), the app's nav, theme switch, "Sair"
     │   ├── ThemeToggle.tsx      # Light/dark switch, saves the choice in the "theme" cookie
     │   └── Toast.tsx            # Toast (top-right, hides after 5 s, severity prop)
     ├── api/log/                 # Client log endpoint
@@ -89,9 +90,9 @@ src/
 2. On success: `createSession(userId, "<app>")` signs a JWT with Jose (HS256, 7 days) holding the user id and the app, and sets it as the `httpOnly` cookie `session-<app>`. A session only counts for its own app (`decrypt` checks it), so a cookie copied from another app doesn't log in there
 3. The proxy reads the cookie on every request: it redirects unauthenticated users from protected pages to `/<app>` (login page), and logged-in users from the login page to the app's default page
 4. Client components read the session via the `useSession("<app>")` hook to get `userId` and `token`; it is `undefined` while loading and `null` when there is no valid session. Call the backend only once `token` is there; without a session, show "Não foi possível carregar a sua sessão. Recarregue a página."
-5. There is no logout yet (no UI and no action)
+5. "Sair", in the app header, calls the Server Action `logout("<app>")`: it deletes the app's session cookie and goes back to the login page. A user token already signed still works until it expires, since the tokens are stateless
 
-`session.ts` is a `"use server"` file, so every export is a Server Action that can be called with a POST request: export only what other modules need. `api-token.ts` and `login-limit.ts` are plain server modules (`import "server-only"`), so their functions can't be called from outside.
+`session.ts` is a `"use server"` file, so every export is a Server Action that anyone can call with a POST request: it only exports `getSession` and `logout`, which read or end the caller's own session. `session-cookie.ts` (which creates the session), `api-token.ts` and `login-limit.ts` are plain server modules (`import "server-only"`), so their functions can't be called from outside.
 
 ### API tokens
 Every backend endpoint needs a token: an HS256 JWT signed with `API_TOKEN_SECRET`, the same secret as the backend's (`src/app/actions/api-token.ts`).
@@ -172,12 +173,11 @@ The plants chat endpoints have no `/plants` prefix in the backend, and its GET r
 ## Current state
 
 ### Complete (stable)
-- `plants`: login, session, custom chat UI, chat history, message sending, React Markdown rendering
-- `political-culture`: login, session, custom chat UI, WebSocket streaming, chat history, React Markdown rendering, and the Textos page (the library, the PDF upload with its progress and result, and each user's ticks on the texts the assistant uses in their analyses, all unticked at first). Texts are edited and deleted only in the Django admin.
-- `cfflch`: login, session, search form (names, year, optional class) with results streamed over WebSocket, results page by year with PDF and class filters, and approve, class change and delete on each result
+- `plants`: login, session, logout, custom chat UI, chat history, message sending, React Markdown rendering
+- `political-culture`: login, session, logout, custom chat UI, WebSocket streaming, chat history, React Markdown rendering, and the Textos page (the library, the PDF upload with its progress and result, and each user's ticks on the texts the assistant uses in their analyses, all unticked at first). Texts are edited and deleted only in the Django admin.
+- `cfflch`: login, session, logout, search form (names, year, optional class) with results streamed over WebSocket, results page by year with PDF and class filters, and approve, class change and delete on each result
 
 ### Known gaps
-- No logout in any app; sessions last 7 days.
 - No tests (see below).
 
 ## Non-negotiables
