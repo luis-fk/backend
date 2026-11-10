@@ -368,6 +368,11 @@ textarea {
   margin-left: auto;
 }
 
+/* A flex box, so the form is as tall as its button and stays centered. */
+.app-header-logout {
+  display: flex;
+}
+
 .app-nav {
   display: flex;
   gap: 28px;
@@ -484,9 +489,11 @@ textarea {
   color: var(--muted);
 }
 
-/* On phones the app's links move to a row of their own below, like tabs, so the
-   project and the theme switch keep the first row. */
-@media (max-width: 480px) {
+/* On phones the app's links move to a row of their own below, like tabs, with
+   "Sair" at its end, so the project and the theme switch keep the first row
+   (without links, "Sair" stays in it). In one row, the longest project name,
+   the links, the switch and "Sair" need about 500px. */
+@media (max-width: 520px) {
   /* Centers the 40px switcher in a 63px first row (the 64px header minus its
      border), as on desktop. */
   .project-switcher {
@@ -501,9 +508,15 @@ textarea {
     margin-left: auto;
   }
 
+  /* A basis the first row can't hold, so the links start the second row and,
+     growing, push "Sair" to its end. */
   .app-nav {
     order: 1;
-    width: 100%;
+    flex: 1 0 70%;
+  }
+
+  .app-header-logout {
+    order: 2;
   }
 
   .app-nav a {

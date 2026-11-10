@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { decrypt } from "@/app/actions/session";
+import { decrypt } from "@/app/actions/session-cookie";
 
 // Excludes _next internals, API routes, and any path with a file extension
 export const config = {
