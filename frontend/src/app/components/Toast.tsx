@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useEffectEvent } from "react";
+import { commonDictionary } from "@/app/dictionary";
+import { useLocale } from "@/app/useLocale";
 
 type Severity = "error" | "warning" | "info" | "success";
 
@@ -20,6 +22,7 @@ export default function Toast({
   // Callers pass a new onClose on every render; reading it through an effect
   // event keeps the timer from restarting each time the parent re-renders.
   const close = useEffectEvent(() => onClose());
+  const t = commonDictionary[useLocale()];
 
   useEffect(() => {
     if (!message) return;
@@ -41,7 +44,7 @@ export default function Toast({
         type="button"
         className="toast-close"
         onClick={onClose}
-        aria-label="Fechar aviso"
+        aria-label={t.toast.close}
       >
         <svg
           aria-hidden="true"
