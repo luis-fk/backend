@@ -492,11 +492,10 @@ textarea {
   color: var(--muted);
 }
 
-/* On phones the app's links move to a row of their own below, like tabs, with
-   "Sair" at its end, so the project and the theme switch keep the first row
-   (without links, "Sair" stays in it). In one row, the longest project name,
-   the links, the switch and "Sair" need about 500px. */
-@media (max-width: 520px) {
+/* On phones the project and the theme switch keep the first row, and the app's
+   links (like tabs), the language link and "Sair" go to a second one. In one
+   row, the longest project name and all of these need about 680px (English). */
+@media (max-width: 700px) {
   /* Centers the 40px switcher in a 63px first row (the 64px header minus its
      border), as on desktop. */
   .project-switcher {
@@ -511,23 +510,47 @@ textarea {
     margin-left: auto;
   }
 
-  /* A basis the first row can't hold, so the links start the second row and,
-     growing, push "Sair" to its end. */
-  .app-nav {
+  /* A line break: the items ordered after it start the second row. */
+  .app-header::after {
+    content: "";
     order: 1;
-    flex: 1 0 70%;
+    flex-basis: 100%;
+  }
+
+  .app-nav {
+    order: 2;
+    flex: 1;
+  }
+
+  .app-header .language-link {
+    order: 3;
+    margin-left: auto;
   }
 
   .app-header-logout {
-    order: 2;
+    order: 4;
+  }
+
+  /* The language's code instead of its name, so the second row fits in 320px. */
+  .app-header .language-name {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .app-header .language-code {
+    display: inline;
   }
 
   .app-nav a {
     padding: 10px 0 8px;
   }
 
-  /* Below the two rows (106.5px), not over the links. */
-  .app-shell:has(.app-nav) .toast {
+  /* Below the two rows (106.5px at most), not over them. */
+  .app-shell .toast {
     top: 122px;
   }
 }
@@ -592,17 +615,42 @@ textarea {
   }
 }
 
-/* Pages without the app header (home, login, 404) put the switch where the
-   header would: top right, centered in the first 64px. */
+/* The link to the page in the other language: quiet, like "Sair". */
+.language-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  padding: 0 6px;
+  border-radius: 6px;
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.language-link:hover {
+  color: var(--ink);
+}
+
+.language-code {
+  display: none;
+}
+
+/* Pages without the app header (home, login, 404) put the language link and
+   the theme switch where the header would: top right, centered in the first
+   64px. */
 .home,
 .auth {
   position: relative;
 }
 
-:is(.home, .auth) > .theme-toggle {
+:is(.home, .auth) > .corner-controls {
   position: absolute;
-  top: 18px;
+  top: 14px;
   right: clamp(16px, 4vw, 40px);
+  display: flex;
+  align-items: center;
+  gap: 20px;
 }
 
 /* Home */

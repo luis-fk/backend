@@ -4,11 +4,14 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { login } from "@/plants/actions/login";
 import { logger } from "@/app/api/log/client-logger";
+import { localePath } from "@/app/i18n";
+import { useLocale } from "@/app/useLocale";
 
 export function LoginForm(): React.ReactElement {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const router = useRouter();
+  const lang = useLocale();
 
   async function handleSubmit(
     event: React.FormEvent<HTMLFormElement>,
@@ -28,7 +31,7 @@ export function LoginForm(): React.ReactElement {
     }
 
     setSubmitting(false);
-    router.push("/plants/chat");
+    router.push(localePath(lang, "/plants/chat"));
   }
 
   return (

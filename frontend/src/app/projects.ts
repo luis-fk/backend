@@ -1,33 +1,18 @@
-// The projects shown on the home page and in the project switcher.
-// A new project needs an entry here, its accent in globals.css and its routes in proxy.ts.
+// The projects shown on the home page and in the project switcher; their names
+// and descriptions are in the common dictionary (dictionary.ts). A new project
+// needs an entry here and there, its accent in globals.css and its routes in
+// proxy.ts.
 
 export type ProjectKey = "plants" | "political-culture" | "cfflch";
 
 export type Project = {
   key: ProjectKey;
-  name: string;
-  description: string;
-  href: string;
+  // Without the language: localePath adds it.
+  path: string;
 };
 
 export const PROJECTS: readonly Project[] = [
-  {
-    key: "plants",
-    name: "Plantas",
-    description:
-      "Converse sobre a sua planta com os dados do sensor e do clima.",
-    href: "/plants",
-  },
-  {
-    key: "political-culture",
-    name: "Cultura Política",
-    description: "Tire dúvidas sobre política com um assistente.",
-    href: "/political-culture",
-  },
-  {
-    key: "cfflch",
-    name: "CFFLCH",
-    description: "Veja quais alunos aparecem nas listas de aprovados.",
-    href: "/cfflch",
-  },
+  { key: "plants", path: "/plants" },
+  { key: "political-culture", path: "/political-culture" },
+  { key: "cfflch", path: "/cfflch" },
 ];

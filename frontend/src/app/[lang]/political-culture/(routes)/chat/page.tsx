@@ -1,4 +1,4 @@
-import Chat from "@/app/plants/components/Chat";
+import Chat from "@/political-culture/components/Chat";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {

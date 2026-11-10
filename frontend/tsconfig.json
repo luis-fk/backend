@@ -20,24 +20,25 @@
     ],
     "paths": {
       "@/*": ["./src/*"],
-      "@/plants/components/*": ["./src/app/plants/components/*"],
-      "@/plants/css/*": ["./src/app/plants/css/*"],
-      "@/plants/actions/*": ["./src/app/plants/actions/*"],
+      "@/plants/*": ["./src/app/[lang]/plants/*"],
+      "@/plants/components/*": ["./src/app/[lang]/plants/components/*"],
+      "@/plants/css/*": ["./src/app/[lang]/plants/css/*"],
+      "@/plants/actions/*": ["./src/app/[lang]/plants/actions/*"],
 
-      "@/political-culture/*": ["./src/app/political-culture/*"],
+      "@/political-culture/*": ["./src/app/[lang]/political-culture/*"],
       "@/political-culture/components/*": [
-        "./src/app/political-culture/components/*"
+        "./src/app/[lang]/political-culture/components/*"
       ],
-      "@/political-culture/css/*": ["./src/app/political-culture/css/*"],
+      "@/political-culture/css/*": ["./src/app/[lang]/political-culture/css/*"],
       "@/political-culture/actions/*": [
-        "./src/app/political-culture/actions/*"
+        "./src/app/[lang]/political-culture/actions/*"
       ],
       "@/log/*": ["./src/app/api/log/*"],
 
-      "@/cfflch/*": ["./src/app/cfflch/*"],
-      "@/cfflch/components/*": ["./src/app/cfflch/components/*"],
-      "@/cfflch/css/*": ["./src/app/cfflch/css/*"],
-      "@/cfflch/hooks/*": ["./src/app/cfflch/hooks/*"]
+      "@/cfflch/*": ["./src/app/[lang]/cfflch/*"],
+      "@/cfflch/components/*": ["./src/app/[lang]/cfflch/components/*"],
+      "@/cfflch/css/*": ["./src/app/[lang]/cfflch/css/*"],
+      "@/cfflch/hooks/*": ["./src/app/[lang]/cfflch/hooks/*"]
     },
     "forceConsistentCasingInFileNames": true
   },

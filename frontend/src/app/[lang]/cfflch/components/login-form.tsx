@@ -2,13 +2,16 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { login } from "@/political-culture/actions/login";
+import { login } from "@/cfflch/actions/login";
 import { logger } from "@/app/api/log/client-logger";
+import { localePath } from "@/app/i18n";
+import { useLocale } from "@/app/useLocale";
 
-export function LoginForm(): React.ReactElement {
+export default function LoginForm(): React.ReactElement {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const router = useRouter();
+  const lang = useLocale();
 
   async function handleSubmit(
     event: React.FormEvent<HTMLFormElement>,
@@ -28,7 +31,7 @@ export function LoginForm(): React.ReactElement {
     }
 
     setSubmitting(false);
-    router.push("/political-culture/chat");
+    router.push(localePath(lang, "/cfflch/search"));
   }
 
   return (

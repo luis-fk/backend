@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { createUserToken } from "@/app/actions/api-token";
 import { decrypt, deleteSession } from "@/app/actions/session-cookie";
+import { isLocale, localePath } from "@/app/i18n";
 import { PROJECTS } from "@/app/projects";
 
 // Every export of a "use server" file is a Server Action, which anyone can call
@@ -23,11 +24,13 @@ export async function getSession(
   return { userId: payload.userId, token };
 }
 
-// Ends the app's session and goes back to its login page. The app goes into the
-// redirect, so only a known one is accepted.
-export async function logout(app: string): Promise<void> {
-  if (!PROJECTS.some((project) => project.key === app)) return;
+// Ends the app's session and goes back to its login page, in the same language.
+// Both values go into the redirect, so only known ones are accepted.
+export async function logout(lang: string, app: string): Promise<void> {
+  if (!isLocale(lang) || !PROJECTS.some((project) => project.key === app)) {
+    return;
+  }
 
   await deleteSession(app);
-  redirect(`/${app}`);
+  redirect(localePath(lang, `/${app}`));
 }
