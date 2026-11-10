@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { Schibsted_Grotesk } from "next/font/google";
-import { cookies } from "next/headers";
 
 import "@/app/globals.css";
 
@@ -14,18 +13,37 @@ export const metadata: Metadata = {
   title: "Projetos",
 };
 
-export default async function RootLayout({
+// Applies the theme saved by ThemeToggle (the "theme" cookie) before the first
+// paint, so nothing flashes on load, and again when the browser restores the
+// page from its back/forward cache, which keeps the theme the page had when the
+// visitor left it. Without a saved choice, the CSS follows the system.
+// Reading the cookie on the server instead would render every page on each
+// request; read here, it leaves the pages static.
+const THEME_SCRIPT = `(function () {
+  function apply() {
+    try {
+      var saved = document.cookie.match(/(?:^|; )theme=(light|dark)(?:;|$)/);
+      if (saved) document.documentElement.dataset.theme = saved[1];
+    } catch (error) {}
+  }
+  apply();
+  addEventListener("pageshow", function (event) {
+    if (event.persisted) apply();
+  });
+})();`;
+
+export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
-}>): Promise<React.ReactElement> {
-  // Saved by ThemeToggle. Reading it here sends each page already in the chosen
-  // theme, so nothing flashes on load; without it, the CSS follows the system.
-  const saved = (await cookies()).get("theme")?.value;
-  const theme = saved === "light" || saved === "dark" ? saved : undefined;
-
+}>): React.ReactElement {
+  // The script sets data-theme before React hydrates, so React must not treat
+  // the attribute as a mismatch.
   return (
-    <html lang="pt-BR" className={sans.variable} data-theme={theme}>
+    <html lang="pt-BR" className={sans.variable} suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
+      </head>
       <body>{children}</body>
     </html>
   );
