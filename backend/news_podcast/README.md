@@ -1,20 +1,21 @@
 # news_podcast · Resumo das 7
 
 Todo dia chega no Telegram uma mensagem de voz com dois apresentadores (Bia e Léo)
-contando o que aconteceu nas 24 horas anteriores, a partir dos feeds do `feeds.opml`. Ela
-chega perto das 7h e, no padrão, tem de 12 a 18 minutos (de 8 a 12 em 1,5x). Duração,
-velocidade, modelos, preços e prompts mudam no admin do Django (veja *Configurações*). O
+contando o que aconteceu nas 24 horas anteriores, a partir dos feeds cadastrados no admin.
+Ela chega perto das 7h e, no padrão, tem de 12 a 18 minutos (de 8 a 12 em 1,5x). Feeds,
+duração, velocidade, modelos, preços e prompts mudam no admin do Django (veja
+*Configurações*). O
 episódio é só essa mensagem de voz: o custo e o resultado de cada execução ficam no
 histórico do admin, e as fontes usadas, no log da execução no Railway.
 
 O app tem banco próprio, o `news_podcast_db` (`NEWS_PODCAST_DATABASE_URL`), com as
-configurações e o histórico. O resto é um management command.
+configurações, os feeds e o histórico. O resto é um management command.
 
 ## Como funciona
 
 | Etapa | Arquivo | O que acontece |
 |---|---|---|
-| Feeds | `api/episode/feeds.py` | Lê o OPML exportado do Feeder, baixa os 9 feeds em paralelo e mantém só o que saiu entre 6h de ontem e 6h de hoje. |
+| Feeds | `api/episode/feeds.py` | Baixa em paralelo os feeds ativos do admin e mantém só o que saiu entre 6h de ontem e 6h de hoje. |
 | Seleção | `service.py` + prompt de seleção | O modelo de texto recebe todas as manchetes, junta as que falam do mesmo fato, aplica as regras editoriais e, pesando quantos veículos diferentes deram cada fato (cada veículo conta uma vez), escolhe uma história para cada minuto e meio de episódio (de 8 a 12 no padrão), com o tempo de cada uma. |
 | Leitura | `api/episode/articles.py` | Para cada história, lê o texto completo de até 3 veículos (o ICL vem primeiro). Os demais veículos que deram a notícia entram como manchete. Páginas de vídeo, que não têm texto, não são lidas, e outro veículo fica com a vaga. Todos os feeds são de sites sem paywall. |
 | Roteiro | `service.py` + prompt do roteiro | O modelo de texto escreve o diálogo com 170 palavras por minuto de episódio, vezes a velocidade (de 2.040 a 3.060 palavras no padrão), abrindo com uma escalada de 3 a 5 manchetes curtas, como nos telejornais. Se vier curto demais, pede uma versão mais longa uma vez. |
@@ -26,21 +27,17 @@ O episódio diário roda num serviço Cron do Railway (veja *Agendamento*).
 
 ## Configuração (uma vez só)
 
-1. **Bot do Telegram:** no Telegram, abra o `@BotFather`, mande `/newbot`, escolha um
-   nome e guarde o token que ele devolve. Depois abra o seu bot e mande `/start`.
-2. **Chave do Gemini:** em [aistudio.google.com](https://aistudio.google.com), clique em
-   *Get API key* e crie uma chave. O plano grátis não pede cartão.
-3. **Banco:** crie o banco `news_podcast_db` no Postgres do Railway, como os outros,
-   ponha a `NEWS_PODCAST_DATABASE_URL` também no serviço do backend (o admin usa o
-   banco) e rode as migrations (`make migrate` com as URLs de produção).
-4. **Descobrir o seu chat:** com o `TELEGRAM_BOT_TOKEN` no `.env`, rode na pasta
-   `backend/` `uv run python manage.py news_podcast chat-id`. O bot te manda um número no
-   Telegram: ele vai na variável `TELEGRAM_CHAT_ID` do serviço (veja *Agendamento*). Para
-   mandar para um grupo, veja *Mandar para um grupo*.
-5. **Agendamento:** crie o serviço no Railway (abaixo). Daí em diante ele roda sozinho,
-   começa às 6h40 e envia perto das 7h.
-6. **Testar:** no Railway, abra o serviço e clique em *Run now*, ou rode
-   `railway cron run` na CLI.
+- **Bot do Telegram:** crie com o `@BotFather` (`/newbot`), guarde o token e mande
+  `/start` para o bot.
+- **Chave do Gemini:** em [aistudio.google.com](https://aistudio.google.com), *Get API
+  key*. O plano grátis não pede cartão.
+- **Banco:** o `news_podcast_db` no Postgres do Railway, com a
+  `NEWS_PODCAST_DATABASE_URL` também no serviço do backend (o admin usa o banco), e as
+  migrations rodadas (`make migrate` com as URLs de produção).
+- **O seu chat:** com o `TELEGRAM_BOT_TOKEN` no `.env`, rode na pasta `backend/`
+  `uv run python manage.py news_podcast chat-id`. O bot te manda o número da conversa,
+  que vai no `TELEGRAM_CHAT_ID` do serviço (veja *Agendamento*). Para um grupo, veja
+  *Mandar para um grupo*.
 
 ## Agendamento (Railway)
 
@@ -66,6 +63,10 @@ frequência, mude só o Cron Schedule, em UTC e uns 20 minutos antes da hora do 
 entre 23h e 0h de Brasília): ele chegaria antes da meia-noite, já com a data do dia
 seguinte. Uma execução só começa se a anterior já terminou.
 
+Um deploy do backend também refaz este serviço e mata uma execução em andamento, sem
+tempo de folga. Por isso, releases para a `main` ficam fora do horário do episódio,
+das 6h40 até ele chegar.
+
 Para rodar na mão, use o *Run now* do serviço ou `railway cron run`. Como é o mesmo
 comando do cron, ele respeita a pausa e lê as notícias até a hora cheia em que começou.
 Rodando local sem `--scheduled`, ele lê as notícias até o momento em que começa.
@@ -76,6 +77,8 @@ O bot só envia para a conversa do `TELEGRAM_CHAT_ID`. Quem só abre o bot e man
 `/start` não recebe nada. Para mais gente ouvir, use um grupo:
 
 1. No Telegram, crie um grupo com as pessoas e adicione o bot (procure pelo @ dele).
+   Se só administradores podem postar no grupo, faça do bot um administrador; sem
+   isso, o Telegram recusa o envio.
 2. Rode o `chat-id` (veja *Configuração*). Com o `TELEGRAM_CHAT_ID` ou o
    `TELEGRAM_ADMIN_CHAT_ID` no `.env`, o bot manda só para essa conversa a lista das
    conversas que viu nas últimas 24 horas, com o número de cada uma. O grupo aparece com
@@ -116,6 +119,23 @@ não salva: o admin mostra o erro no campo.
   `NATURAL_WORDS_PER_MINUTE` (palavras por minuto da voz antes do ffmpeg); senão o
   episódio sai mais curto ou mais longo que o previsto.
 
+## Feeds
+
+Ficam no admin, em *News podcast → Feeds*: veículo, seção, URL e se está ativo (um feed
+desligado fica de fora sem ser apagado). A lista começa com o `STARTING_FEEDS` do
+`config.py` e, depois disso, só muda no admin; apagando todos, ela começa de novo.
+
+- **Quais sites:** só sites sem paywall. Para ler a matéria inteira, o domínio precisa
+  estar em `FULL_TEXT_DOMAINS` (`config.py`); fora dessa lista, ela entra só com o
+  título e o resumo do RSS.
+- **Veículo:** os feeds de um mesmo veículo levam o mesmo nome, porque cada história lê
+  uma fonte por veículo e uma manchete repetida em dois feeds dele conta uma vez.
+- **Google News:** sites sem RSS entram por uma busca, como
+  `https://news.google.com/rss/search?q=site:site.com.br+when:1d&hl=pt-BR&gl=BR&ceid=BR:pt-419`.
+  Uma busca traz no máximo 100 itens, por isso sites grandes, como CNN Brasil e Poder360,
+  entram por seção, e a do SBT deixa os vídeos de fora
+  (`-site:sbtnews.sbt.com.br/videos`).
+
 ## Histórico
 
 Em *News podcast → Episodes*, uma linha por execução: hora de início (de Brasília),
@@ -130,11 +150,6 @@ que falha no meio grava o custo do que já rodou.
 
 ## Ajustes
 
-- **Feeds:** exporte de novo no Feeder e substitua o `feeds.opml`. Use só sites sem
-  paywall e confira se o domínio está em `FULL_TEXT_DOMAINS` (`config.py`). Fora dessa
-  lista, a matéria entra só com o título e o resumo do RSS. Uma busca do Google News
-  traz no máximo 100 itens, por isso sites grandes, como CNN Brasil e Poder360, entram
-  por seção. A busca do SBT deixa os vídeos de fora (`-site:sbtnews.sbt.com.br/videos`).
 - **Apresentadores e as vozes deles:** `HOSTS` no `config.py`.
 - **Dólar usado para mostrar os custos em reais:** `BRL_PER_USD` (fixo) no `config.py`.
 

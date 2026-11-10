@@ -3,9 +3,7 @@ import calendar
 import html
 import logging
 import re
-import xml.etree.ElementTree as ET
 from datetime import UTC, datetime
-from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -26,39 +24,6 @@ GOOGLE_NEWS_HOST = "news.google.com"
 TAG_PATTERN = re.compile(r"<[^>]+>")
 SPACE_PATTERN = re.compile(r"\s+")
 PUBLISHER_SUFFIX_MAX_WORDS = 5
-
-
-def load_sources(opml_path: Path) -> list[FeedSource]:
-    body = ET.parse(opml_path).getroot().find("body")
-    if body is None:
-        return []
-
-    sources: list[FeedSource] = []
-    for outline in body.findall("outline"):
-        if outline.get("xmlUrl"):
-            sources.append(_source_from_outline(outline, "Geral"))
-            continue
-        section = outline.get("title") or outline.get("text") or "Geral"
-        for feed in outline.findall("outline"):
-            if feed.get("xmlUrl"):
-                sources.append(_source_from_outline(feed, section))
-    return sources
-
-
-def _source_from_outline(outline: ET.Element, section: str) -> FeedSource:
-    url = outline.get("xmlUrl") or ""
-    title = outline.get("title") or outline.get("text") or url
-    return FeedSource(
-        outlet=outlet_name(title),
-        section=section,
-        url=url,
-        via_google_news=GOOGLE_NEWS_HOST in url,
-    )
-
-
-def outlet_name(feed_title: str) -> str:
-    name = feed_title.replace("(via Google News)", "").split("·")[0]
-    return SPACE_PATTERN.sub(" ", name).strip()
 
 
 def clean_text(raw: str) -> str:
