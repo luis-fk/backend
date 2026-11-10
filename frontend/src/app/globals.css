@@ -8,7 +8,9 @@
   --bg: light-dark(#ffffff, #141618);
   --surface: light-dark(#f2f3f1, #1e2124);
   --line: light-dark(#e2e4e0, #2e3236);
-  --field-line: light-dark(#d3d6d0, #3a3f44);
+  /* Field borders: at least 3:1 against --bg and --surface, the contrast a
+     field's edge needs to be seen (WCAG 1.4.11). */
+  --field-line: light-dark(#878b85, #686e74);
   --ink: light-dark(#17191c, #ecedee);
   --muted: light-dark(#5f646b, #a0a6ad);
   --danger: light-dark(#a1281f, #f08a80);
@@ -533,7 +535,7 @@ textarea {
 }
 
 .theme-toggle:hover {
-  background: var(--field-line);
+  background: light-dark(#d3d6d0, #3a3f44);
 }
 
 .theme-toggle-knob {
