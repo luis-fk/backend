@@ -26,6 +26,21 @@ def apps_of(auth_user_id: int) -> list[str]:
     ]
 
 
+def ids_in_apps(auth_user_id: int, chosen: Iterable[str]) -> dict[str, int]:
+    """The person's id in each of the chosen apps they are in."""
+    ids = {}
+    for app in chosen:
+        pk = (
+            users_model(app)
+            ._default_manager.filter(auth_user_id=auth_user_id)
+            .values_list("pk", flat=True)
+            .first()
+        )
+        if pk is not None:
+            ids[app] = pk
+    return ids
+
+
 def add_to_apps(auth_user_id: int, chosen: Iterable[str]) -> None:
     for app in chosen:
         users_model(app)._default_manager.get_or_create(auth_user_id=auth_user_id)

@@ -8,45 +8,110 @@ from django.contrib.auth.forms import AdminUserCreationForm, UserChangeForm
 from django.http import HttpRequest, HttpResponse
 from django.template.response import TemplateResponse
 
-from api_keys.app_users import USERS_MODELS, add_to_apps, apps_of, users_model
+from api_keys.app_users import USERS_MODELS, add_to_apps, apps_of, ids_in_apps
 from api_keys.models import ApiKey
 
+User = get_user_model()
 
-class ApiKeyForm(forms.ModelForm):
+
+def apps_field(help_text: str, required: bool = False) -> forms.MultipleChoiceField:
+    return forms.MultipleChoiceField(
+        choices=[(app, app) for app in USERS_MODELS],
+        widget=forms.CheckboxSelectMultiple,
+        required=required,
+        help_text=help_text,
+    )
+
+
+def username(auth_user_id: int | None) -> str:
+    if auth_user_id is None:
+        return "-"
+    name: str | None = (
+        User._default_manager.filter(pk=auth_user_id)
+        .values_list("username", flat=True)
+        .first()
+    )
+    return name or "-"
+
+
+class ApiKeyAddForm(forms.ModelForm):
+    person = forms.ModelChoiceField(
+        queryset=User._default_manager.order_by("username"),
+        help_text="The person the key acts as.",
+    )
+    apps = apps_field(
+        "The apps the key works in; the person must be in each.", required=True
+    )
+
+    class Meta:
+        model = ApiKey
+        fields = ["name"]
+
     def clean(self) -> dict[str, Any]:
         cleaned_data = super().clean()
-        app = cleaned_data.get("app")
-        user_id = cleaned_data.get("user_id")
-        # Only the add form has these fields.
-        if app and user_id is not None:
-            users = users_model(app)
-            if not users.objects.filter(pk=user_id).exists():
-                self.add_error("user_id", f"{app} has no user with id {user_id}.")
+        person = cleaned_data.get("person")
+        chosen = cleaned_data.get("apps")
+        if person and chosen:
+            ids = ids_in_apps(person.pk, chosen)
+            missing = [app for app in chosen if app not in ids]
+            if missing:
+                self.add_error(
+                    "apps",
+                    f"{person} isn't in {', '.join(missing)}: add them on their user "
+                    "page first.",
+                )
+            cleaned_data["users"] = ids
         return cleaned_data
+
+    def save(self, commit: bool = True) -> ApiKey:
+        self.instance.auth_user_id = self.cleaned_data["person"].pk
+        self.instance.users = self.cleaned_data["users"]
+        key: ApiKey = super().save(commit)
+        return key
 
 
 @admin.register(ApiKey)
 class ApiKeyAdmin(admin.ModelAdmin):
-    form = ApiKeyForm
     list_display = [
         "name",
-        "app",
-        "user_id",
+        "person",
+        "app_list",
         "prefix",
         "active",
         "created_at",
         "last_used_at",
     ]
     list_editable = ["active"]
-    list_filter = ["app", "active"]
+    list_filter = ["active"]
+
+    @admin.display(description="person")
+    def person(self, obj: ApiKey) -> str:
+        return username(obj.auth_user_id)
+
+    @admin.display(description="apps")
+    def app_list(self, obj: ApiKey) -> str:
+        # In the apps' order: PostgreSQL's jsonb doesn't keep the keys' order.
+        return ", ".join(app for app in USERS_MODELS if app in obj.users)
+
+    def get_form(
+        self,
+        request: HttpRequest,
+        obj: ApiKey | None = None,
+        change: bool = False,
+        **kwargs: Any,
+    ) -> type[forms.ModelForm]:
+        # The person and the apps are chosen once, when the key is created.
+        if obj is None:
+            kwargs["form"] = ApiKeyAddForm
+        return super().get_form(request, obj, change, **kwargs)
 
     def get_fields(self, request: HttpRequest, obj: ApiKey | None = None) -> list[str]:
         if obj is None:
-            return ["name", "app", "user_id"]
+            return ["name", "person", "apps"]
         return [
             "name",
-            "app",
-            "user_id",
+            "person",
+            "app_list",
             "prefix",
             "active",
             "created_at",
@@ -58,7 +123,7 @@ class ApiKeyAdmin(admin.ModelAdmin):
     ) -> list[str]:
         if obj is None:
             return []
-        return ["app", "user_id", "prefix", "created_at", "last_used_at"]
+        return ["person", "app_list", "prefix", "created_at", "last_used_at"]
 
     def save_model(
         self, request: HttpRequest, obj: ApiKey, form: forms.ModelForm, change: bool
@@ -83,15 +148,6 @@ class ApiKeyAdmin(admin.ModelAdmin):
         )
 
 
-def apps_field(help_text: str) -> forms.MultipleChoiceField:
-    return forms.MultipleChoiceField(
-        choices=[(app, app) for app in USERS_MODELS],
-        widget=forms.CheckboxSelectMultiple,
-        required=False,
-        help_text=help_text,
-    )
-
-
 class UserCreationWithAppsForm(AdminUserCreationForm):
     apps = apps_field("The apps the person can sign in to.")
 
@@ -110,7 +166,6 @@ class UserChangeWithAppsForm(UserChangeForm):
 
 # The admin's user pages, with the apps each person is in: Django's own, which
 # the auth app registers first, plus an apps field.
-User = get_user_model()
 admin.site.unregister(User)
 
 
