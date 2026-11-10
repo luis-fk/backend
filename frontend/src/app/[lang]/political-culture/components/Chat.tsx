@@ -8,12 +8,13 @@ import { useSession } from "@/app/actions/useSession";
 import { useChatSocket } from "@/political-culture/hooks/useChatSocket";
 import { logger } from "@/app/api/log/client-logger";
 import Toast from "@/app/components/Toast";
+import { commonDictionary } from "@/app/dictionary";
+import { useLocale } from "@/app/useLocale";
+import { politicalCultureDictionary } from "@/political-culture/dictionary";
 import "@/political-culture/css/chat.css";
 
 // The backend answers 401 once the session's token has expired (or the secrets
 // changed); only a reload, which leads to the login page, fixes it.
-const SESSION_EXPIRED = "Sua sessão expirou. Recarregue a página.";
-
 function expired(error: unknown): boolean {
   return axios.isAxiosError(error) && error.response?.status === 401;
 }
@@ -24,9 +25,12 @@ export interface MessageType {
 }
 
 export default function Chat(): React.ReactElement {
+  const lang = useLocale();
+  const t = politicalCultureDictionary[lang].chat;
+  const common = commonDictionary[lang];
   const [messages, setMessages] = useState<MessageType[]>([
     {
-      message: "Olá! Como posso ajudar você hoje?",
+      message: t.greeting,
       role: "ai",
     },
   ]);
@@ -71,9 +75,7 @@ export default function Chat(): React.ReactElement {
           error: err,
         });
         setErrorMessage(
-          expired(err)
-            ? SESSION_EXPIRED
-            : "Não foi possível carregar o histórico de mensagens.",
+          expired(err) ? common.session.expired : t.historyFailed,
         );
       })
       .finally(() => {
@@ -82,19 +84,19 @@ export default function Chat(): React.ReactElement {
       });
 
     return () => controller.abort();
-  }, [userId, token, serverUrl]);
+  }, [userId, token, serverUrl, common, t]);
 
   const handleNewMessage = useCallback((message: MessageType): void => {
     setMessages((previous) => [...previous, message]);
   }, []);
 
   const handleFailedAnswer = useCallback((): void => {
-    setErrorMessage("Não foi possível responder à mensagem. Tente de novo.");
-  }, []);
+    setErrorMessage(t.answerFailed);
+  }, [t]);
 
   const handleSocketError = useCallback((): void => {
-    setErrorMessage("Conexão perdida. Tente recarregar a página.");
-  }, []);
+    setErrorMessage(t.connectionLost);
+  }, [t]);
 
   useChatSocket({
     userId: userId?.toString(),
@@ -139,14 +141,10 @@ export default function Chat(): React.ReactElement {
         userId,
         error,
       });
-      setErrorMessage(
-        expired(error)
-          ? SESSION_EXPIRED
-          : "Falha ao enviar a mensagem. Tente de novo.",
-      );
+      setErrorMessage(expired(error) ? common.session.expired : t.sendFailed);
       setSending(false);
     }
-  }, [sending, input, serverUrl, userId, token]);
+  }, [sending, input, serverUrl, userId, token, common, t]);
 
   return (
     <main className="political-chat">
@@ -154,14 +152,12 @@ export default function Chat(): React.ReactElement {
         <div
           className="political-chat-column political-chat-messages"
           role="log"
-          aria-label="Conversa"
+          aria-label={t.conversation}
         >
           {session === null ? (
-            <p className="muted">
-              Não foi possível carregar a sua sessão. Recarregue a página.
-            </p>
+            <p className="muted">{common.session.loadFailed}</p>
           ) : loadingHistory ? (
-            <p className="muted">Carregando o histórico…</p>
+            <p className="muted">{t.loadingHistory}</p>
           ) : (
             messages.map((msg, i) =>
               // The user's own text is shown as typed; only answers are markdown.
@@ -196,14 +192,14 @@ export default function Chat(): React.ReactElement {
       <div className="political-chat-column political-chat-footer">
         <div className="political-chat-composer">
           <label htmlFor="chat-message" className="visually-hidden">
-            Mensagem
+            {t.messageLabel}
           </label>
           <textarea
             ref={textareaRef}
             id="chat-message"
             className="political-chat-input"
             value={input}
-            placeholder="Escreva sua mensagem"
+            placeholder={t.messagePlaceholder}
             rows={1}
             onChange={handleInputChange}
             onKeyDown={(event) => {
@@ -218,7 +214,7 @@ export default function Chat(): React.ReactElement {
             className="political-chat-send"
             onClick={send}
             disabled={sending}
-            aria-label="Enviar"
+            aria-label={t.send}
           >
             <svg
               aria-hidden="true"

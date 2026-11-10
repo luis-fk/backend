@@ -5,6 +5,10 @@ import axios from "axios";
 import { useSession } from "@/app/actions/useSession";
 import { logger } from "@/app/api/log/client-logger";
 import Toast from "@/app/components/Toast";
+import { commonDictionary } from "@/app/dictionary";
+import type { Locale } from "@/app/i18n";
+import { useLocale } from "@/app/useLocale";
+import { politicalCultureDictionary } from "@/political-culture/dictionary";
 import {
   type UploadResult,
   useTextsSocket,
@@ -13,10 +17,6 @@ import "@/political-culture/css/texts.css";
 
 // The backend refuses bigger files; checking here saves sending them.
 const MAX_PDF_BYTES = 100 * 1024 * 1024;
-
-// The backend answers 401 once the session's token has expired (or the secrets
-// changed); only a reload, which leads to the login page, fixes it.
-const SESSION_EXPIRED = "Sua sessão expirou. Recarregue a página.";
 
 interface LibraryText {
   id: number;
@@ -49,52 +49,63 @@ function isPdf(file: File): boolean {
   );
 }
 
-function uploadError(error: unknown): string {
-  if (!axios.isAxiosError(error)) return "Não foi possível enviar o PDF.";
+function uploadError(error: unknown, lang: Locale): string {
+  const t = politicalCultureDictionary[lang].texts.upload;
+  if (!axios.isAxiosError(error)) return t.failed;
   switch (error.response?.status) {
+    // The backend answers 401 once the session's token has expired (or the
+    // secrets changed); only a reload, which leads to the login page, fixes it.
     case 401:
-      return SESSION_EXPIRED;
+      return commonDictionary[lang].session.expired;
     case 400:
-      return "Envie um PDF de até 100 MB.";
+      return t.tooBig;
     case 409:
-      return "Este PDF já está na biblioteca, ou ainda está sendo lido.";
+      return t.duplicate;
     default:
-      return "Não foi possível enviar o PDF. Tente de novo.";
+      return t.retry;
   }
 }
 
-function resultNotice(result: UploadResult, name: string): Notice {
+function resultNotice(
+  result: UploadResult,
+  name: string,
+  lang: Locale,
+): Notice {
+  const t = politicalCultureDictionary[lang].texts.upload;
   if (result.status === "ready") {
-    return { message: `${name} entrou na biblioteca.`, severity: "success" };
+    return { message: t.ready(name), severity: "success" };
   }
   return {
-    message:
-      result.reason === "no_text"
-        ? `Não há texto para ler em ${name}. Um PDF escaneado precisa passar por OCR antes.`
-        : `Não foi possível ler ${name}. Tente de novo.`,
+    message: result.reason === "no_text" ? t.noText(name) : t.readFailed(name),
     severity: "error",
   };
 }
 
-function details(text: LibraryText): string | null {
+function details(text: LibraryText, lang: Locale): string | null {
+  const t = politicalCultureDictionary[lang].texts.library;
   const parts = [
     text.word_count === null
       ? null
-      : `${text.word_count.toLocaleString("pt-BR")} palavras`,
-    text.added_by === null ? null : `adicionado por ${text.added_by}`,
+      : t.words(text.word_count.toLocaleString(lang)),
+    text.added_by === null ? null : t.addedBy(text.added_by),
   ].filter((part) => part !== null);
   if (parts.length === 0) return null;
   const line = parts.join(", ");
   return line.charAt(0).toUpperCase() + line.slice(1);
 }
 
-function selectedSummary(library: LibraryText[]): string {
+function selectedSummary(library: LibraryText[], lang: Locale): string {
   const selected = library.filter((text) => text.selected).length;
-  const texts = library.length === 1 ? "texto" : "textos";
-  return `${selected} de ${library.length} ${texts} nas suas análises`;
+  return politicalCultureDictionary[lang].texts.library.summary(
+    selected,
+    library.length,
+  );
 }
 
 export default function Texts(): React.ReactElement {
+  const lang = useLocale();
+  const t = politicalCultureDictionary[lang].texts;
+  const common = commonDictionary[lang];
   const session = useSession("political-culture");
   const userId = session?.userId;
   const token = session?.token;
@@ -141,12 +152,12 @@ export default function Texts(): React.ReactElement {
         logger.error("Failed to fetch the texts", { error: err });
         setLoadFailed(true);
         if (axios.isAxiosError(err) && err.response?.status === 401) {
-          setNotice({ message: SESSION_EXPIRED, severity: "error" });
+          setNotice({ message: common.session.expired, severity: "error" });
         }
       });
 
     return () => controller.abort();
-  }, [token, serverUrl, reloads]);
+  }, [token, serverUrl, reloads, common]);
 
   const socket = useTextsSocket({
     userId,
@@ -157,13 +168,13 @@ export default function Texts(): React.ReactElement {
       if (result.status === "ready") setReloads((count) => count + 1);
       if (!upload || result.upload_id !== upload.id) return;
       setUpload(null);
-      setNotice(resultNotice(result, upload.name));
+      setNotice(resultNotice(result, upload.name, lang));
     },
     onClose: () => {
       if (!upload) return;
       setUpload(null);
       setNotice({
-        message: `A conexão caiu durante ${upload.sent ? "a leitura" : "o envio"} de ${upload.name}. Recarregue a página: se a leitura terminar, o texto aparece na lista.`,
+        message: t.upload.dropped(upload.name, upload.sent),
         severity: "error",
       });
     },
@@ -173,7 +184,7 @@ export default function Texts(): React.ReactElement {
     const chosen = event.target.files?.[0] ?? null;
     if (chosen && (!isPdf(chosen) || chosen.size > MAX_PDF_BYTES)) {
       setNotice({
-        message: "Escolha um PDF de até 100 MB.",
+        message: t.upload.invalidFile,
         severity: "error",
       });
       event.target.value = "";
@@ -212,7 +223,7 @@ export default function Texts(): React.ReactElement {
     } catch (error) {
       logger.error("Failed to upload a text", { name, error });
       setUpload((current) => (current?.id === id ? null : current));
-      setNotice({ message: uploadError(error), severity: "error" });
+      setNotice({ message: uploadError(error, lang), severity: "error" });
     }
   }
 
@@ -248,8 +259,8 @@ export default function Texts(): React.ReactElement {
       setNotice({
         message:
           axios.isAxiosError(error) && error.response?.status === 401
-            ? SESSION_EXPIRED
-            : "Não foi possível salvar a sua escolha. Tente de novo.",
+            ? common.session.expired
+            : t.library.saveFailed,
         severity: "error",
       });
     } finally {
@@ -265,22 +276,18 @@ export default function Texts(): React.ReactElement {
   return (
     <main className="page">
       <div className="page-header">
-        <h1 className="page-title">Textos</h1>
-        <p className="muted">
-          A biblioteca do assistente. Marque os textos que ele usa nas suas
-          análises: cada pessoa escolhe os seus, e um texto novo começa
-          desmarcado.
-        </p>
+        <h1 className="page-title">{t.title}</h1>
+        <p className="muted">{t.intro}</p>
       </div>
 
       <form className="political-texts-upload" onSubmit={send}>
         <div className="field">
           <span id="text-file-label" className="field-label">
-            PDF de até 100 MB
+            {t.upload.label}
           </span>
           {/* The browser writes the native input's button and file name in its
               own language, so the input is hidden and this label, which opens
-              it, shows them in Portuguese. */}
+              it, shows them in the page's language. */}
           <label className="political-texts-picker">
             <input
               ref={fileInput}
@@ -294,14 +301,14 @@ export default function Texts(): React.ReactElement {
               onChange={choose}
             />
             <span className="political-texts-picker-button" aria-hidden="true">
-              Escolher PDF
+              {t.upload.choose}
             </span>
             <span
               id="text-file-name"
               className="political-texts-picker-name"
               data-empty={file === null}
             >
-              {file?.name ?? "Nenhum arquivo escolhido"}
+              {file?.name ?? t.upload.noFile}
             </span>
           </label>
         </div>
@@ -310,15 +317,12 @@ export default function Texts(): React.ReactElement {
           className="button"
           disabled={!file || !token || Boolean(upload) || socket !== "open"}
         >
-          Adicionar texto
+          {t.upload.submit}
         </button>
       </form>
 
       {socket === "closed" && (
-        <p className="form-error">
-          A conexão com o servidor caiu. Recarregue a página para adicionar
-          textos.
-        </p>
+        <p className="form-error">{t.upload.socketClosed}</p>
       )}
 
       {upload && (
@@ -326,24 +330,26 @@ export default function Texts(): React.ReactElement {
           {!upload.sent ? (
             <>
               <p>
-                Enviando {upload.name}… {Math.round(upload.progress * 100)}%
+                {t.upload.sending(
+                  upload.name,
+                  Math.round(upload.progress * 100),
+                )}
               </p>
               <progress
                 className="political-texts-progress"
                 value={upload.progress}
-                aria-label="Envio do PDF"
+                aria-label={t.upload.sendingLabel}
               />
             </>
           ) : (
             <>
-              <p>Processando {upload.name}…</p>
+              <p>{t.upload.processing(upload.name)}</p>
               <progress
                 className="political-texts-progress"
-                aria-label="Leitura do PDF"
+                aria-label={t.upload.processingLabel}
               />
               <p className="muted political-texts-hint">
-                Um livro leva alguns minutos. Você pode sair desta página: o
-                texto aparece na lista quando terminar.
+                {t.upload.processingHint}
               </p>
             </>
           )}
@@ -356,41 +362,37 @@ export default function Texts(): React.ReactElement {
       >
         <div className="political-texts-library-header">
           <h2 id="library-title" className="section-title">
-            Biblioteca
+            {t.library.title}
           </h2>
           {library && library.length > 0 && (
-            <p className="muted">{selectedSummary(library)}</p>
+            <p className="muted">{selectedSummary(library, lang)}</p>
           )}
         </div>
         {session === null ? (
-          <p className="muted">
-            Não foi possível carregar a sua sessão. Recarregue a página.
-          </p>
+          <p className="muted">{common.session.loadFailed}</p>
         ) : loadFailed && library === null ? (
-          <p className="muted">Não foi possível carregar a biblioteca.</p>
+          <p className="muted">{t.library.loadFailed}</p>
         ) : library === null ? (
-          <p className="muted">Carregando a biblioteca…</p>
+          <p className="muted">{t.library.loading}</p>
         ) : library.length === 0 ? (
-          <p className="muted">
-            A biblioteca está vazia. Adicione o primeiro PDF.
-          </p>
+          <p className="muted">{t.library.empty}</p>
         ) : (
           <ul className="list">
             {library.map((text) => {
-              const line = details(text);
+              const line = details(text, lang);
               return (
                 <li key={text.id} className="political-texts-item">
                   <div className="political-texts-main">
                     <h3 className="political-texts-title">
-                      {text.title ?? "Sem título"}
+                      {text.title ?? t.library.untitled}
                     </h3>
-                    <p>{text.author ?? "Autor desconhecido"}</p>
+                    <p>{text.author ?? t.library.unknownAuthor}</p>
                     {line && (
                       <p className="muted political-texts-details">{line}</p>
                     )}
                     {text.description && (
                       <details className="political-texts-summary">
-                        <summary>Resumo</summary>
+                        <summary>{t.library.descriptionLabel}</summary>
                         <p>{text.description}</p>
                       </details>
                     )}
@@ -401,9 +403,9 @@ export default function Texts(): React.ReactElement {
                       checked={text.selected}
                       onChange={() => toggle(text)}
                     />
-                    Usar nas minhas análises
+                    {t.library.pick}
                     <span className="visually-hidden">
-                      : {text.title ?? "texto sem título"}
+                      : {text.title ?? t.library.untitledText}
                     </span>
                   </label>
                 </li>

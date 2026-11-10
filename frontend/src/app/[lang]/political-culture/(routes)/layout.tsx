@@ -1,5 +1,6 @@
 import AppHeader from "@/app/components/AppHeader";
 import { localePath, toLocale } from "@/app/i18n";
+import { politicalCultureDictionary } from "@/political-culture/dictionary";
 
 export default async function RoutesLayout({
   children,
@@ -9,9 +10,10 @@ export default async function RoutesLayout({
   params: Promise<{ lang: string }>;
 }>): Promise<React.ReactElement> {
   const lang = toLocale((await params).lang);
+  const t = politicalCultureDictionary[lang].tabs;
   const links = [
-    { href: localePath(lang, "/political-culture/chat"), label: "Chat" },
-    { href: localePath(lang, "/political-culture/texts"), label: "Textos" },
+    { href: localePath(lang, "/political-culture/chat"), label: t.chat },
+    { href: localePath(lang, "/political-culture/texts"), label: t.texts },
   ];
 
   return (
