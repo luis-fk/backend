@@ -7,7 +7,8 @@ from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 
 from news_podcast.api.episode import config, prompts
-from news_podcast.api.episode.schemas import EpisodeOptions, ModelPrice
+from news_podcast.api.episode.feeds import GOOGLE_NEWS_HOST
+from news_podcast.api.episode.schemas import EpisodeOptions, FeedSource, ModelPrice
 
 SLOWEST, FASTEST = config.SPEECH_SPEED_LIMITS
 BRACES_HELP = "Write a literal brace as {{ or }}."
@@ -209,6 +210,65 @@ class PodcastSettings(models.Model):
             for model, input_price, output_price in rows
             if model
         }
+
+
+class Feed(models.Model):
+    """A news feed the episodes read, edited in the Django admin. The list starts with
+    STARTING_FEEDS in config.py the first time a run or the admin needs it."""
+
+    class Section(models.TextChoices):
+        ECONOMIA = "Economia"
+        GERAL = "Geral"
+        MUNDO = "Mundo"
+        POLITICA = "Política"
+
+    outlet = models.CharField(
+        max_length=100,
+        help_text="Give an outlet's feeds the same name: a story reads one source per "
+        "outlet, and a headline in two of its feeds counts once.",
+    )
+    section = models.CharField(max_length=20, choices=Section.choices)
+    url = models.URLField(
+        "URL",
+        max_length=500,
+        unique=True,
+        help_text="An RSS feed, or a Google News search like "
+        "https://news.google.com/rss/search?q=site:site.com.br+when:1d"
+        "&hl=pt-BR&gl=BR&ceid=BR:pt-419. Only the sites in FULL_TEXT_DOMAINS "
+        "(config.py) are read in full.",
+    )
+    active = models.BooleanField(
+        default=True, help_text="Turned off, the episodes don't read it."
+    )
+
+    class Meta:
+        # Of a headline in two feeds of one outlet, the first feed's copy stays.
+        ordering = ["section", "pk"]
+
+    def __str__(self) -> str:
+        return f"{self.outlet} · {self.section}"
+
+    @classmethod
+    def start_if_empty(cls) -> None:
+        if not Feed.objects.exists():
+            Feed.objects.bulk_create(
+                Feed(outlet=outlet, section=section, url=url)
+                for outlet, section, url in config.STARTING_FEEDS
+            )
+
+    @classmethod
+    def sources(cls) -> list[FeedSource]:
+        """The active feeds, read outside the event loop, where the ORM can run."""
+        cls.start_if_empty()
+        return [feed.source() for feed in cls.objects.filter(active=True)]
+
+    def source(self) -> FeedSource:
+        return FeedSource(
+            outlet=self.outlet,
+            section=self.section,
+            url=self.url,
+            via_google_news=GOOGLE_NEWS_HOST in self.url,
+        )
 
 
 class Episode(models.Model):

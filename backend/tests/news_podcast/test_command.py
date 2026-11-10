@@ -83,6 +83,30 @@ def test_a_run_is_saved_with_its_length_words_and_cost(
 
 
 @DATABASE
+def test_a_run_reads_the_active_feeds_in_the_database(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    read: list[int] = []
+
+    async def make(
+        service: NewsPodcastService, *, scheduled: bool, send: bool
+    ) -> EpisodeReport:
+        read.append(len(service.sources))
+        return EpisodeReport(
+            audio_path=tmp_path / "resumo.ogg",
+            duration_seconds=900.0,
+            caption="🎙️",
+            script_words=2550,
+        )
+
+    monkeypatch.setattr(NewsPodcastService, "generate_episode", make)
+
+    call_command("news_podcast", "episode", "--no-send")
+
+    assert read == [len(config.STARTING_FEEDS)]
+
+
+@DATABASE
 def test_a_failed_run_keeps_the_step_the_error_and_the_cost_so_far(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

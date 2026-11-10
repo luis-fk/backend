@@ -4,9 +4,51 @@ from zoneinfo import ZoneInfo
 from news_podcast.api.episode.schemas import Host, ModelPrice
 
 APP_DIR = Path(__file__).resolve().parents[2]
-OPML_PATH = APP_DIR / "feeds.opml"
 OUTPUT_DIR = APP_DIR.parent / "news_podcast_output"
 LOCAL_TZ = ZoneInfo("America/Sao_Paulo")
+
+
+def google_news_search(query: str, period: str) -> str:
+    return (
+        f"https://news.google.com/rss/search?q={query}+when:{period}"
+        "&hl=pt-BR&gl=BR&ceid=BR:pt-419"
+    )
+
+
+# The feeds (outlet, section, url) a new feed list starts with; after that they
+# change in the admin. A Google News search returns at most 100 items, so big sites
+# come in by section, and the SBT search leaves its video pages out.
+STARTING_FEEDS = (
+    ("g1", "Economia", "https://g1.globo.com/rss/g1/economia/"),
+    (
+        "Poder360",
+        "Economia",
+        google_news_search("site:poder360.com.br/poder-economia", "1d"),
+    ),
+    ("Aos Fatos", "Geral", google_news_search("site:aosfatos.org", "7d")),
+    ("ICL Notícias", "Geral", google_news_search("site:iclnoticias.com.br", "2d")),
+    (
+        "SBT News",
+        "Geral",
+        google_news_search(
+            "site:sbtnews.sbt.com.br+-site:sbtnews.sbt.com.br/videos", "1d"
+        ),
+    ),
+    ("BBC News Brasil", "Geral", "https://feeds.bbci.co.uk/portuguese/rss.xml"),
+    ("g1", "Mundo", "https://g1.globo.com/rss/g1/mundo/"),
+    (
+        "Poder360",
+        "Mundo",
+        google_news_search("site:poder360.com.br/poder-internacional", "1d"),
+    ),
+    (
+        "CNN Brasil",
+        "Política",
+        google_news_search("site:cnnbrasil.com.br/politica", "1d"),
+    ),
+    ("Poder360", "Política", "https://www.poder360.com.br/feed/"),
+    ("g1", "Política", "https://g1.globo.com/rss/g1/politica/"),
+)
 
 NEWS_WINDOW_HOURS = 24
 # The Railway cron starts in the hour before the episode's hour, so the scheduled

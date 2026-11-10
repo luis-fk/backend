@@ -1,12 +1,9 @@
 from datetime import UTC, datetime
 from zoneinfo import ZoneInfo
 
-from news_podcast.api.episode.config import OPML_PATH
 from news_podcast.api.episode.feeds import (
     clean_text,
     format_for_selection,
-    load_sources,
-    outlet_name,
     parse_feed,
 )
 from news_podcast.api.episode.schemas import FeedSource
@@ -42,33 +39,6 @@ def make_source(via_google_news: bool = False) -> FeedSource:
         url="https://example.com/feed",
         via_google_news=via_google_news,
     )
-
-
-def test_load_sources_reads_every_feed_with_its_folder() -> None:
-    sources = load_sources(OPML_PATH)
-
-    assert len(sources) == 11
-    assert {source.section for source in sources} == {
-        "Economia",
-        "Geral",
-        "Mundo",
-        "Política",
-    }
-    icl = next(source for source in sources if source.outlet == "ICL Notícias")
-    assert icl.via_google_news
-
-
-def test_the_sbt_search_leaves_its_video_pages_out() -> None:
-    sources = load_sources(OPML_PATH)
-
-    sbt = next(source for source in sources if source.outlet == "SBT News")
-    assert "-site:sbtnews.sbt.com.br/videos" in sbt.url
-
-
-def test_outlet_name_drops_section_and_google_news_suffix() -> None:
-    assert outlet_name("Estadão · Economia") == "Estadão"
-    assert outlet_name("ICL Notícias (via Google News)") == "ICL Notícias"
-    assert outlet_name("Aos Fatos · Checagem (via Google News)") == "Aos Fatos"
 
 
 def test_clean_text_removes_tags_and_entities() -> None:

@@ -10,14 +10,14 @@ from django.utils import timezone
 
 from news_podcast.api.episode.costs import total_cost_usd
 from news_podcast.api.episode.gemini import GeminiClient
-from news_podcast.api.episode.schemas import EpisodeReport, Usage
+from news_podcast.api.episode.schemas import EpisodeReport, FeedSource, Usage
 from news_podcast.api.episode.service import (
     NewsPodcastService,
     notify_failure,
     send_chat_ids,
 )
 from news_podcast.api.episode.telegram import TelegramClient
-from news_podcast.models import Episode, PodcastSettings
+from news_podcast.models import Episode, Feed, PodcastSettings
 
 ACTIONS = ("episode", "chat-id")
 QUIET_LOGGERS = ("httpx", "httpcore", "trafilatura", "htmldate", "charset_normalizer")
@@ -84,6 +84,7 @@ def make_episode(*, scheduled: bool, send: bool) -> None:
     where Django's ORM can run."""
     try:
         podcast_settings = PodcastSettings.load()
+        sources = Feed.sources()
     except DatabaseError as error:
         if send:
             asyncio.run(report_failure("configurações", error))
@@ -93,7 +94,9 @@ def make_episode(*, scheduled: bool, send: bool) -> None:
         return
 
     started_at = timezone.now()
-    run = asyncio.run(generate(podcast_settings, scheduled=scheduled, send=send))
+    run = asyncio.run(
+        generate(podcast_settings, sources, scheduled=scheduled, send=send)
+    )
     if run.error:
         status = Episode.Status.FAILED
     else:
@@ -116,7 +119,11 @@ def make_episode(*, scheduled: bool, send: bool) -> None:
 
 
 async def generate(
-    podcast_settings: PodcastSettings, *, scheduled: bool, send: bool
+    podcast_settings: PodcastSettings,
+    sources: list[FeedSource],
+    *,
+    scheduled: bool,
+    send: bool,
 ) -> Run:
     api_key = getattr(settings, "GEMINI_API_KEY", None)
     async with httpx.AsyncClient() as http_client:
@@ -126,6 +133,7 @@ async def generate(
             telegram=telegram_client(http_client),
             chat_id=chat_id(),
             podcast_settings=podcast_settings,
+            sources=sources,
             admin_chat_id=admin_chat_id(),
         )
         try:

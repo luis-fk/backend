@@ -1,20 +1,21 @@
 # news_podcast · Resumo das 7
 
 Todo dia chega no Telegram uma mensagem de voz com dois apresentadores (Bia e Léo)
-contando o que aconteceu nas 24 horas anteriores, a partir dos feeds do `feeds.opml`. Ela
-chega perto das 7h e, no padrão, tem de 12 a 18 minutos (de 8 a 12 em 1,5x). Duração,
-velocidade, modelos, preços e prompts mudam no admin do Django (veja *Configurações*). O
+contando o que aconteceu nas 24 horas anteriores, a partir dos feeds cadastrados no admin.
+Ela chega perto das 7h e, no padrão, tem de 12 a 18 minutos (de 8 a 12 em 1,5x). Feeds,
+duração, velocidade, modelos, preços e prompts mudam no admin do Django (veja
+*Configurações*). O
 episódio é só essa mensagem de voz: o custo e o resultado de cada execução ficam no
 histórico do admin, e as fontes usadas, no log da execução no Railway.
 
 O app tem banco próprio, o `news_podcast_db` (`NEWS_PODCAST_DATABASE_URL`), com as
-configurações e o histórico. O resto é um management command.
+configurações, os feeds e o histórico. O resto é um management command.
 
 ## Como funciona
 
 | Etapa | Arquivo | O que acontece |
 |---|---|---|
-| Feeds | `api/episode/feeds.py` | Lê o OPML exportado do Feeder, baixa os 9 feeds em paralelo e mantém só o que saiu entre 6h de ontem e 6h de hoje. |
+| Feeds | `api/episode/feeds.py` | Baixa em paralelo os feeds ativos do admin e mantém só o que saiu entre 6h de ontem e 6h de hoje. |
 | Seleção | `service.py` + prompt de seleção | O modelo de texto recebe todas as manchetes, junta as que falam do mesmo fato, aplica as regras editoriais e, pesando quantos veículos diferentes deram cada fato (cada veículo conta uma vez), escolhe uma história para cada minuto e meio de episódio (de 8 a 12 no padrão), com o tempo de cada uma. |
 | Leitura | `api/episode/articles.py` | Para cada história, lê o texto completo de até 3 veículos (o ICL vem primeiro). Os demais veículos que deram a notícia entram como manchete. Páginas de vídeo, que não têm texto, não são lidas, e outro veículo fica com a vaga. Todos os feeds são de sites sem paywall. |
 | Roteiro | `service.py` + prompt do roteiro | O modelo de texto escreve o diálogo com 170 palavras por minuto de episódio, vezes a velocidade (de 2.040 a 3.060 palavras no padrão), abrindo com uma escalada de 3 a 5 manchetes curtas, como nos telejornais. Se vier curto demais, pede uma versão mais longa uma vez. |
@@ -116,6 +117,23 @@ não salva: o admin mostra o erro no campo.
   `NATURAL_WORDS_PER_MINUTE` (palavras por minuto da voz antes do ffmpeg); senão o
   episódio sai mais curto ou mais longo que o previsto.
 
+## Feeds
+
+Ficam no admin, em *News podcast → Feeds*: veículo, seção, URL e se está ativo (um feed
+desligado fica de fora sem ser apagado). A lista começa com o `STARTING_FEEDS` do
+`config.py` e, depois disso, só muda no admin; apagando todos, ela começa de novo.
+
+- **Quais sites:** só sites sem paywall. Para ler a matéria inteira, o domínio precisa
+  estar em `FULL_TEXT_DOMAINS` (`config.py`); fora dessa lista, ela entra só com o
+  título e o resumo do RSS.
+- **Veículo:** os feeds de um mesmo veículo levam o mesmo nome, porque cada história lê
+  uma fonte por veículo e uma manchete repetida em dois feeds dele conta uma vez.
+- **Google News:** sites sem RSS entram por uma busca, como
+  `https://news.google.com/rss/search?q=site:site.com.br+when:1d&hl=pt-BR&gl=BR&ceid=BR:pt-419`.
+  Uma busca traz no máximo 100 itens, por isso sites grandes, como CNN Brasil e Poder360,
+  entram por seção, e a do SBT deixa os vídeos de fora
+  (`-site:sbtnews.sbt.com.br/videos`).
+
 ## Histórico
 
 Em *News podcast → Episodes*, uma linha por execução: hora de início (de Brasília),
@@ -130,11 +148,6 @@ que falha no meio grava o custo do que já rodou.
 
 ## Ajustes
 
-- **Feeds:** exporte de novo no Feeder e substitua o `feeds.opml`. Use só sites sem
-  paywall e confira se o domínio está em `FULL_TEXT_DOMAINS` (`config.py`). Fora dessa
-  lista, a matéria entra só com o título e o resumo do RSS. Uma busca do Google News
-  traz no máximo 100 itens, por isso sites grandes, como CNN Brasil e Poder360, entram
-  por seção. A busca do SBT deixa os vídeos de fora (`-site:sbtnews.sbt.com.br/videos`).
 - **Apresentadores e as vozes deles:** `HOSTS` no `config.py`.
 - **Dólar usado para mostrar os custos em reais:** `BRL_PER_USD` (fixo) no `config.py`.
 
