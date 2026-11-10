@@ -1,9 +1,15 @@
 import Chat from "@/plants/components/Chat";
 import type { Metadata } from "next";
+import { plantsDictionary } from "@/plants/dictionary";
+import { toLocale } from "@/app/i18n";
 
-export const metadata: Metadata = {
-  title: "Chat",
-};
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ lang: string }>;
+}): Promise<Metadata> {
+  return { title: plantsDictionary[toLocale((await params).lang)].chat.title };
+}
 
 export default function Page(): React.ReactElement {
   return <Chat />;

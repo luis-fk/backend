@@ -4,15 +4,16 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import axios from "axios";
+import { type PlantsDictionary, plantsDictionary } from "@/plants/dictionary";
 import { useSession } from "@/app/actions/useSession";
 import { logger } from "@/app/api/log/client-logger";
 import Toast from "@/app/components/Toast";
+import { commonDictionary } from "@/app/dictionary";
+import { useLocale } from "@/app/useLocale";
 import "@/plants/css/chat.css";
 
 // The backend answers 401 once the session's token has expired (or the secrets
 // changed); only a reload, which leads to the login page, fixes it.
-const SESSION_EXPIRED = "Sua sessão expirou. Recarregue a página.";
-
 function expired(error: unknown): boolean {
   return axios.isAxiosError(error) && error.response?.status === 401;
 }
@@ -27,13 +28,15 @@ interface ChatbotResponse {
   response: MessageType;
 }
 
-const GREETING: MessageType = {
-  message: "Olá! Como posso ajudar você hoje?",
-  role: "ai",
-};
+function greeting(t: PlantsDictionary): MessageType {
+  return { message: t.chat.greeting, role: "ai" };
+}
 
 export default function Chat(): React.ReactElement {
-  const [messages, setMessages] = useState<MessageType[]>([GREETING]);
+  const lang = useLocale();
+  const t = plantsDictionary[lang];
+  const common = commonDictionary[lang];
+  const [messages, setMessages] = useState<MessageType[]>([greeting(t)]);
   const [loadingHistory, setLoadingHistory] = useState(true);
   const [sending, setSending] = useState(false);
   const [messageInput, setMessageInput] = useState("");
@@ -64,14 +67,12 @@ export default function Chat(): React.ReactElement {
         if (response.status === 200 && response.data.length > 0) {
           setMessages(response.data);
         } else {
-          setMessages([GREETING]);
+          setMessages([greeting(t)]);
         }
       } catch (error: unknown) {
         logger.error("Failed to fetch chat history", { userId, error });
         setErrorMessage(
-          expired(error)
-            ? SESSION_EXPIRED
-            : "Não foi possível carregar o histórico de mensagens.",
+          expired(error) ? common.session.expired : t.chat.historyFailed,
         );
       } finally {
         setLoadingHistory(false);
@@ -79,7 +80,7 @@ export default function Chat(): React.ReactElement {
     }
 
     fetchChatHistory();
-  }, [userId, token, serverUrl]);
+  }, [userId, token, serverUrl, t, common]);
 
   // Keep the latest message in view, also when the history replaces the loading
   // text. A layout effect runs before the browser paints, so a long history
@@ -124,9 +125,7 @@ export default function Chat(): React.ReactElement {
       setMessages((previous) => previous.slice(0, -1));
       setMessageInput((current) => current || userMessage);
       setErrorMessage(
-        expired(error)
-          ? SESSION_EXPIRED
-          : "Falha ao enviar a mensagem. Tente de novo.",
+        expired(error) ? common.session.expired : t.chat.sendFailed,
       );
     } finally {
       setSending(false);
@@ -164,14 +163,12 @@ export default function Chat(): React.ReactElement {
         <div
           className="plants-chat-column plants-chat-messages"
           role="log"
-          aria-label="Conversa"
+          aria-label={t.chat.conversation}
         >
           {session === null ? (
-            <p className="muted">
-              Não foi possível carregar a sua sessão. Recarregue a página.
-            </p>
+            <p className="muted">{common.session.loadFailed}</p>
           ) : showLoading ? (
-            <p className="muted">Carregando o histórico…</p>
+            <p className="muted">{t.chat.loadingHistory}</p>
           ) : (
             messages.map((msg, index) =>
               msg.role === "human" ? (
@@ -197,7 +194,7 @@ export default function Chat(): React.ReactElement {
       <div className="plants-chat-column plants-chat-footer">
         <form className="plants-chat-composer" onSubmit={handleSubmit}>
           <label htmlFor="plants-chat-message" className="visually-hidden">
-            Mensagem
+            {t.chat.messageLabel}
           </label>
           <textarea
             id="plants-chat-message"
@@ -205,7 +202,7 @@ export default function Chat(): React.ReactElement {
             className="plants-chat-input"
             rows={1}
             value={messageInput}
-            placeholder="Escreva sua mensagem"
+            placeholder={t.chat.messagePlaceholder}
             enterKeyHint="send"
             onChange={handleInputChange}
             onKeyDown={handleKeyDown}
@@ -213,7 +210,7 @@ export default function Chat(): React.ReactElement {
           <button
             type="submit"
             className="plants-chat-send"
-            aria-label="Enviar"
+            aria-label={t.chat.send}
             disabled={sending}
           >
             <svg
