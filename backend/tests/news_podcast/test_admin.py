@@ -6,10 +6,11 @@ from django.forms.models import model_to_dict
 from django.test import Client
 
 from news_podcast.api.episode import config, prompts
-from news_podcast.models import Episode, PodcastSettings
+from news_podcast.models import Episode, Feed, PodcastSettings
 
 SETTINGS_URL = "/admin/news_podcast/podcastsettings/"
 EPISODES_URL = "/admin/news_podcast/episode/"
+FEEDS_URL = "/admin/news_podcast/feed/"
 DATABASES = pytest.mark.django_db(databases=["default", "news_podcast_db"])
 
 
@@ -109,3 +110,11 @@ def test_the_history_shows_the_voice_pace(admin_client: Client) -> None:
 
     assert '<td class="field-pace">170</td>' in page
     assert '<td class="field-pace">-</td>' in page
+
+
+@DATABASES
+def test_the_feeds_page_opens_with_the_starting_list(admin_client: Client) -> None:
+    page = admin_client.get(FEEDS_URL).content.decode()
+
+    assert "ICL Notícias" in page
+    assert Feed.objects.count() == len(config.STARTING_FEEDS)

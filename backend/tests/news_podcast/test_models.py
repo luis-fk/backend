@@ -5,7 +5,9 @@ from django.core.exceptions import ValidationError
 
 from news_podcast.api.episode import config
 from news_podcast.api.episode.schemas import EpisodeOptions
-from news_podcast.models import STARTING_VALUES, PodcastSettings
+from news_podcast.models import STARTING_VALUES, Feed, PodcastSettings
+
+DATABASES = pytest.mark.django_db(databases=["default", "news_podcast_db"])
 
 
 def test_the_settings_start_with_the_values_in_the_code() -> None:
@@ -74,3 +76,34 @@ def test_a_prompt_may_use_its_placeholders_and_doubled_braces() -> None:
     PodcastSettings(
         script_prompt='{podcast_name}, com {host_a}: {{"turns": []}}'
     ).full_clean()
+
+
+@DATABASES
+def test_the_feed_list_starts_with_the_one_in_the_code() -> None:
+    sources = Feed.sources()
+
+    assert {(s.outlet, s.section, s.url) for s in sources} == set(config.STARTING_FEEDS)
+    icl = next(source for source in sources if source.outlet == "ICL Notícias")
+    assert icl.via_google_news
+
+
+@DATABASES
+def test_feeds_are_read_in_section_order() -> None:
+    Feed.start_if_empty()
+    Feed.objects.create(
+        outlet="Valor", section=Feed.Section.ECONOMIA, url="https://valor.example/rss"
+    )
+
+    sections = [source.section for source in Feed.sources()]
+
+    # Of a headline in two feeds of one outlet, the first feed's copy stays.
+    assert sections == sorted(sections)
+
+
+@DATABASES
+def test_feeds_turned_off_are_not_read_and_the_list_does_not_start_again() -> None:
+    Feed.sources()
+    Feed.objects.update(active=False)
+
+    assert Feed.sources() == []
+    assert Feed.objects.count() == len(config.STARTING_FEEDS)

@@ -105,6 +105,7 @@ def make_service(
         telegram=None,
         chat_id=None,
         podcast_settings=PodcastSettings(),
+        sources=[],
     )
 
 
@@ -536,6 +537,7 @@ def telegram_service(
         telegram=telegram,
         chat_id=chat_id,
         podcast_settings=PodcastSettings(),
+        sources=[],
         admin_chat_id=admin_chat_id,
     )
 

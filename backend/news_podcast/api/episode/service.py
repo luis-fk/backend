@@ -16,7 +16,6 @@ from news_podcast.api.episode.audio import build_voice_note
 from news_podcast.api.episode.feeds import (
     fetch_items,
     format_for_selection,
-    load_sources,
 )
 from news_podcast.api.episode.gemini import (
     GeminiClient,
@@ -46,6 +45,7 @@ from news_podcast.api.episode.options import (
 from news_podcast.api.episode.schemas import (
     EpisodeOptions,
     EpisodeReport,
+    FeedSource,
     NewsItem,
     Script,
     SelectedStory,
@@ -86,6 +86,7 @@ class NewsPodcastService:
         telegram: TelegramClient | None,
         chat_id: str | None,
         podcast_settings: PodcastSettings,
+        sources: list[FeedSource],
         admin_chat_id: str | None = None,
     ) -> None:
         self.http_client = http_client
@@ -95,6 +96,8 @@ class NewsPodcastService:
         # Errors go here, not to the episode's chat.
         self.admin_chat_id = admin_chat_id or chat_id
         self.podcast_settings = podcast_settings
+        # Read from the database by the command, outside the event loop.
+        self.sources = sources
         self.options = podcast_settings.episode_options()
         self.step = "início"
         # Every Gemini answer, kept as the run goes, so a failed run has its cost too.
@@ -167,9 +170,8 @@ class NewsPodcastService:
         config.OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
         self.step = "leitura dos feeds"
-        sources = load_sources(config.OPML_PATH)
-        items = await fetch_items(self.http_client, sources, start, end)
-        logger.info(f"Collected {len(items)} items from {len(sources)} feeds")
+        items = await fetch_items(self.http_client, self.sources, start, end)
+        logger.info(f"Collected {len(items)} items from {len(self.sources)} feeds")
         if not items:
             raise EpisodeError("Nenhuma notícia encontrada nos feeds")
 

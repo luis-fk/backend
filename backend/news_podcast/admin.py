@@ -11,7 +11,7 @@ from django.utils.text import Truncator
 
 from news_podcast.api.episode.config import LOCAL_TZ
 from news_podcast.api.episode.messages import brl
-from news_podcast.models import Episode, PodcastSettings
+from news_podcast.models import Episode, Feed, PodcastSettings
 
 LONG_PROMPTS = ["selection_prompt", "script_prompt"]
 NUMBERS = [
@@ -93,6 +93,21 @@ class PodcastSettingsAdmin(admin.ModelAdmin):
         return redirect(
             "admin:news_podcast_podcastsettings_change", podcast_settings.pk
         )
+
+
+@admin.register(Feed)
+class FeedAdmin(admin.ModelAdmin):
+    list_display = ["outlet", "section", "url", "active"]
+    list_editable = ["active"]
+    list_filter = ["section", "active"]
+    search_fields = ["outlet", "url"]
+
+    def changelist_view(
+        self, request: HttpRequest, extra_context: dict[str, Any] | None = None
+    ) -> HttpResponse:
+        # Before the first run, the list starts with the feeds in config.py.
+        Feed.start_if_empty()
+        return super().changelist_view(request, extra_context)
 
 
 @admin.register(Episode)
