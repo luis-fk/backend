@@ -6,9 +6,11 @@ import pytest
 from django.test import Client
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from langchain_core.messages.tool import tool_call
+from langchain_core.prompts import ChatPromptTemplate
 
 from plants.api.chatbot import nodes, tools
 from plants.api.chatbot.chatbot import LLM
+from plants.api.chatbot.prompts import CHAT_BOT_AGENT_PROMPT, TOOLS_AGENT_PROMPT
 from plants.api.chatbot.routes import ChatBotApi
 from plants.api.chatbot.schemas import ChatInfo, LLMAnswerSchema, Routing, SquadState
 from plants.models import ChatHistory, UserMemory, Users
@@ -195,3 +197,17 @@ def test_a_message_the_chatbot_cannot_answer_gets_400(client: Client) -> None:
         answer = send_message(client, "Oi")
 
     assert answer == (400, {"error": "Error processing user message"})
+
+
+@pytest.mark.parametrize("prompt", [CHAT_BOT_AGENT_PROMPT, TOOLS_AGENT_PROMPT])
+def test_the_answer_comes_in_the_user_s_language_in_a_plain_voice(
+    prompt: ChatPromptTemplate,
+) -> None:
+    # The site is in Portuguese and English, and the assistant once spoke as a
+    # pirate.
+    system = prompt.format_messages(
+        date="2026-11-10", user_memory="", input="Oi", agent_scratchpad=""
+    )[0].content
+
+    assert "same language as the user's latest message" in system
+    assert "pirate" not in system
