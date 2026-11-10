@@ -7,12 +7,17 @@ import {
   AdmissionResult,
 } from "@/cfflch/hooks/use-admission-search";
 import Toast from "@/app/components/Toast";
+import { commonDictionary } from "@/app/dictionary";
+import type { Locale } from "@/app/i18n";
+import { useLocale } from "@/app/useLocale";
+import { cfflchDictionary } from "@/cfflch/dictionary";
 import "@/cfflch/css/search.css";
 
-function listStatus(count: number): string {
-  if (count === 0) return "Não aparece em nenhuma lista";
-  if (count === 1) return "Aparece em 1 lista";
-  return `Aparece em ${count} listas`;
+function listStatus(count: number, lang: Locale): string {
+  const t = cfflchDictionary[lang].search;
+  if (count === 0) return t.notOnAnyList;
+  if (count === 1) return t.onOneList;
+  return t.onLists(count.toLocaleString(lang));
 }
 
 function ResultItem({
@@ -20,13 +25,15 @@ function ResultItem({
 }: {
   result: AdmissionResult;
 }): React.ReactElement {
+  const lang = useLocale();
+
   return (
     <li className="search-result">
       <span className="search-result-name">{result.student_name}</span>
       <span className="search-result-status muted">
         {result.failed
-          ? "A busca falhou. Tente de novo."
-          : listStatus(result.pdf_entries.length)}
+          ? cfflchDictionary[lang].search.failed
+          : listStatus(result.pdf_entries.length, lang)}
       </span>
       {result.pdf_entries.map((pdf) => (
         <a
@@ -45,6 +52,8 @@ function ResultItem({
 
 export default function SearchForm(): React.ReactElement {
   const serverUrl = process.env.NEXT_PUBLIC_SERVER_URL;
+  const lang = useLocale();
+  const t = cfflchDictionary[lang].search;
   const session = useSession("cfflch");
   const { results, loading, error, search, clearError } = useAdmissionSearch(
     serverUrl,
@@ -93,16 +102,14 @@ export default function SearchForm(): React.ReactElement {
   return (
     <main className="page page-narrow">
       <div className="page-header">
-        <h1 className="page-title">Buscar alunos</h1>
-        <p className="muted">
-          Procuramos cada nome nas listas de aprovados publicadas em PDF.
-        </p>
+        <h1 className="page-title">{t.title}</h1>
+        <p className="muted">{t.intro}</p>
       </div>
 
       <form className="search-form" onSubmit={handleSubmit}>
         <div className="field">
           <label htmlFor="names" className="field-label">
-            Nomes, um por linha
+            {t.namesLabel}
           </label>
           <textarea
             id="names"
@@ -110,7 +117,7 @@ export default function SearchForm(): React.ReactElement {
             rows={5}
             value={namesValue}
             onChange={(e) => setNamesValue(e.target.value)}
-            placeholder={"João Silva\nMaria Souza"}
+            placeholder={t.namesPlaceholder}
             disabled={loading}
           />
         </div>
@@ -118,7 +125,7 @@ export default function SearchForm(): React.ReactElement {
         <div className="search-options">
           <div className="field search-year">
             <label htmlFor="year" className="field-label">
-              Ano
+              {t.yearLabel}
             </label>
             <select
               id="year"
@@ -136,7 +143,7 @@ export default function SearchForm(): React.ReactElement {
           </div>
           <div className="field search-class">
             <label htmlFor="class-name" className="field-label">
-              Turma (opcional)
+              {t.classLabel}
             </label>
             <input
               id="class-name"
@@ -144,21 +151,19 @@ export default function SearchForm(): React.ReactElement {
               className="input"
               value={className}
               onChange={(e) => setClassName(e.target.value)}
-              placeholder="Turma A"
+              placeholder={t.classPlaceholder}
               disabled={loading}
             />
           </div>
         </div>
 
         <button type="submit" className="button" disabled={loading || !session}>
-          {loading ? "Buscando…" : "Buscar"}
+          {loading ? t.submitting : t.submit}
         </button>
       </form>
 
       {session === null && (
-        <p className="muted">
-          Não foi possível carregar a sua sessão. Recarregue a página.
-        </p>
+        <p className="muted">{commonDictionary[lang].session.loadFailed}</p>
       )}
 
       {(results.length > 0 || loading) && (
@@ -167,7 +172,7 @@ export default function SearchForm(): React.ReactElement {
           aria-labelledby="search-results-title"
         >
           <h2 id="search-results-title" className="section-title">
-            Resultado da busca
+            {t.resultsTitle}
           </h2>
           <ul className="list">
             {results.map((result, i) => (
@@ -179,13 +184,13 @@ export default function SearchForm(): React.ReactElement {
                   {name}
                 </span>
                 <span className="search-result-status muted">
-                  Buscando nas listas…
+                  {t.searching}
                 </span>
               </li>
             ))}
           </ul>
           <p role="status" className="visually-hidden">
-            {loading ? "Buscando nas listas…" : "Busca concluída."}
+            {loading ? t.searching : t.done}
           </p>
         </section>
       )}

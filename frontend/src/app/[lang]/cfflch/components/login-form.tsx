@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { login } from "@/cfflch/actions/login";
+import { cfflchDictionary } from "@/cfflch/dictionary";
 import { logger } from "@/app/api/log/client-logger";
 import { localePath } from "@/app/i18n";
 import { useLocale } from "@/app/useLocale";
@@ -12,6 +13,7 @@ export default function LoginForm(): React.ReactElement {
   const [submitting, setSubmitting] = useState(false);
   const router = useRouter();
   const lang = useLocale();
+  const t = cfflchDictionary[lang].login;
 
   async function handleSubmit(
     event: React.FormEvent<HTMLFormElement>,
@@ -21,7 +23,7 @@ export default function LoginForm(): React.ReactElement {
     setErrorMessage(null);
 
     const formData = new FormData(event.currentTarget);
-    const result = await login(formData);
+    const result = await login(lang, formData);
 
     if (result?.message) {
       logger.error("Login failed", { message: result.message });
@@ -38,14 +40,14 @@ export default function LoginForm(): React.ReactElement {
     <form className="auth-form" onSubmit={handleSubmit}>
       <div className="field">
         <label htmlFor="name" className="field-label">
-          Seu nome
+          {t.nameLabel}
         </label>
         <input
           id="name"
           name="name"
           type="text"
           className="input"
-          placeholder="Maria Souza"
+          placeholder={t.namePlaceholder}
           aria-invalid={errorMessage ? true : undefined}
           aria-describedby={errorMessage ? "name-error" : undefined}
         />
@@ -56,7 +58,7 @@ export default function LoginForm(): React.ReactElement {
         )}
       </div>
       <button type="submit" className="button" disabled={submitting}>
-        {submitting ? "Entrando…" : "Entrar"}
+        {submitting ? t.submitting : t.submit}
       </button>
     </form>
   );
