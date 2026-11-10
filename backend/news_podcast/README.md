@@ -27,21 +27,17 @@ O episódio diário roda num serviço Cron do Railway (veja *Agendamento*).
 
 ## Configuração (uma vez só)
 
-1. **Bot do Telegram:** no Telegram, abra o `@BotFather`, mande `/newbot`, escolha um
-   nome e guarde o token que ele devolve. Depois abra o seu bot e mande `/start`.
-2. **Chave do Gemini:** em [aistudio.google.com](https://aistudio.google.com), clique em
-   *Get API key* e crie uma chave. O plano grátis não pede cartão.
-3. **Banco:** crie o banco `news_podcast_db` no Postgres do Railway, como os outros,
-   ponha a `NEWS_PODCAST_DATABASE_URL` também no serviço do backend (o admin usa o
-   banco) e rode as migrations (`make migrate` com as URLs de produção).
-4. **Descobrir o seu chat:** com o `TELEGRAM_BOT_TOKEN` no `.env`, rode na pasta
-   `backend/` `uv run python manage.py news_podcast chat-id`. O bot te manda um número no
-   Telegram: ele vai na variável `TELEGRAM_CHAT_ID` do serviço (veja *Agendamento*). Para
-   mandar para um grupo, veja *Mandar para um grupo*.
-5. **Agendamento:** crie o serviço no Railway (abaixo). Daí em diante ele roda sozinho,
-   começa às 6h40 e envia perto das 7h.
-6. **Testar:** no Railway, abra o serviço e clique em *Run now*, ou rode
-   `railway cron run` na CLI.
+- **Bot do Telegram:** crie com o `@BotFather` (`/newbot`), guarde o token e mande
+  `/start` para o bot.
+- **Chave do Gemini:** em [aistudio.google.com](https://aistudio.google.com), *Get API
+  key*. O plano grátis não pede cartão.
+- **Banco:** o `news_podcast_db` no Postgres do Railway, com a
+  `NEWS_PODCAST_DATABASE_URL` também no serviço do backend (o admin usa o banco), e as
+  migrations rodadas (`make migrate` com as URLs de produção).
+- **O seu chat:** com o `TELEGRAM_BOT_TOKEN` no `.env`, rode na pasta `backend/`
+  `uv run python manage.py news_podcast chat-id`. O bot te manda o número da conversa,
+  que vai no `TELEGRAM_CHAT_ID` do serviço (veja *Agendamento*). Para um grupo, veja
+  *Mandar para um grupo*.
 
 ## Agendamento (Railway)
 
@@ -67,6 +63,10 @@ frequência, mude só o Cron Schedule, em UTC e uns 20 minutos antes da hora do 
 entre 23h e 0h de Brasília): ele chegaria antes da meia-noite, já com a data do dia
 seguinte. Uma execução só começa se a anterior já terminou.
 
+Um deploy do backend também refaz este serviço e mata uma execução em andamento, sem
+tempo de folga. Por isso, releases para a `main` ficam fora do horário do episódio,
+das 6h40 até ele chegar.
+
 Para rodar na mão, use o *Run now* do serviço ou `railway cron run`. Como é o mesmo
 comando do cron, ele respeita a pausa e lê as notícias até a hora cheia em que começou.
 Rodando local sem `--scheduled`, ele lê as notícias até o momento em que começa.
@@ -77,6 +77,8 @@ O bot só envia para a conversa do `TELEGRAM_CHAT_ID`. Quem só abre o bot e man
 `/start` não recebe nada. Para mais gente ouvir, use um grupo:
 
 1. No Telegram, crie um grupo com as pessoas e adicione o bot (procure pelo @ dele).
+   Se só administradores podem postar no grupo, faça do bot um administrador; sem
+   isso, o Telegram recusa o envio.
 2. Rode o `chat-id` (veja *Configuração*). Com o `TELEGRAM_CHAT_ID` ou o
    `TELEGRAM_ADMIN_CHAT_ID` no `.env`, o bot manda só para essa conversa a lista das
    conversas que viu nas últimas 24 horas, com o número de cada uma. O grupo aparece com
