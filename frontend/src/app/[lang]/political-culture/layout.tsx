@@ -1,8 +1,16 @@
 import type { Metadata } from "next";
+import { commonDictionary } from "@/app/dictionary";
+import { toLocale } from "@/app/i18n";
 
-export const metadata: Metadata = {
-  title: { default: "Cultura Política", template: "%s | Cultura Política" },
-};
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ lang: string }>;
+}): Promise<Metadata> {
+  const lang = toLocale((await params).lang);
+  const name = commonDictionary[lang].projects["political-culture"].name;
+  return { title: { default: name, template: `%s | ${name}` } };
+}
 
 export default function PoliticalCultureLayout({
   children,
