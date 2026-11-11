@@ -83,15 +83,21 @@ def weather_at_hours(device: Esp32Device, hours: range) -> tuple[list[int], list
 
 
 @DATABASES
-def test_demo_can_use_plants_from_sao_paulo_without_a_password() -> None:
+def test_demo_can_use_plants_from_sao_paulo_and_the_admin() -> None:
     seed()
 
     demo = get_user_model().objects.get(username="demo")
     row = Users.objects.get(auth_user_id=demo.pk)
     assert demo.is_active
-    assert not demo.has_usable_password()
+    assert demo.is_staff and demo.is_superuser
+    assert demo.check_password("demo")
     assert row.active
     assert (row.latitude, row.longitude) == ("-23.55", "-46.63")
+
+
+@DATABASES
+def test_the_output_says_how_to_log_in() -> None:
+    assert "plants: log in as demo, with the password demo in the admin" in seed()
 
 
 @DATABASES
@@ -103,7 +109,8 @@ def test_a_blocked_demo_can_use_plants_again() -> None:
 
     demo.refresh_from_db()
     row = Users.objects.get(auth_user_id=demo.pk)
-    assert demo.is_active
+    assert demo.is_active and demo.is_superuser
+    assert demo.check_password("demo")
     assert row.active
     assert (row.latitude, row.longitude) == ("-23.55", "-46.63")
 

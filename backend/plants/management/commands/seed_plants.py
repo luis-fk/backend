@@ -13,6 +13,9 @@ from django.utils import timezone
 from plants.models import Esp32Data, Esp32Device, Users
 
 DEMO_USERNAME = "demo"
+# A known password is fine, since the seed only runs on local databases: demo is
+# also the admin's login there.
+DEMO_PASSWORD = "demo"
 SAO_PAULO = {"latitude": "-23.55", "longitude": "-46.63"}
 SAO_PAULO_TIME = ZoneInfo("America/Sao_Paulo")
 COOLEST_HOUR = 6
@@ -62,9 +65,13 @@ class Command(BaseCommand):
             owner = demo_plants_row(auth_user_id)
             delete_sample_plants(owner)
             devices = sample_devices(owner)
-        self.stdout.write(f"plants: {DEMO_USERNAME} can use the app, in São Paulo")
         self.stdout.write(
-            f"plants: {READINGS} readings per plant, one every 2 hours for 30 days"
+            f"plants: log in as {DEMO_USERNAME}, with the password {DEMO_PASSWORD} "
+            "in the admin"
+        )
+        self.stdout.write(
+            f"plants: {READINGS} readings per plant, one every 2 hours for 30 days, "
+            "in São Paulo"
         )
         for device, key in devices:
             self.stdout.write(
@@ -84,14 +91,13 @@ def remote_databases() -> list[str]:
 
 
 def demo_auth_user_id() -> int:
-    """demo's id in auth, let in again if it was blocked. It is made with no
-    password: the site logs in by name."""
-    demo, created = get_user_model()._default_manager.get_or_create(
-        username=DEMO_USERNAME
-    )
-    if created:
-        demo.set_unusable_password()
+    """demo's id in auth, let in again if it was blocked. The site takes the name,
+    and the admin the password, which every run sets again."""
+    demo, _ = get_user_model()._default_manager.get_or_create(username=DEMO_USERNAME)
+    demo.set_password(DEMO_PASSWORD)
     demo.is_active = True
+    demo.is_staff = True
+    demo.is_superuser = True
     demo.save()
     return demo.pk
 

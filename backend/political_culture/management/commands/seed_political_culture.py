@@ -18,6 +18,9 @@ from political_culture.models import (
 
 SEED_DIR = Path(__file__).resolve().parents[2] / "seed"
 DEMO_USERNAME = "demo"
+# A known password is fine, since the seed only runs on local databases: demo is
+# also the admin's login there.
+DEMO_PASSWORD = "demo"
 # An empty host, or a path, is PostgreSQL's socket on this machine.
 LOCAL_HOSTS = {"", "localhost", "127.0.0.1", "::1"}
 
@@ -50,7 +53,10 @@ class Command(BaseCommand):
         with transaction.atomic(using=router.db_for_write(Texts)):
             replace_ideology(seed)
             replace_text(seed, vector, demo)
-        self.stdout.write(f"political_culture: {DEMO_USERNAME} can use the app")
+        self.stdout.write(
+            f"political_culture: log in as {DEMO_USERNAME}, with the password "
+            f"{DEMO_PASSWORD} in the admin"
+        )
         self.stdout.write(f"political_culture: ideology {seed['ideology']}")
         self.stdout.write(
             f"political_culture: library text {seed['title']}, ticked by "
@@ -80,12 +86,13 @@ def read_seed_file(name: str) -> Any:
 
 
 def seed_demo() -> Users:
-    """demo, active in auth and in political culture. The site logs in by name, so a
-    new demo gets no password, like a person the admin adds without one."""
-    demo, created = get_user_model().objects.get_or_create(username=DEMO_USERNAME)
-    if created:
-        demo.set_unusable_password()
+    """demo, active in auth and in political culture. The site takes the name, and
+    the admin the password, which every run sets again."""
+    demo, _ = get_user_model().objects.get_or_create(username=DEMO_USERNAME)
+    demo.set_password(DEMO_PASSWORD)
     demo.is_active = True
+    demo.is_staff = True
+    demo.is_superuser = True
     demo.save()
     user, _ = Users.objects.update_or_create(
         auth_user_id=demo.pk, defaults={"active": True}

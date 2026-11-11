@@ -10,6 +10,9 @@ from cfflch.api.admission_status.utils import normalize_text
 from cfflch.models import AdmissionResult, ClassRoom, Users
 
 DEMO_USERNAME = "demo"
+# A known password is fine, since the seed only runs on local databases: demo is
+# also the admin's login there.
+DEMO_PASSWORD = "demo"
 LOCAL_TIME = ZoneInfo("America/Sao_Paulo")
 # An empty host, or a path, is PostgreSQL's socket on this machine.
 LOCAL_HOSTS = {"", "localhost", "127.0.0.1", "::1"}
@@ -47,7 +50,10 @@ class Command(BaseCommand):
         class_rooms = {name: seed_class_room(name) for name in CLASS_NAMES}
         for student in STUDENTS:
             seed_student(student, class_rooms[student.class_name], year)
-        self.stdout.write(f"cfflch: {DEMO_USERNAME} can use the app")
+        self.stdout.write(
+            f"cfflch: log in as {DEMO_USERNAME}, with the password {DEMO_PASSWORD} "
+            "in the admin"
+        )
         self.stdout.write(f"cfflch: classes {', '.join(CLASS_NAMES)}")
         self.stdout.write(f"cfflch: {len(STUDENTS)} students searched in {year}")
 
@@ -70,12 +76,13 @@ def require_local_databases() -> None:
 
 
 def seed_demo() -> None:
-    """demo, active in auth and in cfflch. The site logs in by name, so a new demo
-    gets no password, like a person the admin adds without one."""
-    demo, created = get_user_model().objects.get_or_create(username=DEMO_USERNAME)
-    if created:
-        demo.set_unusable_password()
+    """demo, active in auth and in cfflch. The site takes the name, and the admin
+    the password, which every run sets again."""
+    demo, _ = get_user_model().objects.get_or_create(username=DEMO_USERNAME)
+    demo.set_password(DEMO_PASSWORD)
     demo.is_active = True
+    demo.is_staff = True
+    demo.is_superuser = True
     demo.save()
     Users.objects.update_or_create(auth_user_id=demo.pk, defaults={"active": True})
 

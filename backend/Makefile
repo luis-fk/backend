@@ -1,6 +1,6 @@
 .PHONY: setup install install-dev run migrate migrate-prod makemigrations seed \
-        superuser shell db-up db-down db-reset lint type-check test check \
-        prune-branches requirements
+        shell db-up db-down db-reset lint type-check test check prune-branches \
+        requirements
 
 # ── Setup ────────────────────────────────────────────────────────────────────
 
@@ -44,9 +44,6 @@ seed:
 	uv run python manage.py seed_plants
 	uv run python manage.py seed_political_culture
 	uv run python manage.py seed_cfflch
-
-superuser: migrate
-	uv run python manage.py createsuperuser
 
 shell:
 	uv run python manage.py shell

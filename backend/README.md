@@ -19,9 +19,9 @@ make run            # http://localhost:8000
 
 Settings come from `backend/.env`, which `make setup` copies from [`backend/.env.example`](backend/.env.example) when there is none: the local databases, development secrets and placeholder keys. Required: `SECRET_KEY`, `API_TOKEN_SECRET`, `ENVIRONMENT=development`, `SERVER_URL`, `NGROK_URL`, `FRONT_END_URL`, `OPEN_WEATHER_API_KEY`, `OPENAI_API_KEY` and the five `*_DATABASE_URL`. cfflch and the plants web search also need `TAVILY_API_KEY`, and production needs `REDIS_URL`. The frontend's `.env` takes the same `API_TOKEN_SECRET`.
 
-The sample data (`make seed`) belongs to `demo`, the name to log in with in plants, political culture and cfflch: two plants with 30 days of readings (the command prints each device's key, to send readings from Bruno), a fictional pirate ideology with a library text, and six students of the current year. Running it again replaces only that data. `make migrate`, `make seed`, `make superuser` and the tests refuse databases outside this machine.
+The sample data (`make seed`) belongs to `demo`, the name to log in with in plants, political culture and cfflch, and in the Django admin (`/admin/`) with the password `demo`: two plants with 30 days of readings (the command prints each device's key, to send readings from Bruno), a fictional pirate ideology with a library text, and six students of the current year. Running it again replaces only that data, and sets demo's password back to `demo`. `make migrate`, `make seed` and the tests refuse databases outside this machine, so the known password never reaches production.
 
-Users are created in the Django admin (`/admin/`); `make superuser` creates its first login.
+Users are created in the Django admin.
 
 Other commands, with the database up for the tests: `make test`, `make check` (what CI runs, without changing any file), `make lint`, `make type-check`, `make db-down` (stops PostgreSQL and keeps the data), `make db-reset` (deletes the local databases and makes them again, sample data included), `make requirements` (regenerates `requirements.txt`, which Railway installs from).
 

@@ -55,7 +55,8 @@ def test_the_seed_gives_demo_two_classes_and_six_students_of_this_year() -> None
 
     demo = get_user_model().objects.get(username="demo")
     assert demo.is_active
-    assert not demo.has_usable_password()
+    assert demo.is_staff and demo.is_superuser
+    assert demo.check_password("demo")
     assert Users.objects.get(auth_user_id=demo.pk).active
     assert sorted(ClassRoom.objects.values_list("name", "name_normalized")) == [
         ("Turma A", "turma a"),
@@ -123,14 +124,28 @@ def test_a_second_run_restores_the_seed_and_leaves_other_students_alone() -> Non
 @DATABASES
 def test_a_second_run_lets_a_blocked_demo_in_again() -> None:
     seed()
-    get_user_model().objects.filter(username="demo").update(is_active=False)
+    get_user_model().objects.filter(username="demo").update(
+        is_active=False, password="!"
+    )
     Users.objects.update(active=False)
 
     seed()
 
     demo = get_user_model().objects.get(username="demo")
-    assert demo.is_active
+    assert demo.is_active and demo.is_superuser
+    assert demo.check_password("demo")
     assert Users.objects.get(auth_user_id=demo.pk).active
+
+
+@DATABASES
+def test_the_output_says_how_to_log_in() -> None:
+    out = StringIO()
+
+    call_command("seed_cfflch", stdout=out)
+
+    assert (
+        "cfflch: log in as demo, with the password demo in the admin" in out.getvalue()
+    )
 
 
 @DATABASES

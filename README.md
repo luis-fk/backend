@@ -20,7 +20,7 @@ make setup        # dependencies, PostgreSQL with pgvector in Docker, migrations
 make run          # http://localhost:8000
 ```
 
-With the sample data, each app's login takes the name `demo`.
+With the sample data, each app's login takes the name `demo`, and the Django admin (http://localhost:8000/admin/) takes `demo` with the password `demo`.
 
 Frontend, from `frontend/` (settings come from `frontend/.env`):
 

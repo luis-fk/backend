@@ -53,7 +53,8 @@ def test_the_seed_gives_demo_the_ideology_and_a_ticked_library_text() -> None:
 
     auth_demo = get_user_model().objects.get(username="demo")
     assert auth_demo.is_active
-    assert not auth_demo.has_usable_password()
+    assert auth_demo.is_staff and auth_demo.is_superuser
+    assert auth_demo.check_password("demo")
     user = Users.objects.get(auth_user_id=auth_demo.pk)
     assert user.active
     ideology = IdeologiesDefinition.objects.get()
@@ -85,8 +86,21 @@ def test_a_blocked_demo_can_use_the_app_again() -> None:
     seed()
 
     auth_demo.refresh_from_db()
-    assert auth_demo.is_active
+    assert auth_demo.is_active and auth_demo.is_superuser
+    assert auth_demo.check_password("demo")
     assert demo().active
+
+
+@DATABASES
+def test_the_output_says_how_to_log_in() -> None:
+    out = StringIO()
+
+    call_command("seed_political_culture", stdout=out)
+
+    assert (
+        "political_culture: log in as demo, with the password demo in the admin"
+        in out.getvalue()
+    )
 
 
 @DATABASES
