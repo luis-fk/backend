@@ -1,5 +1,13 @@
-.PHONY: install install-dev run migrate makemigrations shell \
-        db-up db-down db-reset lint type-check test prune-branches requirements
+.PHONY: setup install install-dev run migrate migrate-prod makemigrations seed \
+        superuser shell db-up db-down db-reset lint type-check test check \
+        prune-branches requirements
+
+# ── Setup ────────────────────────────────────────────────────────────────────
+
+setup: backend/.env install-dev db-up migrate seed
+
+backend/.env:
+	cp backend/.env.example backend/.env
 
 # ── Install ──────────────────────────────────────────────────────────────────
 
@@ -20,11 +28,10 @@ run:
 # ── Django ───────────────────────────────────────────────────────────────────
 
 migrate:
-	uv run python manage.py migrate
-	uv run python manage.py migrate --database=plants_db
-	uv run python manage.py migrate --database=political_culture_db
-	uv run python manage.py migrate --database=cfflch_db
-	uv run python manage.py migrate --database=news_podcast_db
+	uv run python manage.py migrate_all
+
+migrate-prod:
+	ENV_FILE=.env.production uv run python manage.py migrate_all --production
 
 makemigrations:
 	uv run python manage.py makemigrations plants
@@ -33,20 +40,28 @@ makemigrations:
 	uv run python manage.py makemigrations api_keys
 	uv run python manage.py makemigrations news_podcast
 
+seed:
+	uv run python manage.py seed_plants
+	uv run python manage.py seed_political_culture
+	uv run python manage.py seed_cfflch
+
+superuser:
+	uv run python manage.py createsuperuser
+
 shell:
 	uv run python manage.py shell
 
 # ── Docker / Database ────────────────────────────────────────────────────────
 
 db-up:
-	docker compose up -d
+	docker compose up -d --wait
 
 db-down:
 	docker compose down
 
 db-reset:
 	docker compose down -v
-	docker compose up -d
+	$(MAKE) db-up migrate seed
 
 # ── Code quality ─────────────────────────────────────────────────────────────
 
@@ -56,6 +71,15 @@ lint:
 
 type-check:
 	uv run mypy .
+
+test:
+	uv run pytest
+
+check:
+	uv run ruff check .
+	uv run ruff format --check .
+	uv run mypy .
+	uv run pytest
 
 # ── Git ───────────────────────────────────────────────────────────────────────
 

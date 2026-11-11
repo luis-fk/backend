@@ -13,17 +13,17 @@ The [frontend](../frontend/README.md) has the UIs of the first three.
 Needs [uv](https://docs.astral.sh/uv/) and Docker. From `backend/`:
 
 ```
-make db-up          # PostgreSQL 16 + pgvector, creates the five databases
-make install-dev
-make migrate
+make setup          # .env, dependencies, PostgreSQL 16 + pgvector, migrations, sample data
 make run            # http://localhost:8000
 ```
 
-Settings come from `backend/backend/.env`. Required: `SECRET_KEY`, `API_TOKEN_SECRET`, `ENVIRONMENT=development`, `SERVER_URL`, `NGROK_URL`, `FRONT_END_URL`, `OPEN_WEATHER_API_KEY`, `OPENAI_API_KEY` and the five `*_DATABASE_URL`. cfflch and the plants web search also need `TAVILY_API_KEY`, and production needs `REDIS_URL`.
+Settings come from `backend/backend/.env`, which `make setup` copies from [`backend/.env.example`](backend/.env.example) when there is none: the local databases, development secrets and placeholder keys. Required: `SECRET_KEY`, `API_TOKEN_SECRET`, `ENVIRONMENT=development`, `SERVER_URL`, `NGROK_URL`, `FRONT_END_URL`, `OPEN_WEATHER_API_KEY`, `OPENAI_API_KEY` and the five `*_DATABASE_URL`. cfflch and the plants web search also need `TAVILY_API_KEY`, and production needs `REDIS_URL`. The frontend's `.env` takes the same `API_TOKEN_SECRET`.
 
-Users are created in the Django admin (`/admin/`).
+The sample data (`make seed`) belongs to `demo`, the name to log in with in plants, political culture and cfflch: two plants with 30 days of readings (the command prints each device's key, to send readings from Bruno), a fictional pirate ideology with a library text, and six students of the current year. Running it again replaces only that data. `make migrate`, `make seed` and the tests refuse databases outside this machine.
 
-Other commands: `make lint`, `make type-check`, `uv run pytest` (with `make db-up` running), `make requirements` (regenerates `requirements.txt`, which Railway installs from).
+Users are created in the Django admin (`/admin/`); `make superuser` creates its first login.
+
+Other commands: `make test` (with the database up), `make check` (what CI runs, without changing any file), `make lint`, `make type-check`, `make db-down` (stops PostgreSQL and keeps the data), `make db-reset` (deletes the local databases and makes them again, sample data included), `make requirements` (regenerates `requirements.txt`, which Railway installs from).
 
 ## API access
 Every API endpoint checks a token ([`backend/api_auth.py`](backend/api_auth.py)); `/admin/` keeps Django's login. The frontend signs JWTs (HS256) with `API_TOKEN_SECRET`, so both services need the same value, with at least 32 characters (`openssl rand -base64 32`). The browser sends the logged-in user's token as `Authorization: Bearer <token>`, or as the WebSocket subprotocols `bearer` and `<token>`, and the login Server Actions send a 60-second login token to `/api/<app>/users/<name>`.
@@ -37,6 +37,6 @@ To give someone access to the site, add them in **Users → Add** and tick their
 The Bruno collection in [`bruno/`](bruno/) documents the API. Its Local environment takes each app's API key and user id, the device key, the plants device's id and, for the WebSockets, a user token, as secret variables, which Bruno keeps outside the files. The Production environment stays out of git.
 
 ## Deployment
-Railway deploys `main` (Root Directory `/backend`). Pull requests run Ruff, mypy and pytest in CI.
+Railway deploys `main` (Root Directory `/backend`). Pull requests run Ruff, mypy and pytest in CI. The migrations run from the owner's machine: `make migrate-prod` reads `backend/backend/.env.production`, a copy of `.env` with the production database URLs that git ignores, shows their hosts and asks for `yes`.
 
 Architecture and conventions: [`CLAUDE.md`](CLAUDE.md).
