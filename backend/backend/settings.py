@@ -17,7 +17,13 @@ from django.core.exceptions import ImproperlyConfigured
 from environ import Env
 
 env = Env()
-Env.read_env()
+# The .env next to this file, or the file ENV_FILE names: make migrate-prod reads
+# .env.production, so .env always keeps the local databases.
+ENV_FILE = env.str("ENV_FILE", default="")
+ENV_PATH = Path(__file__).resolve().parent / (ENV_FILE or ".env")
+if ENV_FILE and not ENV_PATH.exists():
+    raise ImproperlyConfigured(f"ENV_FILE names {ENV_PATH}, which doesn't exist.")
+Env.read_env(ENV_PATH)
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -100,6 +106,8 @@ INSTALLED_APPS = [
     "pgvector.django",
     "corsheaders",
     "rest_framework",
+    # The project's own commands, like migrate_all.
+    "backend",
     "api_keys",
     "plants",
     "political_culture",

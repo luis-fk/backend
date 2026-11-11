@@ -13,14 +13,14 @@ The two parts share no code. The frontend talks to the backend over HTTP and Web
 
 You need [uv](https://docs.astral.sh/uv/) and Docker for the backend, and Node.js 22 for the frontend (`nvm use 22`). The READMEs of [`backend/`](backend/README.md) and [`frontend/`](frontend/README.md) list the environment variables and the other commands.
 
-Backend, from `backend/` (settings come from `backend/backend/.env`):
+Backend, from `backend/` (settings come from `backend/backend/.env`, which `make setup` copies from `backend/backend/.env.example`):
 
 ```
-make db-up        # PostgreSQL with pgvector in Docker
-make install-dev
-make migrate
+make setup        # dependencies, PostgreSQL with pgvector in Docker, migrations, sample data
 make run          # http://localhost:8000
 ```
+
+With the sample data, each app's login takes the name `demo`, and the Django admin (http://localhost:8000/admin/) takes `demo` with the password `demo`.
 
 Frontend, from `frontend/` (settings come from `frontend/.env`):
 
