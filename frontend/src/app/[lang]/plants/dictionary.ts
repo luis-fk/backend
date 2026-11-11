@@ -1,6 +1,6 @@
 import type { Locale } from "@/app/i18n";
 
-// The plants texts: the login page and the chat. The project's name and the
+// The plants texts: the login page, the chat and the sensors tab. The project's name and the
 // session messages are in the common dictionary. English has Portuguese's type,
 // so a missing text fails the build.
 const ptBR = {
@@ -27,6 +27,32 @@ const ptBR = {
     messagePlaceholder: "Escreva sua mensagem",
     send: "Enviar",
     sendFailed: "Falha ao enviar a mensagem. Tente de novo.",
+  },
+  tabs: { chat: "Chat", sensors: "Sensores" },
+  sensors: {
+    title: "Sensores",
+    plant: "Planta",
+    period: "Período",
+    periods: { 24: "24 h", 168: "7 dias", 720: "30 dias" },
+    measuresLabel: "Medidas",
+    measures: {
+      soil: "Umidade do solo (%)",
+      air: "Umidade do ar (%)",
+      temp: "Temperatura (°C)",
+    },
+    lastReading: (when: string): string => `Última leitura, ${when}:`,
+    soil: "solo",
+    air: "ar",
+    rawReading: (raw: string): string => `(leitura ${raw})`,
+    humidityPanel: "Umidade (%)",
+    temperaturePanel: "Temperatura (°C)",
+    hourTick: (date: Date): string => `${date.getHours()}h`,
+    loading: "Carregando as leituras…",
+    noDevices: "Nenhum sensor na sua conta ainda.",
+    noReadings: "Sem leituras neste período.",
+    pickOne: "Escolha pelo menos uma medida.",
+    noData: "Sem dados neste período.",
+    loadFailed: "Não foi possível carregar as leituras.",
   },
 };
 
@@ -56,6 +82,33 @@ const en: PlantsDictionary = {
     messagePlaceholder: "Write your message",
     send: "Send",
     sendFailed: "Failed to send the message. Try again.",
+  },
+  tabs: { chat: "Chat", sensors: "Sensors" },
+  sensors: {
+    title: "Sensors",
+    plant: "Plant",
+    period: "Period",
+    periods: { 24: "24 h", 168: "7 days", 720: "30 days" },
+    measuresLabel: "Measures",
+    measures: {
+      soil: "Soil moisture (%)",
+      air: "Air humidity (%)",
+      temp: "Temperature (°C)",
+    },
+    lastReading: (when: string): string => `Last reading, ${when}:`,
+    soil: "soil",
+    air: "air",
+    rawReading: (raw: string): string => `(reading ${raw})`,
+    humidityPanel: "Humidity (%)",
+    temperaturePanel: "Temperature (°C)",
+    hourTick: (date: Date): string =>
+      date.toLocaleTimeString("en", { hour: "numeric" }),
+    loading: "Loading the readings…",
+    noDevices: "No sensors on your account yet.",
+    noReadings: "No readings in this period.",
+    pickOne: "Pick at least one measure.",
+    noData: "No data in this period.",
+    loadFailed: "Couldn't load the readings.",
   },
 };
 

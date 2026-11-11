@@ -26,7 +26,7 @@ const PROJECTS: Record<string, ProjectConfig> = {
   },
   plants: {
     publicPaths: [""],
-    protectedPaths: ["chat"],
+    protectedPaths: ["chat", "sensors"],
     defaultProtectedPath: "chat",
   },
   cfflch: {
