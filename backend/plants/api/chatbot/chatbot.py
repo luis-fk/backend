@@ -60,6 +60,7 @@ class LLM:
                         "messages": chat_history + [HumanMessage(content=message)],
                         "memory": user_memory,
                         "user_id": user_id,
+                        "tool_rounds": 0,
                     },
                 )
             )

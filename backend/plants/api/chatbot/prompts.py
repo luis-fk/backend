@@ -1,16 +1,19 @@
-from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 
 ROUTER_AGENT_PROMPT = ChatPromptTemplate.from_messages(
     [
         (
             "system",
             "You are tasked with determining whether the user's question is something "
-            "you can answer yourself and would warrant a web search. If the question "
-            "is something you can answer yourself, you can continue. If the question "
-            "is something you can't answer yourself, you should redirect to the web "
-            "search.",
+            "you can answer yourself or needs a tool. If the question is something "
+            "you can answer yourself, you can continue. If it is something you can't "
+            "answer yourself, which would warrant a web search, or if it is about the "
+            "person's own plants or their sensor readings (soil moisture, air "
+            "humidity, temperature, trends, when they were measured), redirect to "
+            "the tools agent. You get the latest messages of the conversation: route "
+            "the last one, using the others as its context.",
         ),
-        ("user", "{input}"),
+        MessagesPlaceholder("conversation"),
     ]
 )
 
@@ -61,7 +64,14 @@ TOOLS_AGENT_PROMPT = ChatPromptTemplate.from_messages(
             "You have access to the following tools:\n"
             "- Web search: Use this to find information you cannot answer yourself, "
             "such as details about plants, the current weather, or other relevant "
-            "topics.\n\n"
+            "topics.\n"
+            "- List my plants: the person's plants that have a soil sensor, with "
+            "when their readings started and ended and how often they come.\n"
+            "- Get plant readings: one plant's soil moisture, air humidity and "
+            "temperature over a period, with trends and the times of the readings. "
+            "Times are São Paulo time. Temperature and air humidity are the weather "
+            "where the person lives, not measured at the plant. Use List my plants "
+            "first when you don't know the plant's nickname.\n\n"
             "The current date is {date}\n\n"
             "The user memory is:\n{user_memory}",
         ),
