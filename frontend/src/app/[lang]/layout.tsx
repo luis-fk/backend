@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Schibsted_Grotesk } from "next/font/google";
+import InlineScript from "@/app/components/InlineScript";
 import { commonDictionary } from "@/app/dictionary";
 import { LOCALES, type Locale, toLocale } from "@/app/i18n";
 
@@ -60,7 +61,7 @@ export default async function RootLayout({
   return (
     <html lang={lang} className={sans.variable} suppressHydrationWarning>
       <head>
-        <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
+        <InlineScript html={THEME_SCRIPT} />
       </head>
       <body>{children}</body>
     </html>

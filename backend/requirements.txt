@@ -171,7 +171,7 @@ langgraph==1.1.10
     # via
     #   backend
     #   langchain
-langgraph-checkpoint==4.0.3
+langgraph-checkpoint==4.3.1
     # via
     #   langgraph
     #   langgraph-prebuilt

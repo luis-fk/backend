@@ -33,7 +33,7 @@ O episódio diário roda num serviço Cron do Railway (veja *Agendamento*).
   key*. O plano grátis não pede cartão.
 - **Banco:** o `news_podcast_db` no Postgres do Railway, com a
   `NEWS_PODCAST_DATABASE_URL` também no serviço do backend (o admin usa o banco), e as
-  migrations rodadas (`make migrate` com as URLs de produção).
+  migrations rodadas (`make migrate-prod`, que lê o `.env.production`).
 - **O seu chat:** com o `TELEGRAM_BOT_TOKEN` no `.env`, rode na pasta `backend/`
   `uv run python manage.py news_podcast chat-id`. O bot te manda o número da conversa,
   que vai no `TELEGRAM_CHAT_ID` do serviço (veja *Agendamento*). Para um grupo, veja

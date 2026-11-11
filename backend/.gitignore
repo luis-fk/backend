@@ -5,3 +5,4 @@
 bruno/environments/Production.bru
 .ruff_cache
 news_podcast_output
+.env.production
