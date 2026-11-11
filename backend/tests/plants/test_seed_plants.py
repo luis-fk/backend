@@ -176,16 +176,24 @@ def test_running_it_again_replaces_only_its_own_data() -> None:
         analog_value=2000, digital_value=0, user=someone.user, device=someone
     )
     seed()
+    cactus = Esp32Device(user=demo_row(), nickname="Cacto")
+    cactus_key = cactus.generate_key()
+    cactus.save()
+    Esp32Data.objects.create(
+        analog_value=2100, digital_value=0, user=demo_row(), device=cactus
+    )
     Esp32Data.objects.create(
         analog_value=1800, digital_value=0, user=demo_row(), device=None
     )
 
     seed()
 
-    devices = demo_devices()
-    assert [device.nickname for device in devices] == NICKNAMES
-    assert [device.readings.count() for device in devices] == [360, 360]
-    assert Esp32Data.objects.filter(user=demo_row()).count() == 720
+    samples = [device for device in demo_devices() if device.nickname in NICKNAMES]
+    assert [device.nickname for device in samples] == NICKNAMES
+    assert [device.readings.count() for device in samples] == [360, 360]
+    assert device_for_key(cactus_key) == cactus
+    assert list(cactus.readings.values_list("analog_value", flat=True)) == [2100]
+    assert Esp32Data.objects.filter(user=demo_row(), device=None).count() == 1
     assert device_for_key(their_key) == someone
     assert list(someone.readings.values_list("analog_value", flat=True)) == [2000]
 

@@ -60,7 +60,7 @@ class Command(BaseCommand):
         auth_user_id = demo_auth_user_id()
         with transaction.atomic(using=router.db_for_write(Esp32Device)):
             owner = demo_plants_row(auth_user_id)
-            delete_plants_of(owner)
+            delete_sample_plants(owner)
             devices = sample_devices(owner)
         self.stdout.write(f"plants: {DEMO_USERNAME} can use the app, in São Paulo")
         self.stdout.write(
@@ -103,11 +103,10 @@ def demo_plants_row(auth_user_id: int) -> Users:
     return row
 
 
-def delete_plants_of(owner: Users) -> None:
-    """Deletes the person's devices and every reading of theirs, found by person,
-    since old readings have no device."""
-    Esp32Data.objects.filter(user=owner).delete()
-    owner.devices.all().delete()
+def delete_sample_plants(owner: Users) -> None:
+    """Deletes the sample plants an earlier run made, with their readings; the
+    person's other devices stay."""
+    owner.devices.filter(nickname__in=[plant.nickname for plant in PLANTS]).delete()
 
 
 def sample_devices(owner: Users) -> list[tuple[Esp32Device, str]]:

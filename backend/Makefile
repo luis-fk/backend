@@ -45,7 +45,7 @@ seed:
 	uv run python manage.py seed_political_culture
 	uv run python manage.py seed_cfflch
 
-superuser:
+superuser: migrate
 	uv run python manage.py createsuperuser
 
 shell:
