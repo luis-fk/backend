@@ -1,4 +1,4 @@
-"""Token, API key and device key checks for plants, political_culture and cfflch.
+"""Token and API key checks for plants, political_culture and cfflch.
 
 The frontend signs HS256 JWTs with API_TOKEN_SECRET:
 - a user token, {sub: the app's user id, app, purpose: "user"}, for a logged-in user;
@@ -13,7 +13,6 @@ their row in the app's Users and their auth user both active, so unticking eithe
 the admin blocks them at once. That takes database queries.
 """
 
-import hmac
 from datetime import timedelta
 from typing import Any
 
@@ -73,16 +72,6 @@ def has_valid_user_token(request: HttpRequest, app: str) -> bool:
     It queries the database, so an async view calls this through sync_to_async.
     """
     return _request_user_id(request, app) is not None
-
-
-def has_valid_device_key(request: HttpRequest) -> bool:
-    """Whether X-Device-Key is ESP32_DEVICE_KEY. An empty key never matches."""
-    key = request.headers.get("X-Device-Key", "")
-    # compare_digest takes as long for any wrong key, so the key can't be guessed
-    # one character at a time.
-    return key != "" and hmac.compare_digest(
-        key.encode(), settings.ESP32_DEVICE_KEY.encode()
-    )
 
 
 def websocket_user_id(scope: dict[str, Any], app: str) -> str | None:
