@@ -6,7 +6,6 @@ import pytest
 from django.contrib.auth import get_user_model
 from django.http import HttpResponseBase
 from django.test import Client
-from pytest_django import Settings
 
 from plants.api.chatbot.routes import ChatBotApi
 from plants.models import ChatHistory, Esp32Data
@@ -15,6 +14,8 @@ from tests.api_tokens import (
     bearer,
     login_token,
     make_token,
+    saved_device,
+    saved_person,
     unknown_api_key,
     user_token,
 )
@@ -169,36 +170,37 @@ def test_the_login_lookup_runs_with_a_login_token(client: Client) -> None:
         response = find_user(client, bearer(login_token("plants")))
 
     assert response.status_code == 404
-    using.return_value.get.assert_called_once_with(username="ana")
+    using.return_value.get.assert_called_once_with(username="ana", is_active=True)
 
 
-@pytest.mark.parametrize("key", ["", "wrong-key"], ids=["no key", "wrong key"])
-def test_esp32_requests_without_the_device_key_get_401(
-    client: Client, settings: Settings, key: str
-) -> None:
-    settings.ESP32_DEVICE_KEY = "device-key"
+@pytest.mark.django_db(databases=["default", "plants_db"])
+@pytest.mark.parametrize("key", ["", "dk_wrong"], ids=["no key", "wrong key"])
+def test_esp32_requests_without_a_device_key_get_401(client: Client, key: str) -> None:
+    saved_device()
     headers = {"X-Device-Key": key} if key else {}
 
     assert send_reading(client, headers).status_code == 401
     assert client.get("/api/esp32/humidity-data", headers=headers).status_code == 401
 
 
-def test_the_device_key_lets_the_esp32_in(client: Client, settings: Settings) -> None:
-    settings.ESP32_DEVICE_KEY = "device-key"
+@pytest.mark.django_db(databases=["default", "plants_db"])
+def test_the_device_key_lets_the_esp32_in(client: Client) -> None:
+    _, key = saved_device()
 
     response = client.post(
         "/api/esp32/humidity-data",
         {},
         content_type="application/json",
-        headers={"X-Device-Key": "device-key"},
+        headers={"X-Device-Key": key},
     )
 
     # Past the key check, the empty reading fails validation.
     assert response.status_code == 400
 
 
-def test_a_valid_reading_is_saved(client: Client, settings: Settings) -> None:
-    settings.ESP32_DEVICE_KEY = "device-key"
+@pytest.mark.django_db(databases=["default", "plants_db"])
+def test_a_valid_reading_is_saved(client: Client) -> None:
+    device, key = saved_device()
     weather = SimpleNamespace(error_message=None, temperature=25.0, humidity=60)
 
     with (
@@ -208,9 +210,31 @@ def test_a_valid_reading_is_saved(client: Client, settings: Settings) -> None:
         ),
         patch.object(Esp32Data.objects, "acreate", AsyncMock()) as acreate,
     ):
-        response = send_reading(client, {"X-Device-Key": "device-key"})
+        response = send_reading(client, {"X-Device-Key": key})
 
     assert response.status_code == 200
     acreate.assert_awaited_once_with(
-        analog_value=512, digital_value=1, temperature=25.0, humidity=60, user_id=7
+        analog_value=512,
+        digital_value=1,
+        temperature=25.0,
+        humidity=60,
+        device=device,
+        user_id=device.user_id,
     )
+
+
+@pytest.mark.access_check
+@pytest.mark.django_db(databases=["default", "plants_db"])
+@pytest.mark.parametrize(
+    ("is_active", "active", "status"),
+    [(True, True, 200), (False, True, 401), (True, False, 401)],
+    ids=["can use plants", "Active unticked", "plants unticked"],
+)
+def test_only_people_who_can_use_plants_get_in(
+    client: Client, is_active: bool, active: bool, status: int
+) -> None:
+    user_id = saved_person("plants", is_active=is_active, active=active)
+
+    response = get_history(client, int(user_id), bearer(user_token("plants", user_id)))
+
+    assert response.status_code == status

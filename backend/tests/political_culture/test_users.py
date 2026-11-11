@@ -32,3 +32,20 @@ def test_a_login_without_a_political_culture_user_gets_404(client: Client) -> No
     get_user_model().objects.create_user(username="fulano")
 
     assert find_user(client, "fulano") == (404, {"error": "User not found."})
+
+
+@DATABASES
+@pytest.mark.parametrize(
+    ("is_active", "active"),
+    [(False, True), (True, False)],
+    ids=["Active unticked", "political culture unticked"],
+)
+def test_a_blocked_person_gets_404(
+    client: Client, is_active: bool, active: bool
+) -> None:
+    auth_user = get_user_model().objects.create_user(
+        username="fulano", is_active=is_active
+    )
+    Users.objects.create(auth_user_id=auth_user.id, active=active)
+
+    assert find_user(client, "fulano") == (404, {"error": "User not found."})

@@ -49,7 +49,7 @@ Um serviço Cron no projeto do Railway, a partir do mesmo repositório:
 2. Em *Variables*: `RAILPACK_DEPLOY_APT_PACKAGES=ffmpeg` (instala o ffmpeg só neste
    serviço), `GEMINI_API_KEY`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`,
    `TELEGRAM_ADMIN_CHAT_ID` e `NEWS_PODCAST_DATABASE_URL`. O Django também exige, para
-   subir, `SECRET_KEY`, `API_TOKEN_SECRET` (32 caracteres ou mais), `ESP32_DEVICE_KEY`,
+   subir, `SECRET_KEY`, `API_TOKEN_SECRET` (32 caracteres ou mais),
    `OPEN_WEATHER_API_KEY`, `SERVER_URL`, `NGROK_URL`, `FRONT_END_URL`,
    `ENVIRONMENT=development` (assim ele não pede o `REDIS_URL`) e as outras quatro
    `*_DATABASE_URL`. Para essas, valores fictícios servem (as URLs de banco podem ser

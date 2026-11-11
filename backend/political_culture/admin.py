@@ -17,7 +17,8 @@ from political_culture.models import (
 
 @admin.register(Users)
 class UsersAdmin(admin.ModelAdmin):
-    list_display = ["id", "name", "auth_user_id"]
+    list_display = ["id", "name", "auth_user_id", "active"]
+    list_filter = ["active"]
     search_fields = ["auth_user_id"]
     search_help_text = "Search by name or by the auth user id."
 

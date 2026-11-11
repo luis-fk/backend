@@ -26,7 +26,7 @@ from political_culture.api.word_counter.schemas import (
     WordFrequencySquema,
 )
 from political_culture.models import TextChunks, Texts, TextWordCount, Users
-from tests.api_tokens import bearer, make_token, user_token
+from tests.api_tokens import bearer, make_token, saved_person, user_token
 
 APP = "political-culture"
 DATABASES = pytest.mark.django_db(databases=["default", "political_culture_db"])
@@ -515,6 +515,7 @@ def texts_socket(user_id: int, token: str) -> WebsocketCommunicator:
     )
 
 
+@DATABASES
 @pytest.mark.usefixtures("in_memory_channel_layer")
 def test_the_uploader_hears_how_the_upload_ended() -> None:
     result: service.UploadResult = {
@@ -534,6 +535,7 @@ def test_the_uploader_hears_how_the_upload_ended() -> None:
     assert asyncio.run(listen()) == ("bearer", result)
 
 
+@DATABASES
 @pytest.mark.usefixtures("in_memory_channel_layer")
 def test_other_users_do_not_hear_about_the_upload() -> None:
     async def listen() -> bool:
@@ -547,6 +549,7 @@ def test_other_users_do_not_hear_about_the_upload() -> None:
     assert asyncio.run(listen())
 
 
+@DATABASES
 @pytest.mark.usefixtures("in_memory_channel_layer")
 @pytest.mark.parametrize(
     "claims",
@@ -564,3 +567,25 @@ def test_the_texts_socket_refuses_other_tokens(claims: dict[str, str]) -> None:
         return bool(connected)
 
     assert not asyncio.run(connect())
+
+
+@pytest.mark.access_check
+@pytest.mark.usefixtures("in_memory_channel_layer")
+@pytest.mark.django_db(databases=["default", "political_culture_db"], transaction=True)
+@pytest.mark.parametrize(
+    ("is_active", "active", "connects"),
+    [(True, True, True), (False, True, False), (True, False, False)],
+    ids=["can use the app", "Active unticked", "app unticked"],
+)
+def test_the_texts_socket_lets_in_only_people_who_can_use_the_app(
+    is_active: bool, active: bool, connects: bool
+) -> None:
+    user_id = saved_person(APP, is_active=is_active, active=active)
+
+    async def connect() -> bool:
+        socket = texts_socket(int(user_id), user_token(APP, user_id))
+        connected, _ = await socket.connect()
+        await socket.disconnect()
+        return bool(connected)
+
+    assert asyncio.run(connect()) is connects

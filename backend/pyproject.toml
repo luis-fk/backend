@@ -1,6 +1,6 @@
 [project]
 name = "backend"
-version = "4.5.0"
+version = "4.6.0"
 description = ""
 authors = [{ name = "fl-korbes", email = "felipekorbes@live.com" }]
 readme = "README.md"
@@ -84,3 +84,6 @@ testpaths = [
     "tests"
 ]
 DJANGO_SETTINGS_MODULE = "backend.settings"
+markers = [
+    "access_check: runs the check that the person can still use the app, which tests/conftest.py skips elsewhere",
+]

@@ -8,7 +8,7 @@ from django.contrib.auth.forms import AdminUserCreationForm, UserChangeForm
 from django.http import HttpRequest, HttpResponse
 from django.template.response import TemplateResponse
 
-from api_keys.app_users import USERS_MODELS, add_to_apps, apps_of, ids_in_apps
+from api_keys.app_users import USERS_MODELS, apps_of, ids_in_apps, set_apps
 from api_keys.models import ApiKey
 
 User = get_user_model()
@@ -36,11 +36,12 @@ def username(auth_user_id: int | None) -> str:
 
 class ApiKeyAddForm(forms.ModelForm):
     person = forms.ModelChoiceField(
-        queryset=User._default_manager.order_by("username"),
-        help_text="The person the key acts as.",
+        queryset=User._default_manager.filter(is_active=True).order_by("username"),
+        help_text="The person the key acts as, among those whose Active is ticked.",
     )
     apps = apps_field(
-        "The apps the key works in; the person must be in each.", required=True
+        "The apps the key works in; the person must be able to use each.",
+        required=True,
     )
 
     class Meta:
@@ -57,8 +58,8 @@ class ApiKeyAddForm(forms.ModelForm):
             if missing:
                 self.add_error(
                     "apps",
-                    f"{person} isn't in {', '.join(missing)}: add them on their user "
-                    "page first.",
+                    f"{person} can't use {', '.join(missing)}: their user page gives "
+                    "the access.",
                 )
             cleaned_data["users"] = ids
         return cleaned_data
@@ -154,18 +155,24 @@ class UserCreationWithAppsForm(AdminUserCreationForm):
 
 class UserChangeWithAppsForm(UserChangeForm):
     apps = apps_field(
-        "Ticking an app adds the person to it. Unticking doesn't remove them: that "
-        "would delete their data in the app, so it is done in the app's Users "
-        "table, which lists what goes with it."
+        "Unticking an app blocks the person in it at once. Their data there stays, "
+        "and ticking the app again gives it back."
     )
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         self.fields["apps"].initial = apps_of(self.instance.pk)
+        # The form of an admin who can only view users has no model fields.
+        if "is_active" in self.fields:
+            self.fields["is_active"].help_text = (
+                "Unticked, the person can't use any app or the admin, at once. Their "
+                "data stays."
+            )
 
 
-# The admin's user pages, with the apps each person is in: Django's own, which
-# the auth app registers first, plus an apps field.
+# The admin's user pages, with the apps each person can use: Django's own, which
+# the auth app registers first, plus an apps field next to Active, since both
+# decide what the person can use.
 admin.site.unregister(User)
 
 
@@ -174,8 +181,18 @@ class UserWithAppsAdmin(UserAdmin):
     add_form = UserCreationWithAppsForm
     form = UserChangeWithAppsForm
     add_fieldsets = (*UserAdmin.add_fieldsets, ("Apps", {"fields": ("apps",)}))
-    fieldsets = (*(UserAdmin.fieldsets or ()), ("Apps", {"fields": ("apps",)}))
-    list_display = (*UserAdmin.list_display, "app_list")
+    fieldsets = (
+        (None, {"fields": ("username", "password")}),
+        ("Personal info", {"fields": ("first_name", "last_name", "email")}),
+        ("Access", {"fields": ("is_active", "apps")}),
+        (
+            "Permissions",
+            {"fields": ("is_staff", "is_superuser", "groups", "user_permissions")},
+        ),
+        ("Important dates", {"fields": ("last_login", "date_joined")}),
+    )
+    list_display = (*UserAdmin.list_display, "is_active", "app_list")
+    list_editable = ("is_active",)
 
     @admin.display(description="apps")
     def app_list(self, obj: Any) -> str:
@@ -185,4 +202,6 @@ class UserWithAppsAdmin(UserAdmin):
         self, request: HttpRequest, obj: Any, form: forms.ModelForm, change: bool
     ) -> None:
         super().save_model(request, obj, form, change)
-        add_to_apps(obj.pk, form.cleaned_data.get("apps", []))
+        # The list's Active column saves a form without the apps.
+        if "apps" in form.cleaned_data:
+            set_apps(obj.pk, form.cleaned_data["apps"])

@@ -1,4 +1,4 @@
-"""Token, API key and device key checks for plants, political_culture and cfflch.
+"""Token and API key checks for plants, political_culture and cfflch.
 
 The frontend signs HS256 JWTs with API_TOKEN_SECRET:
 - a user token, {sub: the app's user id, app, purpose: "user"}, for a logged-in user;
@@ -7,9 +7,12 @@ The app keys are "plants", "political-culture" and "cfflch".
 
 Over HTTP, an active API key (the api_keys app) works wherever a user token does, in
 each app it covers, as its person's user there. The WebSockets take only user tokens.
+
+Every user token and API key also needs its person to still be able to use the app:
+their row in the app's Users and their auth user both active, so unticking either in
+the admin blocks them at once. That takes database queries.
 """
 
-import hmac
 from datetime import timedelta
 from typing import Any
 
@@ -20,6 +23,7 @@ from django.utils import timezone
 from rest_framework import status
 from rest_framework.exceptions import APIException, PermissionDenied
 
+from api_keys.app_users import can_use
 from api_keys.models import KEY_START, ApiKey, hash_key
 
 ALGORITHM = "HS256"
@@ -65,20 +69,9 @@ def require_login_token(request: HttpRequest, app: str) -> None:
 def has_valid_user_token(request: HttpRequest, app: str) -> bool:
     """For plain Django views, which don't turn DRF errors into responses.
 
-    An API key takes a database query, so an async view calls this through
-    sync_to_async.
+    It queries the database, so an async view calls this through sync_to_async.
     """
     return _request_user_id(request, app) is not None
-
-
-def has_valid_device_key(request: HttpRequest) -> bool:
-    """Whether X-Device-Key is ESP32_DEVICE_KEY. An empty key never matches."""
-    key = request.headers.get("X-Device-Key", "")
-    # compare_digest takes as long for any wrong key, so the key can't be guessed
-    # one character at a time.
-    return key != "" and hmac.compare_digest(
-        key.encode(), settings.ESP32_DEVICE_KEY.encode()
-    )
 
 
 def websocket_user_id(scope: dict[str, Any], app: str) -> str | None:
@@ -107,11 +100,11 @@ def _request_user_id(request: HttpRequest, app: str) -> str | None:
 
 
 def _api_key_user_id(key: str, app: str) -> str | None:
-    """The person's user id in app for an active API key that covers app, or None.
-    Records the key's use."""
+    """The person's user id in app for an active API key that covers app, while the
+    person can use app, or None. Records the key's use."""
     api_key = ApiKey.objects.filter(key_hash=hash_key(key), active=True).first()
     user_id = api_key.users.get(app) if api_key else None
-    if api_key is None or user_id is None:
+    if api_key is None or user_id is None or not can_use(app, user_id):
         return None
     api_key.last_used_at = timezone.now()
     api_key.save(update_fields=["last_used_at"])
@@ -119,8 +112,11 @@ def _api_key_user_id(key: str, app: str) -> str | None:
 
 
 def _user_id(token: str, app: str) -> str | None:
+    """The user id of a valid user token for app, while the person can use app."""
     claims = _claims(token, app, "user")
     user_id: str | None = claims.get("sub") if claims else None
+    if user_id is None or not can_use(app, user_id):
+        return None
     return user_id
 
 
