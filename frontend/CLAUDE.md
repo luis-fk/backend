@@ -8,7 +8,7 @@ It lives in `frontend/` of the monorepo, next to the Django backend in `../backe
 ## Tech stack
 - **Framework:** Next.js 16 (App Router, Turbopack for dev and build). Next 16 changed APIs and conventions, so read the relevant guide in `node_modules/next/dist/docs/` (the docs of the installed version) before writing Next-specific code; `AGENTS.md`, which `next dev` writes, says the same for other agents.
 - **UI Library:** React 19 + TypeScript 5 (strict mode)
-- **Styling:** plain CSS and native HTML elements, no component library (MUI was removed in the redesign), no Tailwind and no PostCSS config. `src/app/globals.css` holds the design tokens and the shared patterns; `data-project="<key>"` sets the app's accent color. Each color token is a `light-dark()` pair, picked by `color-scheme`: it follows the system until the theme switch (`ThemeToggle`) saves a choice in the `theme` cookie (through the `saveTheme` Server Action), which an inline script in the root layout turns into `<html data-theme>` before the first paint. The script reads the cookie in the browser because `cookies()` in the root layout would render every page on demand; this way the pages are static (Next's guide "Preventing flash before hydration"), and `ThemeToggle` puts the theme back if React renders `<html>` again in the browser. A page that shows something from the current time calls `await connection()` to render on each request, as the cfflch search and results pages do for their year lists: prerendered, they would keep the build's year. Font: Schibsted Grotesk through `next/font`. UI text is in Brazilian Portuguese and English, in sentence case, from the dictionaries (see Languages).
+- **Styling:** plain CSS and native HTML elements, no component library (MUI was removed in the redesign), no Tailwind and no PostCSS config. `src/app/globals.css` holds the design tokens and the shared patterns; `data-project="<key>"` sets the app's accent color. Each color token is a `light-dark()` pair, picked by `color-scheme`: it follows the system until the theme switch (`ThemeToggle`) saves a choice in the `theme` cookie (through the `saveTheme` Server Action), which an inline script in the root layout turns into `<html data-theme>` before the first paint. The script goes through `InlineScript`, a Client Component that makes it plain text when React renders it in the browser (switching language remounts the root layout): React never runs such a script, and it warns about one that is JavaScript. The script reads the cookie in the browser because `cookies()` in the root layout would render every page on demand; this way the pages are static (Next's guide "Preventing flash before hydration"), and `ThemeToggle` puts the theme back if React renders `<html>` again in the browser. A page that shows something from the current time calls `await connection()` to render on each request, as the cfflch search and results pages do for their year lists: prerendered, they would keep the build's year. Font: Schibsted Grotesk through `next/font`. UI text is in Brazilian Portuguese and English, in sentence case, from the dictionaries (see Languages).
 - **Auth:** Jose 5 for JWT encryption (HS256): the sessions, stored in `httpOnly` cookies and managed via Next.js server actions and the proxy, and the tokens the backend checks
 - **HTTP:** Axios for REST calls to the Django backend
 - **WebSocket:** Native browser `WebSocket` API (no library), managed via custom hooks
@@ -72,6 +72,7 @@ src/
     ├── components/              # Shared infrastructure components
     │   ├── AppHeader.tsx        # App header: project switcher (<details>), the app's nav, language link, theme switch, "Sair"
     │   ├── CornerControls.tsx   # Language link and theme switch for the pages without the header
+    │   ├── InlineScript.tsx     # The root layout's theme script: runs before the first paint, plain text when React renders it in the browser
     │   ├── LanguageLink.tsx     # Link to the same page in the other language
     │   ├── ThemeToggle.tsx      # Light/dark switch, saves the choice in the "theme" cookie
     │   └── Toast.tsx            # Toast (top-right, hides after 5 s, severity prop)
@@ -81,7 +82,7 @@ src/
 ```
 
 ### Shared vs app-specific
-- **Shared:** the languages (`i18n.ts`, `useLocale.ts`, `dictionary.ts`), session code, the API tokens and the login limit (`src/app/actions/`), the logger (`src/app/api/log/`), the proxy, `globals.css` (tokens; fields, buttons, lists, the login layout, the header, the theme switch, the toast), `projects.ts`, and the infrastructure components `AppHeader`, `CornerControls`, `LanguageLink`, `ThemeToggle` and `Toast` (`src/app/components/`).
+- **Shared:** the languages (`i18n.ts`, `useLocale.ts`, `dictionary.ts`), session code, the API tokens and the login limit (`src/app/actions/`), the logger (`src/app/api/log/`), the proxy, `globals.css` (tokens; fields, buttons, lists, the login layout, the header, the theme switch, the toast), `projects.ts`, and the infrastructure components `AppHeader`, `CornerControls`, `InlineScript`, `LanguageLink`, `ThemeToggle` and `Toast` (`src/app/components/`).
 - **App-specific:** everything else, including each app's login server action, feature components, CSS, and hooks. Do not create shared feature UI across apps — duplication is preferred over coupling (each chat keeps its own markup and CSS). Exception: site infrastructure with no app-specific logic, like the header, the theme switch and the toast.
 
 ### Adding a project
@@ -205,7 +206,7 @@ The plants chat endpoints have no `/plants` prefix in the backend, and its GET r
 
 ## Non-negotiables
 The shared ones (learning-first, git managed by the user) are in the root `CLAUDE.md`.
-- **App isolation.** No shared feature components across apps. Each app owns its full component tree; only site infrastructure (`AppHeader`, `CornerControls`, `LanguageLink`, `ThemeToggle`, `Toast`, `globals.css`) is shared.
+- **App isolation.** No shared feature components across apps. Each app owns its full component tree; only site infrastructure (`AppHeader`, `CornerControls`, `InlineScript`, `LanguageLink`, `ThemeToggle`, `Toast`, `globals.css`) is shared.
 - **Backend contract matters.** The WebSocket-before-POST constraint is non-negotiable: political-culture connects on mount, and cfflch waits for `onopen` before each POST.
 - **No tests yet.** Vitest or Jest is not installed. Do not write tests unless explicitly asked.
 - **TypeScript strict.** All new code must pass `tsc --noEmit` cleanly.
