@@ -1,0 +1,8 @@
+{% extends "admin/base_site.html" %}
+
+{% block content %}
+<p>Copy the device's key now. It won't be shown again.</p>
+<p><code>{{ key }}</code></p>
+<p>Flash it into the ESP32, which sends it as <code>X-Device-Key: &lt;key&gt;</code>.</p>
+<p><a href="{% url 'admin:plants_esp32device_changelist' %}">Back to the devices</a></p>
+{% endblock %}

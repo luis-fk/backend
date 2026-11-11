@@ -1,0 +1,23 @@
+meta {
+  name: Device Readings
+  type: http
+  seq: 6
+}
+
+get {
+  url: {{baseUrl}}/api/plants/devices/:deviceId/readings/?hours=168
+  body: none
+  auth: inherit
+}
+
+params:query {
+  hours: 168
+}
+
+params:path {
+  deviceId: {{plantsDeviceId}}
+}
+
+docs {
+  hours is 24, 168 or 720; the device must be the person's own and active.
+}

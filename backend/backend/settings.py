@@ -33,7 +33,6 @@ SECRET_KEY = env("SECRET_KEY")
 API_TOKEN_SECRET = env("API_TOKEN_SECRET")
 if len(API_TOKEN_SECRET) < 32:
     raise ImproperlyConfigured("API_TOKEN_SECRET must have at least 32 characters.")
-ESP32_DEVICE_KEY = env("ESP32_DEVICE_KEY")
 # The API checks only its own tokens. DRF's default session and basic
 # authentication would otherwise test Django admin passwords sent to any endpoint.
 REST_FRAMEWORK = {"DEFAULT_AUTHENTICATION_CLASSES": []}

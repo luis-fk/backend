@@ -19,7 +19,7 @@ make migrate
 make run            # http://localhost:8000
 ```
 
-Settings come from `backend/backend/.env`. Required: `SECRET_KEY`, `API_TOKEN_SECRET`, `ESP32_DEVICE_KEY`, `ENVIRONMENT=development`, `SERVER_URL`, `NGROK_URL`, `FRONT_END_URL`, `OPEN_WEATHER_API_KEY`, `OPENAI_API_KEY` and the five `*_DATABASE_URL`. cfflch and the plants web search also need `TAVILY_API_KEY`, and production needs `REDIS_URL`.
+Settings come from `backend/backend/.env`. Required: `SECRET_KEY`, `API_TOKEN_SECRET`, `ENVIRONMENT=development`, `SERVER_URL`, `NGROK_URL`, `FRONT_END_URL`, `OPEN_WEATHER_API_KEY`, `OPENAI_API_KEY` and the five `*_DATABASE_URL`. cfflch and the plants web search also need `TAVILY_API_KEY`, and production needs `REDIS_URL`.
 
 Users are created in the Django admin (`/admin/`).
 
@@ -28,13 +28,13 @@ Other commands: `make lint`, `make type-check`, `uv run pytest` (with `make db-u
 ## API access
 Every API endpoint checks a token ([`backend/api_auth.py`](backend/api_auth.py)); `/admin/` keeps Django's login. The frontend signs JWTs (HS256) with `API_TOKEN_SECRET`, so both services need the same value, with at least 32 characters (`openssl rand -base64 32`). The browser sends the logged-in user's token as `Authorization: Bearer <token>`, or as the WebSocket subprotocols `bearer` and `<token>`, and the login Server Actions send a 60-second login token to `/api/<app>/users/<name>`.
 
-The ESP32 sends the header `X-Device-Key: <ESP32_DEVICE_KEY>` to `/api/esp32/humidity-data`.
+Each ESP32 is created in the Django admin (**Plants → Esp32 devices → Add**): its plant's nickname, its owner and the soil calibration. The admin shows its key once; flash it into the ESP32, which sends it as `X-Device-Key` with `{analogValue, digitalValue}` to `/api/esp32/humidity-data`. The backend adds the weather at the owner's location (latitude and longitude on their plants Users row); without a location, or when OpenWeather fails, the reading is saved without the weather. A device stops when it is unticked or its owner is blocked. A lost key is replaced with the admin action **Generate a new key**, which keeps the plant's history.
 
 To call the API from Bruno, or to give someone access, create an API key in the Django admin (**API keys → Add**, in production too): a name saying who or what it is for, the person, and the apps the key works in, one or several (the person must be able to use each one; their user page gives the access). The admin shows the key once and stores only its hash, so a lost key is replaced with a new one. Send it as `Authorization: Bearer <key>`: in each of its apps it works like that person's token, except on the WebSockets. To revoke it, uncheck **Active** (in the list or on its page) and save; it stops working at once.
 
 To give someone access to the site, add them in **Users → Add** and tick their apps: the user form creates their row in each app's Users table, and the user list shows each person's apps. Unticking an app on their page blocks them in it, and unticking **Active** (on their page or in the list) blocks them everywhere: both act at once, on the login, every API call and their API keys, and keep their data, so ticking again gives the access back.
 
-The Bruno collection in [`bruno/`](bruno/) documents the API. Its Local environment takes each app's API key and user id, the device key and, for the WebSockets, a user token, as secret variables, which Bruno keeps outside the files. The Production environment stays out of git.
+The Bruno collection in [`bruno/`](bruno/) documents the API. Its Local environment takes each app's API key and user id, the device key, the plants device's id and, for the WebSockets, a user token, as secret variables, which Bruno keeps outside the files. The Production environment stays out of git.
 
 ## Deployment
 Railway deploys `main` (Root Directory `/backend`). Pull requests run Ruff, mypy and pytest in CI.

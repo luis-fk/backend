@@ -6,13 +6,12 @@ import pytest
 from django.contrib.auth import get_user_model
 from django.http import HttpRequest
 from django.test import RequestFactory
-from pytest_django import DjangoAssertNumQueries, Settings
+from pytest_django import DjangoAssertNumQueries
 from rest_framework.exceptions import PermissionDenied
 
 from api_keys.models import ApiKey
 from backend.api_auth import (
     InvalidToken,
-    has_valid_device_key,
     require_same_user,
     require_user_token,
     websocket_user_id,
@@ -109,21 +108,6 @@ def test_another_users_id_gets_403() -> None:
 
     with pytest.raises(PermissionDenied):
         require_same_user("7", 8)
-
-
-def test_the_device_key_must_match(settings: Settings) -> None:
-    settings.ESP32_DEVICE_KEY = "device-key"
-
-    assert has_valid_device_key(request_with({"X-Device-Key": "device-key"}))
-    assert not has_valid_device_key(request_with({"X-Device-Key": "another-key"}))
-    assert not has_valid_device_key(request_with({}))
-
-
-def test_an_empty_device_key_setting_matches_nothing(settings: Settings) -> None:
-    settings.ESP32_DEVICE_KEY = ""
-
-    assert not has_valid_device_key(request_with({}))
-    assert not has_valid_device_key(request_with({"X-Device-Key": ""}))
 
 
 def test_websocket_tokens_come_as_the_bearer_subprotocols() -> None:
