@@ -121,7 +121,7 @@ def test_demo_has_two_plants_read_every_2_hours_for_30_days() -> None:
         assert len(times) == 360
         gaps = {later - earlier for earlier, later in zip(times, times[1:])}
         assert gaps == {timedelta(hours=2)}
-        assert timezone.now() - times[-1] < timedelta(hours=2)
+        assert timedelta(0) <= timezone.now() - times[-1] < timedelta(hours=1)
         assert times[-1] - times[0] == timedelta(hours=718)
 
 

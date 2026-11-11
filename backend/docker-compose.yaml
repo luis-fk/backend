@@ -1,3 +1,6 @@
+# Not the folder's name (backend), which another project's volume could share.
+name: projects
+
 services:
   postgres:
     image: pgvector/pgvector:pg16

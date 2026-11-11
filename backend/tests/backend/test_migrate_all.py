@@ -62,17 +62,25 @@ def test_nothing_is_migrated_when_a_database_is_remote(
     assert prompts == []
 
 
-def test_production_shows_the_hosts_and_migrates_after_a_yes(
+def test_production_shows_each_database_and_migrates_after_a_yes(
     monkeypatch: pytest.MonkeyPatch, migrated: list[str]
 ) -> None:
-    monkeypatch.setattr(settings, "DATABASES", {"default": REMOTE, "plants_db": REMOTE})
+    monkeypatch.setattr(
+        settings,
+        "DATABASES",
+        {
+            "default": {**REMOTE, "PORT": 5432, "NAME": "railway"},
+            "plants_db": {**REMOTE, "PORT": 5432, "NAME": "plants_db"},
+        },
+    )
     prompts = answer(monkeypatch, "yes")
     out = StringIO()
 
     call_command("migrate_all", production=True, stdout=out)
 
     assert len(prompts) == 1
-    assert out.getvalue().count("x.proxy.rlwy.net") == 2
+    assert "default: x.proxy.rlwy.net:5432/railway" in out.getvalue()
+    assert "plants_db: x.proxy.rlwy.net:5432/plants_db" in out.getvalue()
     assert "secret-password" not in out.getvalue() + prompts[0]
     assert migrated == ["default", "plants_db"]
 

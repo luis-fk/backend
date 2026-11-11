@@ -1,3 +1,4 @@
+from collections.abc import Mapping
 from typing import Any
 
 from django.conf import settings
@@ -32,6 +33,13 @@ class Command(BaseCommand):
     def confirm(self) -> None:
         self.stdout.write("The migrations will run on these databases:")
         for alias, config in settings.DATABASES.items():
-            self.stdout.write(f"  {alias}: {config.get('HOST') or 'local socket'}")
+            self.stdout.write(f"  {alias}: {address(config)}")
         if input("Type yes to go on: ") != "yes":
             raise CommandError("Nothing was migrated.")
+
+
+def address(config: Mapping[str, Any]) -> str:
+    """Where a database is, as host:port/name, without its user and password."""
+    host = config.get("HOST") or "local socket"
+    port = f":{config['PORT']}" if config.get("PORT") else ""
+    return f"{host}{port}/{config.get('NAME', '')}"
