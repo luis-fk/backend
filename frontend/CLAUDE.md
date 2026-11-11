@@ -37,9 +37,10 @@ src/
     │   ├── plants/
     │   │   ├── page.tsx         # Login page
     │   │   ├── actions/login.ts # Login server action
-    │   │   ├── components/      # Chat, LoginForm
+    │   │   ├── components/      # Chat, LoginForm, Sensors, SensorsChart
     │   │   ├── css/
-    │   │   └── (routes)/chat/
+    │   │   ├── sensors.ts       # The sensors API's types and formatters
+    │   │   └── (routes)/chat/ and (routes)/sensors/
     │   ├── political-culture/
     │   │   ├── page.tsx
     │   │   ├── actions/login.ts
@@ -170,6 +171,8 @@ The Django backend runs at `NEXT_PUBLIC_SERVER_URL`. The endpoints the frontend 
 | plants | `/api/plants/users/{name}/` | GET | Login lookup; returns the user with its `id` |
 | plants | `/api/chatbot/message` | POST | Sends a chat message; the answer comes in the response |
 | plants | `/api/chat-history/{userId}/` | GET | Returns chat history |
+| plants | `/api/plants/devices/` | GET | The person's active sensors (`id`, `nickname`, `last_reading_at`) |
+| plants | `/api/plants/devices/{id}/readings/` | GET | One sensor's readings for `hours` = 24, 168 or 720, oldest first; `air_humidity` and `temperature` are null when the weather was missing |
 | political-culture | `/api/political-culture/users/{name}` | GET | Login lookup |
 | political-culture | `/api/political-culture/chatbot/message` | POST | Sends a chat message (`user_id`, `text`, and the page's `language`, which `/help` answers in); the answer comes via WebSocket |
 | political-culture | `/api/political-culture/chat-history/{userId}` | GET | Returns chat history |
@@ -193,7 +196,7 @@ The plants chat endpoints have no `/plants` prefix in the backend, and its GET r
 ## Current state
 
 ### Complete (stable)
-- `plants`: login, session, logout, custom chat UI, chat history, message sending, React Markdown rendering
+- `plants`: login, session, logout, custom chat UI, chat history, message sending, React Markdown rendering, and the Sensores tab: each plant's soil moisture, air humidity and temperature over 24 h, 7 or 30 days, in a chart drawn in SVG by the app (two panels on one time axis, since % and °C don't share an axis; no chart library). The chart measures its own width so its text keeps its size on a phone, breaks its lines at gaps and empty values, and draws a lone reading as a dot. Its series colors were validated for color blindness on both themes.
 - `political-culture`: login, session, logout, custom chat UI, WebSocket streaming, chat history, React Markdown rendering, and the Textos page (the library, the PDF upload with its progress and result, and each user's ticks on the texts the assistant uses in their analyses, all unticked at first). Texts are edited and deleted only in the Django admin.
 - `cfflch`: login, session, logout, search form (names, year, optional class) with results streamed over WebSocket, results page by year with PDF and class filters, and approve, class change and delete on each result
 

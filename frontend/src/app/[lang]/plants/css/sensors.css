@@ -1,0 +1,254 @@
+/* The plants sensors tab. The series colors were validated as a set on the
+   site's light and dark surfaces; the aqua is under 3:1 on white, so the chart
+   keeps its direct labels and tooltip. Text always uses the ink tokens. */
+.plants-sensors {
+  --plants-sensors-soil: light-dark(#2a78d6, #3987e5);
+  --plants-sensors-air: light-dark(#1baf7a, #199e70);
+  --plants-sensors-temp: light-dark(#eb6834, #d95926);
+}
+
+.plants-sensors-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 24px;
+}
+
+.plants-sensors-control {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.plants-sensors-control-label {
+  font-size: 14px;
+  color: var(--muted);
+}
+
+/* No overflow: hidden here, which would cut the buttons' focus rings: the end
+   buttons round their own corners instead. */
+.plants-sensors-segmented {
+  display: inline-flex;
+  flex-wrap: wrap;
+  border: 1px solid var(--field-line);
+  border-radius: 8px;
+}
+
+.plants-sensors-segmented button:first-child {
+  border-radius: 7px 0 0 7px;
+}
+
+.plants-sensors-segmented button:last-child {
+  border-radius: 0 7px 7px 0;
+}
+
+.plants-sensors-segmented button:only-child {
+  border-radius: 7px;
+}
+
+.plants-sensors-segmented button:focus-visible {
+  position: relative;
+  z-index: 1;
+}
+
+.plants-sensors-segmented button {
+  font: inherit;
+  font-size: 14px;
+  padding: 6px 12px;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.plants-sensors-segmented button + button {
+  border-left: 1px solid var(--field-line);
+}
+
+.plants-sensors-segmented button[aria-pressed="true"] {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.plants-sensors-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.plants-sensors-chip {
+  font: inherit;
+  font-size: 13px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 12px;
+  border: 1px solid var(--field-line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.plants-sensors-chip[aria-pressed="false"] {
+  color: var(--muted);
+  border-style: dashed;
+}
+
+.plants-sensors-chip[aria-pressed="false"] .plants-sensors-swatch {
+  opacity: 0.3;
+}
+
+.plants-sensors-swatch {
+  flex: none;
+  width: 14px;
+  height: 3px;
+  border-radius: 2px;
+}
+
+.plants-sensors-swatch.plants-sensors-soil {
+  background: var(--plants-sensors-soil);
+}
+
+.plants-sensors-swatch.plants-sensors-air {
+  background: var(--plants-sensors-air);
+}
+
+.plants-sensors-swatch.plants-sensors-temp {
+  background: var(--plants-sensors-temp);
+}
+
+.plants-sensors-last {
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.plants-sensors-last b {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.plants-sensors-chart {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.plants-sensors-panel-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.plants-sensors-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+  /* A finger can drag along the time axis and still scroll the page. */
+  touch-action: pan-y;
+}
+
+.plants-sensors-grid line {
+  stroke: var(--line);
+}
+
+.plants-sensors-grid text {
+  fill: var(--muted);
+  font-size: 11px;
+}
+
+.plants-sensors-line {
+  fill: none;
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.plants-sensors-line.plants-sensors-soil {
+  stroke: var(--plants-sensors-soil);
+}
+
+.plants-sensors-line.plants-sensors-air {
+  stroke: var(--plants-sensors-air);
+}
+
+.plants-sensors-line.plants-sensors-temp {
+  stroke: var(--plants-sensors-temp);
+}
+
+.plants-sensors-point.plants-sensors-soil,
+.plants-sensors-dot.plants-sensors-soil {
+  fill: var(--plants-sensors-soil);
+}
+
+.plants-sensors-point.plants-sensors-air,
+.plants-sensors-dot.plants-sensors-air {
+  fill: var(--plants-sensors-air);
+}
+
+.plants-sensors-point.plants-sensors-temp,
+.plants-sensors-dot.plants-sensors-temp {
+  fill: var(--plants-sensors-temp);
+}
+
+.plants-sensors-dot {
+  stroke: var(--bg);
+  stroke-width: 2;
+}
+
+.plants-sensors-end text {
+  fill: var(--ink);
+  font-size: 11px;
+}
+
+.plants-sensors-cross line {
+  stroke: var(--muted);
+  stroke-dasharray: 3 3;
+}
+
+.plants-sensors-hit {
+  fill: transparent;
+  cursor: crosshair;
+}
+
+.plants-sensors-tip {
+  position: absolute;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: max-content;
+  max-width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--elevated);
+  box-shadow: var(--shadow-menu);
+  font-size: 13px;
+  pointer-events: none;
+  transform: translateY(-50%);
+}
+
+.plants-sensors-tip-when {
+  color: var(--muted);
+}
+
+.plants-sensors-tip-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.plants-sensors-tip-row b {
+  margin-left: auto;
+  font-weight: 600;
+}
+
+.plants-sensors-tip-row .plants-sensors-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
