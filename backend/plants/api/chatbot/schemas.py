@@ -6,9 +6,11 @@ from pydantic import BaseModel, Field
 
 class Routing(BaseModel):
     route_description: ClassVar = (
-        "Redirect to the web search agent if requested or the question "
-        "asked is not something you can answer yourself and would warrant "
-        "a web search. Otherwise, continue the conversation."
+        "Redirect to the tools agent if a web search is requested, if the question "
+        "asked is not something you can answer yourself and would warrant a web "
+        "search, or if it is about the person's own plants or their sensor "
+        "readings (soil moisture, air humidity, temperature, trends, when they were "
+        "measured). Otherwise, continue the conversation."
     )
     route: Literal["continue", "tools_agent"] = Field(
         ..., description=route_description
@@ -25,6 +27,8 @@ class SquadState(MessagesState):
     user_id: int
     route: str
     memory: str
+    # How many times the model has answered from tool results in this answer.
+    tool_rounds: int
 
 
 class LLMAnswerSchema(BaseModel):

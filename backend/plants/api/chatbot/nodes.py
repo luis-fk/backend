@@ -1,5 +1,5 @@
 import logging
-from typing import cast
+from typing import Literal, cast
 
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
 
@@ -12,6 +12,12 @@ from plants.api.chatbot.agents import (
 )
 from plants.api.chatbot.schemas import SquadState
 from plants.models import ChatHistory, UserMemory
+
+# The most times the model answers from tool results in one answer; the last time
+# it must answer in text, so a question can't loop on tools.
+MAX_TOOL_ROUNDS = 4
+# The router sees the latest message with the exchange before it.
+ROUTER_CONTEXT = 3
 
 
 def route_picker(state: SquadState) -> str:
@@ -70,9 +76,9 @@ def update_memory(state: SquadState) -> SquadState:
 def router(state: SquadState) -> SquadState:
     logging.info("Initiating routing verification for user")
 
-    lastest_message: HumanMessage = cast(HumanMessage, state["messages"][-1])
+    recent = cast(list[BaseMessage], state["messages"][-ROUTER_CONTEXT:])
 
-    response = call_router_agent(message=lastest_message)
+    response = call_router_agent(messages=recent)
     return {
         **state,
         "route": response.route,
@@ -109,9 +115,29 @@ def tool_response(state: SquadState) -> SquadState:
 
     messages: list[BaseMessage] = cast(list[BaseMessage], state["messages"])
     user_memory: str = state["memory"]
+    rounds = state["tool_rounds"] + 1
 
     response = cast(
-        AIMessage, call_tool_response_agent(messages=messages, memory=user_memory)
+        AIMessage,
+        call_tool_response_agent(
+            messages=messages,
+            memory=user_memory,
+            allow_tools=rounds < MAX_TOOL_ROUNDS,
+        ),
     )
 
-    return {**state, "messages": state["messages"] + [response]}
+    return {
+        **state,
+        "messages": state["messages"] + [response],
+        "tool_rounds": rounds,
+    }
+
+
+def more_tools(state: SquadState) -> Literal["tool_executor", "update_memory"]:
+    """Back to the tools while the model asks for them, else on to the answer."""
+    latest = state["messages"][-1]
+    # The rounds are checked here too, so no answer can loop on tools for good.
+    asks = isinstance(latest, AIMessage) and bool(latest.tool_calls)
+    if asks and state["tool_rounds"] < MAX_TOOL_ROUNDS:
+        return "tool_executor"
+    return "update_memory"

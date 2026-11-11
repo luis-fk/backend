@@ -7,6 +7,7 @@ from langgraph.prebuilt import ToolNode
 
 from plants.api.chatbot.nodes import (
     call_agent,
+    more_tools,
     route_picker,
     router,
     tool_response,
@@ -15,7 +16,7 @@ from plants.api.chatbot.nodes import (
     wrap_up,
 )
 from plants.api.chatbot.schemas import SquadState
-from plants.api.chatbot.tools import web_search
+from plants.api.chatbot.tools import TOOLS
 
 
 def build_graph() -> CompiledStateGraph[SquadState, None, Any, Any]:
@@ -28,7 +29,9 @@ def build_graph() -> CompiledStateGraph[SquadState, None, Any, Any]:
     workflow.add_node("agent", call_agent)
     workflow.add_node("router", router)
     workflow.add_node("tools_agent", tools_agent)
-    workflow.add_node("tool_executor", ToolNode([web_search]))
+    # A failing tool comes back to the model as an error it can answer about,
+    # instead of failing the whole message.
+    workflow.add_node("tool_executor", ToolNode(TOOLS, handle_tool_errors=True))
     workflow.add_node("tool_response", tool_response)
     workflow.add_node("update_memory", update_memory)
     workflow.add_node("wrap_up", wrap_up)
@@ -47,7 +50,11 @@ def build_graph() -> CompiledStateGraph[SquadState, None, Any, Any]:
     workflow.add_edge("agent", "update_memory")
     workflow.add_edge("tools_agent", "tool_executor")
     workflow.add_edge("tool_executor", "tool_response")
-    workflow.add_edge("tool_response", "update_memory")
+    workflow.add_conditional_edges(
+        "tool_response",
+        more_tools,
+        {"tool_executor": "tool_executor", "update_memory": "update_memory"},
+    )
 
     workflow.set_finish_point("wrap_up")
 
