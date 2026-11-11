@@ -2,6 +2,7 @@ import json
 import logging
 from typing import Any
 
+from channels.db import database_sync_to_async
 from channels.generic.websocket import AsyncWebsocketConsumer
 
 from backend.api_auth import websocket_user_id
@@ -17,7 +18,12 @@ class TextsConsumer(AsyncWebsocketConsumer):  # type: ignore[misc]
     async def connect(self) -> None:
         user_id = self.scope["url_route"]["kwargs"]["userId"]
 
-        if websocket_user_id(self.scope, "political-culture") != user_id:
+        if (
+            await database_sync_to_async(websocket_user_id)(
+                self.scope, "political-culture"
+            )
+            != user_id
+        ):
             logger.info(f"Texts socket rejected for user {user_id}")
             await self.close()
             return

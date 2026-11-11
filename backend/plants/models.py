@@ -3,6 +3,14 @@ from django.db import models
 
 class Users(models.Model):
     auth_user_id = models.IntegerField(unique=True)
+    # db_default keeps the default in the database, so the code still running
+    # between the migration and the deploy can add rows without this column.
+    active = models.BooleanField(
+        default=True,
+        db_default=True,
+        help_text="Unticked, the person can't use this app, at once; their data in "
+        "it stays.",
+    )
     latitude = models.CharField(max_length=10, null=True, blank=True)
     longitude = models.CharField(max_length=10, null=True, blank=True)
 

@@ -63,17 +63,41 @@ def test_a_key_for_several_apps_keeps_the_persons_id_in_each(
 
 
 @DATABASES
-def test_the_admin_refuses_an_app_the_person_is_not_in(admin_client: Client) -> None:
+def test_the_admin_refuses_an_app_the_person_cant_use(admin_client: Client) -> None:
     maria, _ = person_in(PlantsUsers)
+    CfflchUsers.objects.create(auth_user_id=maria, active=False)
 
     response = admin_client.post(
-        ADD_URL, {"name": "Bruno", "person": maria, "apps": ["plants", "cfflch"]}
+        ADD_URL,
+        {
+            "name": "Bruno",
+            "person": maria,
+            "apps": ["plants", "political-culture", "cfflch"],
+        },
     )
 
     errors = response.context["adminform"].form.errors
     assert errors == {
-        "apps": ["maria isn't in cfflch: add them on their user page first."]
+        "apps": [
+            "maria can't use political-culture, cfflch: their user page gives "
+            "the access."
+        ]
     }
+    assert not ApiKey.objects.exists()
+
+
+@DATABASES
+def test_the_admin_offers_only_people_whose_active_is_ticked(
+    admin_client: Client,
+) -> None:
+    maria, _ = person_in(PlantsUsers)
+    get_user_model().objects.filter(pk=maria).update(is_active=False)
+
+    response = admin_client.post(
+        ADD_URL, {"name": "Bruno", "person": maria, "apps": ["plants"]}
+    )
+
+    assert "person" in response.context["adminform"].form.errors
     assert not ApiKey.objects.exists()
 
 

@@ -84,3 +84,6 @@ testpaths = [
     "tests"
 ]
 DJANGO_SETTINGS_MODULE = "backend.settings"
+markers = [
+    "access_check: runs the check that the person can still use the app, which tests/conftest.py skips elsewhere",
+]

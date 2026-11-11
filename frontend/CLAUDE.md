@@ -117,7 +117,8 @@ The site is in Brazilian Portuguese and English, with the language as the first 
 Every backend endpoint needs a token: an HS256 JWT signed with `API_TOKEN_SECRET`, the same secret as the backend's (`src/app/actions/api-token.ts`).
 - **User token:** `{ sub: "<userId>", app, purpose: "user", iat, exp }`, with the session's own `exp`. `getSession` signs it in the round trip that reads the session. The browser sends `Authorization: Bearer <token>`, and on a WebSocket the subprotocols `["bearer", token]`: a browser can't set headers on a WebSocket, and a query string would end up in access logs.
 - **Login token:** `{ app, purpose: "login", iat, exp: iat + 60 }`, signed by each `login()` right before the user lookup.
-- The backend answers 401 for a missing or invalid token (expired, another secret, another app, the wrong purpose) and 403 when a user token asks for another user's data (the user id in the path or body must be `sub`). cfflch data has no owner, so any cfflch token reads and changes all of it.
+- The backend answers 401 for a missing or invalid token (expired, another secret, another app, the wrong purpose) or for a person blocked in the Django admin (Active, or the app, unticked), and 403 when a user token asks for another user's data (the user id in the path or body must be `sub`). cfflch data has no owner, so any cfflch token reads and changes all of it.
+- A blocked person's page says the session expired, and a reload doesn't help, since their session cookie is still valid: only "Sair" leads back to the login, where their name isn't found. The owner chose this over a message of its own.
 - An axios error carries its request's headers, so the client logger hides `Authorization` before sending a log.
 
 ### Login attempt limit
