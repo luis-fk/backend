@@ -1,4 +1,18 @@
 import pytest
+from django.conf import settings
+
+from backend.local_databases import remote_databases
+
+
+def pytest_configure(config: pytest.Config) -> None:
+    """pytest-django creates its test_* databases on the server of each database,
+    and backend/.env may still hold the production URLs."""
+    remote = remote_databases(settings.DATABASES)
+    if remote:
+        raise pytest.UsageError(
+            f"The tests only run on local databases, and these are not: "
+            f"{', '.join(remote)}. Check backend/.env."
+        )
 
 
 @pytest.fixture(autouse=True)
