@@ -120,7 +120,9 @@ def test_a_question_that_needs_the_web_is_answered_from_the_search(
     agents.web_answer.return_value = AIMessage(content="Vai chover, não precisa regar.")
 
     with patch.object(tools, "TavilySearch") as tavily:
-        tavily.return_value.invoke.return_value = [{"content": "Chuva amanhã"}]
+        tavily.return_value.invoke.return_value = {
+            "results": [{"content": "Chuva amanhã"}]
+        }
         answer = ask(user, "Preciso regar amanhã?")
 
     assert answer == {"role": "ai", "message": "Vai chover, não precisa regar."}
@@ -160,7 +162,9 @@ def test_the_chatbot_gets_only_the_last_five_exchanges(agents: Agents) -> None:
 
 def test_the_web_search_prints_nothing(capsys: pytest.CaptureFixture[str]) -> None:
     with patch.object(tools, "TavilySearch") as tavily:
-        tavily.return_value.invoke.return_value = [{"content": "Chuva amanhã"}]
+        tavily.return_value.invoke.return_value = {
+            "results": [{"content": "Chuva amanhã"}]
+        }
         tools.web_search.invoke({"web_search_input": "previsão de chuva"})
 
     assert capsys.readouterr().out == ""
@@ -331,7 +335,9 @@ def test_the_tool_calls_stop_after_four_rounds(agents: Agents) -> None:
     agents.web_answer.side_effect = respond
 
     with patch.object(tools, "TavilySearch") as tavily:
-        tavily.return_value.invoke.return_value = [{"content": "Regar pouco"}]
+        tavily.return_value.invoke.return_value = {
+            "results": [{"content": "Regar pouco"}]
+        }
         answer = ask(user, "Quando devo regar?")
 
     assert answer == {"role": "ai", "message": "Regue duas vezes por semana."}
@@ -438,7 +444,9 @@ def test_the_tool_rounds_stop_even_if_the_model_keeps_asking(
     )
 
     with patch.object(tools, "TavilySearch") as tavily:
-        tavily.return_value.invoke.return_value = [{"content": "Regar pouco"}]
+        tavily.return_value.invoke.return_value = {
+            "results": [{"content": "Regar pouco"}]
+        }
         ask(user, "Quando devo regar?")
 
     assert agents.web_answer.call_count == 4
