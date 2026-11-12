@@ -119,7 +119,7 @@ def test_a_question_that_needs_the_web_is_answered_from_the_search(
     )
     agents.web_answer.return_value = AIMessage(content="Vai chover, não precisa regar.")
 
-    with patch.object(tools, "TavilySearchResults") as tavily:
+    with patch.object(tools, "TavilySearch") as tavily:
         tavily.return_value.invoke.return_value = [{"content": "Chuva amanhã"}]
         answer = ask(user, "Preciso regar amanhã?")
 
@@ -159,7 +159,7 @@ def test_the_chatbot_gets_only_the_last_five_exchanges(agents: Agents) -> None:
 
 
 def test_the_web_search_prints_nothing(capsys: pytest.CaptureFixture[str]) -> None:
-    with patch.object(tools, "TavilySearchResults") as tavily:
+    with patch.object(tools, "TavilySearch") as tavily:
         tavily.return_value.invoke.return_value = [{"content": "Chuva amanhã"}]
         tools.web_search.invoke({"web_search_input": "previsão de chuva"})
 
@@ -330,7 +330,7 @@ def test_the_tool_calls_stop_after_four_rounds(agents: Agents) -> None:
 
     agents.web_answer.side_effect = respond
 
-    with patch.object(tools, "TavilySearchResults") as tavily:
+    with patch.object(tools, "TavilySearch") as tavily:
         tavily.return_value.invoke.return_value = [{"content": "Regar pouco"}]
         answer = ask(user, "Quando devo regar?")
 
@@ -437,7 +437,7 @@ def test_the_tool_rounds_stop_even_if_the_model_keeps_asking(
         f"call-{len(messages)}"
     )
 
-    with patch.object(tools, "TavilySearchResults") as tavily:
+    with patch.object(tools, "TavilySearch") as tavily:
         tavily.return_value.invoke.return_value = [{"content": "Regar pouco"}]
         ask(user, "Quando devo regar?")
 
@@ -452,7 +452,7 @@ def test_a_failing_tool_doesnt_lose_the_answer(agents: Agents) -> None:
     agents.web_search.return_value = search_call("call-1")
     agents.web_answer.return_value = AIMessage(content="Não consegui buscar agora.")
 
-    with patch.object(tools, "TavilySearchResults") as tavily:
+    with patch.object(tools, "TavilySearch") as tavily:
         tavily.return_value.invoke.side_effect = RuntimeError("Tavily is down")
         answer = ask(user, "Vai chover amanhã?")
 
@@ -463,3 +463,13 @@ def test_a_failing_tool_doesnt_lose_the_answer(agents: Agents) -> None:
         if isinstance(m, ToolMessage)
     ]
     assert "Tavily is down" in result.content
+
+
+def test_the_web_search_asks_tavily_for_three_advanced_results() -> None:
+    with patch.object(tools, "TavilySearch") as tavily:
+        tavily.return_value.invoke.return_value = {"results": [{"content": "Chuva"}]}
+        result = tools.web_search.invoke({"web_search_input": "chuva em Curitiba"})
+
+    tavily.assert_called_once_with(max_results=3, search_depth="advanced")
+    tavily.return_value.invoke.assert_called_once_with(input="chuva em Curitiba")
+    assert result == {"results": [{"content": "Chuva"}]}

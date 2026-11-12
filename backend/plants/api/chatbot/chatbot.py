@@ -1,7 +1,6 @@
 import logging
 from typing import Any, cast
 
-from dotenv import load_dotenv
 from langchain_core.messages import (
     AIMessage,
     BaseMessage,
@@ -13,8 +12,6 @@ from plants.api.chatbot.graph import build_graph
 from plants.api.chatbot.schemas import SquadState
 from plants.api.messages.serializers import ChatHistorySerializer
 from plants.models import ChatHistory, UserMemory
-
-load_dotenv()
 
 logger = logging.getLogger(__name__)
 
