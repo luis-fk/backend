@@ -14,6 +14,7 @@ jobs:
   ci:
     runs-on: ubuntu-latest
     env:
+      UV_PYTHON: "3.12"
       SECRET_KEY: ci-dummy-secret-key
       API_TOKEN_SECRET: ci-dummy-api-token-secret-at-least-32-chars
       OPEN_WEATHER_API_KEY: dummy
