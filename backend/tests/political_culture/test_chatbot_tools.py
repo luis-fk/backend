@@ -18,7 +18,13 @@ from political_culture.api.chatbot.tools import UserTools, user_tools
 from political_culture.api.chatbot.utils import get_recent_chat_history_db
 from political_culture.api.word_counter import service as word_counter
 from political_culture.api.word_counter.schemas import SurroundingText
-from political_culture.models import TextChunks, Texts, TextWordCount, Users
+from political_culture.models import (
+    IdeologiesDefinition,
+    TextChunks,
+    Texts,
+    TextWordCount,
+    Users,
+)
 
 DATABASES = pytest.mark.django_db(databases=["default", "political_culture_db"])
 
@@ -511,3 +517,21 @@ def test_the_memory_summary_starts_from_the_stored_memory(
 
     assert info.info == "Gosta de história e de política."
     assert "Current memory: Gosta de história." in received[0]
+
+
+@DATABASES
+def test_the_ideology_definition_tool_returns_the_definition_text() -> None:
+    ideology = IdeologiesDefinition.objects.create(
+        ideology="Maré Livre", definition="Ninguém é dono do mar."
+    )
+
+    definition = chatbot_tools.get_ideology_definition.invoke(
+        {"ideology_id": ideology.id}
+    )
+
+    assert definition == "Ninguém é dono do mar."
+
+
+@DATABASES
+def test_the_ideology_definition_tool_returns_none_for_an_unknown_id() -> None:
+    assert chatbot_tools.get_ideology_definition.invoke({"ideology_id": 999}) is None
