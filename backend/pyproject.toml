@@ -6,10 +6,10 @@ authors = [{ name = "fl-korbes", email = "felipekorbes@live.com" }]
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-    "django==6.0.5",
+    "django==6.0.10",
     "gunicorn==26.0.0",
     "django-environ==0.13.0",
-    "djangorestframework==3.17.1",
+    "djangorestframework==3.18.3",
     "django-cors-headers==4.9.0",
     "langchain==1.5.0",
     "langchain-core==1.8.0",
@@ -21,10 +21,10 @@ dependencies = [
     "langchain-google-genai==4.5.0",
     "psycopg2-binary==2.9.12",
     "dj-database-url==3.1.2",
-    "pypdf==6.11.0",
+    "pypdf==6.21.4",
     "pgvector==0.4.2",
     "channels==4.3.2",
-    "daphne==4.2.1",
+    "daphne==4.2.3",
     "channels-redis==4.3.0",
     "whitenoise>=6.12.0",
     "feedparser==6.0.14",
