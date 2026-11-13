@@ -3,8 +3,14 @@ from pathlib import Path
 from typing import Any
 
 import httpx
+from django.conf import settings
 
-from news_podcast.api.episode.schemas import TelegramChat
+from news_podcast.api.core.messages import (
+    chat_id_message,
+    chat_list_message,
+    failure_message,
+)
+from news_podcast.api.core.schemas import TelegramChat
 
 logger = logging.getLogger(__name__)
 
@@ -114,3 +120,67 @@ def chat_name(chat: dict[str, Any]) -> str:
         str(part) for part in (chat.get("first_name"), chat.get("last_name")) if part
     )
     return full_name or str(chat.get("username") or "Conversa sem nome")
+
+
+async def send_chat_ids(
+    telegram: TelegramClient | None, admin_chat_id: str | None
+) -> int:
+    """Sends the list of the chats the bot saw to the admin chat. On the first setup,
+    with no chat configured, sends each chat its own id instead."""
+    if telegram is None:
+        raise TelegramError("TELEGRAM_BOT_TOKEN não configurado")
+
+    chats = await telegram.recent_chats()
+    if not chats:
+        raise TelegramError(
+            "Nenhuma conversa encontrada. Mande /start para o bot ou adicione ele "
+            "a um grupo no Telegram e rode de novo."
+        )
+    if admin_chat_id:
+        await telegram.send_message(admin_chat_id, chat_list_message(chats))
+        return len(chats)
+
+    for chat in chats:
+        await telegram.send_message(chat.id, chat_id_message(chat.id))
+    return len(chats)
+
+
+async def notify_failure(
+    telegram: TelegramClient | None,
+    chat_id: str | None,
+    subject: str,
+    step: str,
+    error: Exception,
+) -> None:
+    if telegram is None or not chat_id:
+        return
+    try:
+        await telegram.send_message(chat_id, failure_message(subject, step, error))
+    except TelegramError as notify_error:
+        logger.error(f"Could not report the failure on Telegram: {notify_error}")
+
+
+def chat_id() -> str | None:
+    return getattr(settings, "TELEGRAM_CHAT_ID", None) or None
+
+
+def admin_chat_id() -> str | None:
+    return getattr(settings, "TELEGRAM_ADMIN_CHAT_ID", None) or chat_id()
+
+
+def telegram_client(http_client: httpx.AsyncClient) -> TelegramClient | None:
+    bot_token = getattr(settings, "TELEGRAM_BOT_TOKEN", None)
+    return TelegramClient(http_client, bot_token) if bot_token else None
+
+
+async def report_failure(subject: str, step: str, error: Exception) -> None:
+    async with httpx.AsyncClient() as http_client:
+        await notify_failure(
+            telegram_client(http_client), admin_chat_id(), subject, step, error
+        )
+
+
+async def report_chat_ids() -> None:
+    async with httpx.AsyncClient() as http_client:
+        found = await send_chat_ids(telegram_client(http_client), admin_chat_id())
+    logger.info(f"Reported the ids of {found} chat(s)")

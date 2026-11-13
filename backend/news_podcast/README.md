@@ -16,12 +16,12 @@ configurações, os feeds e o histórico. O resto é um management command.
 | Etapa | Arquivo | O que acontece |
 |---|---|---|
 | Feeds | `api/episode/feeds.py` | Baixa em paralelo os feeds ativos do admin e mantém só o que saiu entre 6h de ontem e 6h de hoje. |
-| Seleção | `service.py` + prompt de seleção | O modelo de texto recebe todas as manchetes, junta as que falam do mesmo fato, aplica as regras editoriais e, pesando quantos veículos diferentes deram cada fato (cada veículo conta uma vez), escolhe uma história para cada minuto e meio de episódio (de 8 a 12 no padrão), com o tempo de cada uma. |
+| Seleção | `api/episode/selection.py` + prompt de seleção | O modelo de texto recebe todas as manchetes, junta as que falam do mesmo fato, aplica as regras editoriais e, pesando quantos veículos diferentes deram cada fato (cada veículo conta uma vez), escolhe uma história para cada minuto e meio de episódio (de 8 a 12 no padrão), com o tempo de cada uma. |
 | Leitura | `api/episode/articles.py` | Para cada história, lê o texto completo de até 3 veículos (o ICL vem primeiro). Os demais veículos que deram a notícia entram como manchete. Páginas de vídeo, que não têm texto, não são lidas, e outro veículo fica com a vaga. Todos os feeds são de sites sem paywall. |
-| Roteiro | `service.py` + prompt do roteiro | O modelo de texto escreve o diálogo com 170 palavras por minuto de episódio, vezes a velocidade (de 2.040 a 3.060 palavras no padrão), abrindo com uma escalada de 3 a 5 manchetes curtas, como nos telejornais. Se vier curto demais, pede uma versão mais longa uma vez. |
-| Voz | `api/episode/gemini.py` | O modelo de voz gera o diálogo com as duas vozes, em blocos de cerca de 650 palavras. Se o Gemini estiver fora do ar, o código espera e tenta de novo (veja *Bom saber*). |
-| Áudio | `api/episode/audio.py` | O ffmpeg junta os trechos, normaliza o volume e gera um OGG/Opus de 32 kbps (cerca de 4 MB para 15 minutos), o formato das mensagens de voz do Telegram. |
-| Envio | `api/episode/telegram.py` | `sendVoice` com o título e a data na legenda (por ser mensagem de voz, o Telegram mostra o botão de velocidade 1x, 1,5x, 2x). Sai assim que fica pronto, sem esperar a hora cheia. Se algo falhar, chega uma mensagem dizendo em qual etapa. |
+| Roteiro | `api/episode/script.py` + prompt do roteiro | O modelo de texto escreve o diálogo com 170 palavras por minuto de episódio, vezes a velocidade (de 2.040 a 3.060 palavras no padrão), abrindo com uma escalada de 3 a 5 manchetes curtas, como nos telejornais. Se vier curto demais, pede uma versão mais longa uma vez. |
+| Voz | `api/core/gemini.py` | O modelo de voz gera o diálogo com as duas vozes, em blocos de cerca de 650 palavras. Se o Gemini estiver fora do ar, o código espera e tenta de novo (veja *Bom saber*). |
+| Áudio | `api/core/audio.py` | O ffmpeg junta os trechos, normaliza o volume e gera um OGG/Opus de 32 kbps (cerca de 4 MB para 15 minutos), o formato das mensagens de voz do Telegram. |
+| Envio | `api/core/telegram.py` | `sendVoice` com o título e a data na legenda (por ser mensagem de voz, o Telegram mostra o botão de velocidade 1x, 1,5x, 2x). Sai assim que fica pronto, sem esperar a hora cheia. Se algo falhar, chega uma mensagem dizendo em qual etapa. |
 
 O episódio diário roda num serviço Cron do Railway (veja *Agendamento*).
 
@@ -96,7 +96,7 @@ passos 2 e 3.
 ## Configurações
 
 Ficam no admin do Django, em *News podcast → Settings*. É uma linha só, que começa com os
-valores do `config.py` e do `prompts.py`; depois disso, mudar esses arquivos não muda o
+valores do `api/episode/config.py` e do `api/episode/prompts.py`; depois disso, mudar esses arquivos não muda o
 que está no banco. Cada mudança vale a partir da próxima execução, e um valor inválido
 não salva: o admin mostra o erro no campo.
 
@@ -105,7 +105,7 @@ não salva: o admin mostra o erro no campo.
   Com `1.25`, o roteiro fica 25% maior para caber no mesmo tempo, e a voz custa 25% a
   mais. O número de histórias acompanha a duração (uma a cada minuto e meio).
 - **Limite:** o máximo da duração vezes a velocidade pode chegar a 30 minutos de fala
-  (`MAX_SPEECH_MINUTES` no `config.py`). Cada pedido de voz gera uns 4 minutos e o plano
+  (`MAX_SPEECH_MINUTES` no `api/core/config.py`). Cada pedido de voz gera uns 4 minutos e o plano
   grátis permite 10 pedidos por dia, então 30 minutos dão uns 8 pedidos. No plano pago,
   dá para aumentar esse limite.
 - **Modelos e preços:** o modelo de texto, o reserva (opcional) e o de voz, cada um com
@@ -123,10 +123,10 @@ não salva: o admin mostra o erro no campo.
 
 Ficam no admin, em *News podcast → Feeds*: veículo, seção, URL e se está ativo (um feed
 desligado fica de fora sem ser apagado). A lista começa com o `STARTING_FEEDS` do
-`config.py` e, depois disso, só muda no admin; apagando todos, ela começa de novo.
+`api/episode/config.py` e, depois disso, só muda no admin; apagando todos, ela começa de novo.
 
 - **Quais sites:** só sites sem paywall. Para ler a matéria inteira, o domínio precisa
-  estar em `FULL_TEXT_DOMAINS` (`config.py`); fora dessa lista, ela entra só com o
+  estar em `FULL_TEXT_DOMAINS` (`api/episode/config.py`); fora dessa lista, ela entra só com o
   título e o resumo do RSS.
 - **Veículo:** os feeds de um mesmo veículo levam o mesmo nome, porque cada história lê
   uma fonte por veículo e uma manchete repetida em dois feeds dele conta uma vez.
@@ -143,15 +143,15 @@ status (enviado, falhou ou, com `--no-send`, não enviado), duração, palavras 
 minuto, custo no plano pago em reais e, se falhou, a etapa e o erro. A página de cada
 execução mostra as palavras do roteiro e os tokens de cada resposta do Gemini. Na
 velocidade 1x, as palavras por minuto são o ritmo da voz: se ficarem longe de 170, o
-`NATURAL_WORDS_PER_MINUTE` do `config.py` precisa de ajuste, senão o episódio sai mais
+`NATURAL_WORDS_PER_MINUTE` do `api/core/config.py` precisa de ajuste, senão o episódio sai mais
 curto ou mais longo que o pedido. O áudio não fica guardado. O topo da lista mostra o custo total
 do que está filtrado (por mês ou por status). Uma execução pausada não aparece, e uma
 que falha no meio grava o custo do que já rodou.
 
 ## Ajustes
 
-- **Apresentadores e as vozes deles:** `HOSTS` no `config.py`.
-- **Dólar usado para mostrar os custos em reais:** `BRL_PER_USD` (fixo) no `config.py`.
+- **Apresentadores e as vozes deles:** `HOSTS` no `api/core/config.py`.
+- **Dólar usado para mostrar os custos em reais:** `BRL_PER_USD` (fixo) no `api/core/config.py`.
 
 Para rodar localmente sem enviar, a partir da pasta `backend/`, com ffmpeg instalado, as
 chaves e o `NEWS_PODCAST_DATABASE_URL` no `.env` e as migrations rodadas:

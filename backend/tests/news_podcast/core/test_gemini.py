@@ -6,8 +6,10 @@ from typing import Any
 import httpx
 import pytest
 
-from news_podcast.api.episode.config import HOSTS
-from news_podcast.api.episode.gemini import (
+from news_podcast.api.core.config import (
+    HOSTS,
+)
+from news_podcast.api.core.gemini import (
     MAX_ATTEMPTS,
     RATE_LIMIT_WAIT_SECONDS,
     GeminiClient,
@@ -23,7 +25,10 @@ from news_podcast.api.episode.gemini import (
     retry_delay,
     wav_duration,
 )
-from news_podcast.api.episode.schemas import Script, Turn
+from news_podcast.api.core.schemas import (
+    Script,
+    Turn,
+)
 
 ONE_SECOND_OF_SILENCE = pcm_to_wav(b"\x00\x00" * 24000)
 SCHEMA = {"type": "object"}

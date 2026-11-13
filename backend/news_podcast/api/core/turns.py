@@ -1,16 +1,8 @@
 import re
 import unicodedata
 from collections.abc import Sequence
-from datetime import datetime, timedelta
 
-from news_podcast.api.episode.schemas import (
-    Host,
-    NewsItem,
-    SelectedStory,
-    StoryBrief,
-    StorySelection,
-    Turn,
-)
+from news_podcast.api.core.schemas import Host, Turn
 
 URL_PATTERN = re.compile(r"https?://\S+")
 MARKDOWN_PATTERN = re.compile(r"[*_#`\[\]]")
@@ -19,38 +11,13 @@ SPACE_PATTERN = re.compile(r"\s+")
 SENTENCE_END_PATTERN = re.compile(r"(?<=[.!?…])\s+")
 
 
-def news_window(
-    now: datetime,
-    scheduled_for: datetime | None,
-    hours: int,
-    hours_before_send: int,
-) -> tuple[datetime, datetime]:
-    if scheduled_for is None:
-        return now - timedelta(hours=hours), now
-
-    top_of_send_hour = scheduled_for.replace(minute=0, second=0, microsecond=0)
-    end = top_of_send_hour - timedelta(hours=hours_before_send)
-    return end - timedelta(hours=hours), end
+# A script with fewer turns isn't a real episode.
+MIN_SCRIPT_TURNS = 10
 
 
 def ascii_fold(text: str) -> str:
     normalized = unicodedata.normalize("NFKD", text)
     return normalized.encode("ascii", "ignore").decode().casefold().strip()
-
-
-def valid_stories(
-    selection: StorySelection, items_by_id: dict[str, NewsItem], max_stories: int
-) -> list[SelectedStory]:
-    stories: list[SelectedStory] = []
-    for story in selection.stories:
-        ids = [
-            item_id
-            for item_id in dict.fromkeys(raw.strip("[] ") for raw in story.item_ids)
-            if item_id in items_by_id
-        ]
-        if ids:
-            stories.append(story.model_copy(update={"item_ids": ids}))
-    return stories[:max_stories]
 
 
 def clean_spoken_text(text: str) -> str:
@@ -120,25 +87,3 @@ def _split_long_turns(turns: Sequence[Turn], max_words: int) -> list[Turn]:
         if buffer:
             pieces.append(turn.model_copy(update={"text": " ".join(buffer)}))
     return pieces
-
-
-def format_briefs(briefs: Sequence[StoryBrief], words_per_minute: int) -> str:
-    blocks: list[str] = []
-    for index, brief in enumerate(briefs, start=1):
-        lines = [
-            f"HISTÓRIA {index}: {brief.title}",
-            f"Categoria: {brief.category} · tamanho: cerca de "
-            f"{round(brief.minutes * words_per_minute)} palavras",
-        ]
-        if brief.angle:
-            lines.append(f"Foco: {brief.angle}")
-        for source in brief.sources:
-            lines.append(f"\nFonte: {source.outlet} — {source.title}\n{source.text}")
-        if brief.other_headlines:
-            lines.append("\nOutros veículos que também noticiaram:")
-            lines.extend(
-                f"- {headline.outlet}: {headline.title}. {headline.text}".strip()
-                for headline in brief.other_headlines
-            )
-        blocks.append("\n".join(lines))
-    return "\n\n---\n\n".join(blocks)

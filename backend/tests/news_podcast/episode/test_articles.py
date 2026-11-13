@@ -11,7 +11,11 @@ from news_podcast.api.episode.articles import (
     other_headlines,
     pick_items,
 )
-from news_podcast.api.episode.schemas import NewsItem, SelectedStory, SourceText
+from news_podcast.api.episode.schemas import (
+    NewsItem,
+    SelectedStory,
+    SourceText,
+)
 
 
 def make_item(item_id: str, outlet: str, link: str) -> NewsItem:

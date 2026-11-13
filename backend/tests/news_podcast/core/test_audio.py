@@ -1,4 +1,7 @@
-from news_podcast.api.episode.audio import LOUDNESS_FILTER, audio_filters
+from news_podcast.api.core.audio import (
+    LOUDNESS_FILTER,
+    audio_filters,
+)
 
 
 def test_audio_filters_speed_up_before_normalizing_loudness() -> None:

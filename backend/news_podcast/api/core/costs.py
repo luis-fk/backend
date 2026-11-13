@@ -1,6 +1,6 @@
 from collections.abc import Iterable, Mapping
 
-from news_podcast.api.episode.schemas import ModelPrice, Usage
+from news_podcast.api.core.schemas import ModelPrice, Usage
 
 TOKENS_PER_MILLION = 1_000_000
 
