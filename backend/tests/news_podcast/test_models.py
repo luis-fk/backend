@@ -78,6 +78,39 @@ def test_a_prompt_may_use_its_placeholders_and_doubled_braces() -> None:
     ).full_clean()
 
 
+@pytest.mark.parametrize("field", ["text_model", "fallback_model"])
+@pytest.mark.parametrize(
+    "name",
+    [
+        "anthropic:claude-x",
+        "google_vertexai:gemini-3.8-flash",
+        "gpt-4.1-mini",
+        "openai:",
+        "google_genai:",
+        "openai: gpt-4.1-mini",
+    ],
+)
+def test_a_text_model_needs_a_provider_the_podcast_knows(field: str, name: str) -> None:
+    with pytest.raises(ValidationError) as caught:
+        PodcastSettings(**{field: name}).full_clean()
+
+    message = " ".join(caught.value.message_dict[field])
+    assert "google_genai" in message
+    assert "openai" in message
+
+
+@pytest.mark.parametrize(
+    "name",
+    ["gemini-3.8-flash", "google_genai:gemini-3.8-flash", "openai:gpt-4.1-mini"],
+)
+def test_a_text_model_is_a_bare_gemini_name_or_provider_model(name: str) -> None:
+    PodcastSettings(text_model=name, fallback_model=name).full_clean()
+
+
+def test_the_fallback_model_may_be_empty() -> None:
+    PodcastSettings(fallback_model="").full_clean()
+
+
 @DATABASES
 def test_the_feed_list_starts_with_the_one_in_the_code() -> None:
     sources = Feed.sources()

@@ -14,6 +14,14 @@ class ModelPrice(NamedTuple):
     output_per_million: float
 
 
+class NewsStory(NamedTuple):
+    """A story the day's selection chose, as the lesson reads it."""
+
+    title: str
+    category: str
+    angle: str
+
+
 class TelegramChat(NamedTuple):
     id: str
     name: str

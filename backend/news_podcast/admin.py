@@ -46,10 +46,12 @@ class PodcastSettingsAdmin(admin.ModelAdmin):
         (None, {"fields": ["paused"]}),
         ("Episode", {"fields": [("min_minutes", "max_minutes", "speech_speed")]}),
         (
-            "Gemini models",
+            "Models",
             {
-                "description": "Prices in US$ per million tokens, from Google's "
-                "price list; the history computes each run's cost with them.",
+                "description": "Text models are provider:model, with google_genai "
+                "or openai (a bare gemini-* name means google_genai). Prices in "
+                "US$ per million tokens, from each provider's price list; the "
+                "history computes each run's cost with them.",
                 # Each model, then its prices in the row below.
                 "fields": [
                     "text_model",

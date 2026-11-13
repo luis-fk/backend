@@ -1,23 +1,21 @@
 import asyncio
-import json
-from collections.abc import Callable, Sequence
-from datetime import datetime, time
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Any
 
 import httpx
 import pytest
+from langchain_core.language_models import BaseChatModel
+from pytest_django import Settings
 
 from news_podcast.api.core import config as core_config
 from news_podcast.api.core.gemini import (
     GeminiClient,
-    GeminiError,
     GeminiQuotaExhaustedError,
     GeminiUnavailableError,
 )
+from news_podcast.api.core.llm import TextError
 from news_podcast.api.core.schemas import (
     Host,
-    Script,
     Turn,
     Usage,
 )
@@ -25,14 +23,11 @@ from news_podcast.api.core.telegram import (
     TelegramClient,
     TelegramError,
 )
-from news_podcast.api.core.turns import (
-    MIN_SCRIPT_TURNS,
-)
-from news_podcast.api.episode import config
+from news_podcast.api.episode import service as service_module
 from news_podcast.api.episode.run import episode_settings
 from news_podcast.api.episode.schemas import (
     EpisodeReport,
-    StorySelection,
+    NewsItem,
 )
 from news_podcast.api.episode.service import (
     EpisodeError,
@@ -44,40 +39,13 @@ TURNS = [Turn(speaker="Bia", text="Bom dia")]
 
 
 class FakeGemini(GeminiClient):
-    """The text model is unavailable; the fallback answers `first_texts`, in order,
-    and then `text`."""
+    """The voice fails with `voice_failures`, in order, and then answers."""
 
     def __init__(
-        self,
-        http_client: httpx.AsyncClient,
-        voice_failures: list[Exception],
-        text: str = '{"ok": true}',
-        first_texts: Sequence[str] = (),
+        self, http_client: httpx.AsyncClient, voice_failures: list[Exception]
     ) -> None:
         super().__init__(http_client, "key")
         self.voice_failures = voice_failures
-        self.text = text
-        self.first_texts = list(first_texts)
-        self.text_models: list[str] = []
-        self.schemas: list[dict[str, Any]] = []
-
-    async def generate_json(
-        self,
-        model: str,
-        system_prompt: str,
-        user_prompt: str,
-        step: str,
-        thinking_level: str | None = None,
-        *,
-        schema: dict[str, Any],
-    ) -> tuple[dict[str, Any], Usage]:
-        self.text_models.append(model)
-        self.schemas.append(schema)
-        if model == config.TEXT_MODEL:
-            raise GeminiUnavailableError("Gemini respondeu 503: high demand")
-        text = self.first_texts.pop(0) if self.first_texts else self.text
-        answer = {"candidates": [{"content": {"parts": [{"text": text}]}}]}
-        return answer, Usage(step=step, model=model)
 
     async def synthesize_dialogue(
         self,
@@ -123,269 +91,6 @@ async def synthesize_with(failures: list[Exception]) -> list[int]:
         service = make_service(client, gemini)
         await service._synthesize_patiently(gemini, TURNS)
         return service.voice_retry_minutes
-
-
-def test_text_skips_the_main_model_once_it_is_unavailable() -> None:
-    async def scenario() -> list[str]:
-        async with httpx.AsyncClient() as client:
-            gemini = FakeGemini(client, voice_failures=[])
-            service = make_service(client, gemini)
-            for step in ("selection", "script"):
-                await service._ask_json(
-                    "system", "user", step, StorySelection, lambda data: data
-                )
-            return gemini.text_models
-
-    models = asyncio.run(scenario())
-
-    assert models == [
-        config.TEXT_MODEL,
-        config.TEXT_FALLBACK_MODEL,
-        config.TEXT_FALLBACK_MODEL,
-    ]
-
-
-def test_the_answer_follows_the_steps_schema_and_is_read_as_json() -> None:
-    async def scenario() -> tuple[Any, list[dict[str, Any]]]:
-        async with httpx.AsyncClient() as client:
-            gemini = FakeGemini(client, voice_failures=[])
-            service = make_service(client, gemini)
-            answer = await service._ask_json(
-                "system", "user", "selection", StorySelection, lambda data: data
-            )
-            return answer, gemini.schemas
-
-    answer, schemas = asyncio.run(scenario())
-
-    assert answer == {"ok": True}
-    assert schemas == [StorySelection.model_json_schema(mode="serialization")] * 2
-
-
-def test_gemini_must_fill_every_field_of_the_answer() -> None:
-    story = StorySelection.model_json_schema(mode="serialization")["$defs"]
-    turn = Script.model_json_schema(mode="serialization")["$defs"]
-
-    assert story["SelectedStory"]["required"] == [
-        "title",
-        "category",
-        "minutes",
-        "angle",
-        "item_ids",
-    ]
-    assert turn["Turn"]["required"] == ["speaker", "text", "headline"]
-
-
-def test_a_broken_answer_is_asked_again_once() -> None:
-    async def scenario() -> tuple[Any, list[str]]:
-        async with httpx.AsyncClient() as client:
-            gemini = FakeGemini(client, voice_failures=[], first_texts=['{"turns": ['])
-            service = make_service(client, gemini)
-            answer = await service._ask_json(
-                "system", "user", "script", Script, lambda data: data
-            )
-            return answer, gemini.text_models
-
-    answer, models = asyncio.run(scenario())
-
-    assert answer == {"ok": True}
-    assert models == [
-        config.TEXT_MODEL,
-        config.TEXT_FALLBACK_MODEL,
-        config.TEXT_FALLBACK_MODEL,
-    ]
-
-
-def test_broken_answers_still_count_in_the_cost() -> None:
-    async def scenario() -> list[Usage]:
-        async with httpx.AsyncClient() as client:
-            gemini = FakeGemini(client, voice_failures=[], text='{"turns": [')
-            service = make_service(client, gemini)
-            with pytest.raises(EpisodeError, match="JSON inválido"):
-                await service._ask_each_model(
-                    "system", "user", "script", Script, lambda data: data
-                )
-            return service.usages
-
-    usages = asyncio.run(scenario())
-
-    assert [usage.model for usage in usages] == [
-        config.TEXT_FALLBACK_MODEL,
-        config.TEXT_FALLBACK_MODEL,
-    ]
-
-
-MAIN = config.TEXT_MODEL
-FALLBACK = config.TEXT_FALLBACK_MODEL
-BUSY = GeminiUnavailableError("Gemini respondeu 503: high demand")
-OUT_OF_QUOTA = GeminiQuotaExhaustedError("Gemini respondeu 429: quota")
-ANSWER = '{"ok": true}'
-
-
-class ScriptedGemini(FakeGemini):
-    """Each text model answers, or fails, as its list in `outcomes` says, call by
-    call."""
-
-    def __init__(
-        self,
-        http_client: httpx.AsyncClient,
-        outcomes: dict[str, list[str | Exception]],
-    ) -> None:
-        super().__init__(http_client, voice_failures=[])
-        self.outcomes = outcomes
-
-    async def generate_json(
-        self,
-        model: str,
-        system_prompt: str,
-        user_prompt: str,
-        step: str,
-        thinking_level: str | None = None,
-        *,
-        schema: dict[str, Any],
-    ) -> tuple[dict[str, Any], Usage]:
-        self.text_models.append(model)
-        if not self.outcomes[model]:
-            raise AssertionError(f"{model} was asked more times than expected")
-        outcome = self.outcomes[model].pop(0)
-        if isinstance(outcome, Exception):
-            raise outcome
-        answer = {"candidates": [{"content": {"parts": [{"text": outcome}]}}]}
-        return answer, Usage(step=step, model=model)
-
-
-def ask_scripted(
-    outcomes: dict[str, list[str | Exception]],
-    parse: Callable[[Any], Any] = lambda data: data,
-) -> tuple[list[str], EpisodeError | None]:
-    """Asks for one answer; returns the models asked, in order, and the error."""
-
-    async def scenario() -> tuple[list[str], EpisodeError | None]:
-        async with httpx.AsyncClient() as client:
-            gemini = ScriptedGemini(client, outcomes)
-            service = make_service(client, gemini)
-            try:
-                await service._ask_json(
-                    "system", "user", "script", StorySelection, parse
-                )
-            except EpisodeError as error:
-                return gemini.text_models, error
-            return gemini.text_models, None
-
-    return asyncio.run(scenario())
-
-
-def test_text_waits_and_asks_every_model_again_when_none_answers(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    waits = record_waits(monkeypatch)
-
-    asked, error = ask_scripted({MAIN: [BUSY, BUSY], FALLBACK: [BUSY, ANSWER]})
-
-    assert error is None
-    assert waits == [core_config.TEXT_RETRY_MINUTES[0] * 60]
-    assert asked == [MAIN, FALLBACK, MAIN, FALLBACK]
-
-
-def test_text_gives_up_after_the_last_retry(monkeypatch: pytest.MonkeyPatch) -> None:
-    waits = record_waits(monkeypatch)
-    rounds = len(core_config.TEXT_RETRY_MINUTES) + 1
-
-    _, error = ask_scripted({MAIN: [BUSY] * rounds, FALLBACK: [BUSY] * rounds})
-
-    assert error is not None
-    assert waits == [minutes * 60 for minutes in core_config.TEXT_RETRY_MINUTES]
-
-
-def test_the_text_waits_are_shared_by_the_whole_run(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    waits = record_waits(monkeypatch)
-
-    async def scenario() -> EpisodeError | None:
-        async with httpx.AsyncClient() as client:
-            gemini = ScriptedGemini(
-                client, {MAIN: [BUSY] * 3, FALLBACK: [BUSY, BUSY, ANSWER, BUSY]}
-            )
-            service = make_service(client, gemini)
-            await service._ask_json(
-                "system", "user", "selection", StorySelection, lambda data: data
-            )
-            try:
-                await service._ask_json(
-                    "system", "user", "script", StorySelection, lambda data: data
-                )
-            except EpisodeError as error:
-                return error
-            return None
-
-    error = asyncio.run(scenario())
-
-    assert error is not None
-    assert waits == [minutes * 60 for minutes in core_config.TEXT_RETRY_MINUTES]
-
-
-def test_text_does_not_wait_when_the_answers_are_bad(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    waits = record_waits(monkeypatch)
-
-    def reject(_data: Any) -> Any:
-        raise GeminiError("a seleção veio sem notícias válidas")
-
-    asked, error = ask_scripted(
-        {MAIN: [ANSWER, ANSWER], FALLBACK: [ANSWER, ANSWER]}, parse=reject
-    )
-
-    assert error is not None
-    assert waits == []
-    assert asked == [MAIN, MAIN, FALLBACK, FALLBACK]
-
-
-def test_text_does_not_wait_when_the_daily_quota_is_over(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    waits = record_waits(monkeypatch)
-
-    _, error = ask_scripted({MAIN: [OUT_OF_QUOTA], FALLBACK: [OUT_OF_QUOTA]})
-
-    assert error is not None
-    assert waits == []
-
-
-def test_a_model_out_of_quota_is_not_asked_again_after_the_wait(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    record_waits(monkeypatch)
-
-    asked, error = ask_scripted({MAIN: [OUT_OF_QUOTA], FALLBACK: [BUSY, ANSWER]})
-
-    assert error is None
-    assert asked == [MAIN, FALLBACK, FALLBACK]
-
-
-def test_lengthening_the_script_does_not_wait_for_the_models(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    waits = record_waits(monkeypatch)
-    turn = {"speaker": "Bia", "text": "Bom dia", "headline": False}
-    short_script = json.dumps({"turns": [turn] * MIN_SCRIPT_TURNS})
-    start = datetime(2026, 11, 9, 6, 0, tzinfo=core_config.LOCAL_TZ)
-
-    async def scenario() -> Script:
-        async with httpx.AsyncClient() as client:
-            gemini = ScriptedGemini(
-                client,
-                {MAIN: [BUSY] * 3, FALLBACK: [short_script, BUSY, BUSY, BUSY]},
-            )
-            service = make_service(client, gemini)
-            return await service._write_script(
-                [], start, start, start.date(), time(7, 0)
-            )
-
-    script = asyncio.run(scenario())
-
-    assert len(script.turns) == MIN_SCRIPT_TURNS
-    assert waits == []
 
 
 def test_voice_waits_and_tries_again_when_gemini_is_unavailable(
@@ -593,3 +298,47 @@ def test_errors_go_to_the_admin_chat_not_the_group(
             return telegram.sent
 
     assert [chat_id for chat_id, _ in asyncio.run(scenario())] == ["11"]
+
+
+def test_without_the_gemini_key_the_run_fails_at_the_selection_at_once(
+    monkeypatch: pytest.MonkeyPatch, settings: Settings
+) -> None:
+    settings.GEMINI_API_KEY = None
+    waits = record_waits(monkeypatch)
+    item = NewsItem(
+        id="1",
+        outlet="g1",
+        section="Política",
+        title="t",
+        summary="",
+        link="",
+        published_at=None,
+    )
+
+    async def one_item(*_args: object) -> list[NewsItem]:
+        return [item]
+
+    def no_model(*_args: object) -> BaseChatModel:
+        raise AssertionError("no model should be built without its key")
+
+    monkeypatch.setattr(service_module, "fetch_items", one_item)
+
+    async def scenario() -> EpisodeService:
+        async with httpx.AsyncClient() as client:
+            service = EpisodeService(
+                http_client=client,
+                gemini=None,
+                telegram=None,
+                chat_id=None,
+                settings=episode_settings(PodcastSettings()),
+                sources=[],
+                model_factory=no_model,
+            )
+            with pytest.raises(TextError, match="GEMINI_API_KEY não configurada"):
+                await service.generate_episode(scheduled=False, send=False)
+            return service
+
+    service = asyncio.run(scenario())
+
+    assert service.step == "seleção das notícias"
+    assert waits == []

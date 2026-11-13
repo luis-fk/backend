@@ -4,6 +4,7 @@ import pytest
 
 from news_podcast.api.core.costs import (
     format_brl,
+    total_cost_usd,
     usage_cost_usd,
 )
 from news_podcast.api.core.messages import (
@@ -14,6 +15,7 @@ from news_podcast.api.core.schemas import (
     ModelPrice,
     Usage,
 )
+from news_podcast.models import PodcastSettings
 
 NOVEMBER = date(2026, 11, 6)
 PRICES = {
@@ -59,3 +61,14 @@ def test_a_failure_notice_names_what_failed(subject: str, first_line: str) -> No
         "<b>Erro:</b> a cota &lt;acabou&gt;",
         "O log completo fica no Railway.",
     ]
+
+
+@pytest.mark.parametrize("name", ["gemini-3.8-flash", "google_genai:gemini-3.8-flash"])
+def test_a_text_model_finds_its_price_under_the_name_as_saved(name: str) -> None:
+    prices = PodcastSettings(
+        text_model=name, text_input_price=0.75, text_output_price=3.75
+    ).prices()
+    usage = Usage(step="script", model=name, input_tokens=1_000_000)
+
+    assert name in prices
+    assert total_cost_usd([usage], prices) == pytest.approx(0.75)

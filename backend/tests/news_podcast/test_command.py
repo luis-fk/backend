@@ -8,8 +8,9 @@ from news_podcast.api.core.telegram import admin_chat_id
 
 @pytest.fixture(autouse=True)
 def no_keys(settings: Settings) -> None:
-    """Keeps the tests away from Gemini and Telegram, even with keys in the .env."""
+    """Keeps the tests away from the models and Telegram, even with keys in the .env."""
     settings.GEMINI_API_KEY = None
+    settings.OPENAI_API_KEY = None
     settings.TELEGRAM_BOT_TOKEN = None
     settings.TELEGRAM_CHAT_ID = None
     settings.TELEGRAM_ADMIN_CHAT_ID = None

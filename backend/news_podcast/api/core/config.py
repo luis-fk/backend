@@ -19,6 +19,7 @@ HOSTS = (
     Host(name="Léo", speaker_id="Leo", gemini_voice="Charon"),
 )
 THINKING_LEVEL = "medium"
+MAX_OUTPUT_TOKENS = 32768
 TTS_CHUNK_WORDS = 650
 AUDIO_TOKENS_PER_SECOND = 25
 VOICE_RETRY_MINUTES = (10, 20)
