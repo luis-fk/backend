@@ -150,13 +150,15 @@ def test_every_chunk_of_the_run_draws_on_the_same_waits(
 ) -> None:
     waits = record_waits(monkeypatch)
     usages: list[Usage] = []
+    remaining = [1, 2]
     unavailable = VoiceUnavailableError("503")
     voice = FakeVoice([unavailable, None, unavailable, None, unavailable])
 
     with pytest.raises(VoiceUnavailableError):
-        narrate_with(voice, LONG_SCRIPT, tmp_path, usages=usages)
+        narrate_with(voice, LONG_SCRIPT, tmp_path, usages=usages, waits=remaining)
 
-    assert waits == [minutes * 60 for minutes in VOICE_RETRY_MINUTES]
+    assert waits == [60, 120]
+    assert remaining == []
     assert len(usages) == 2
 
 
@@ -203,3 +205,12 @@ def test_a_chunk_that_fails_for_good_keeps_the_cost_of_the_ones_before(
     assert usages == [Usage(step="voice", model=MODEL, output_tokens=1_000)]
     prices = {MODEL: ModelPrice(0.50, 6.00)}
     assert total_cost_usd(usages, prices) == pytest.approx(0.006)
+
+
+def test_narrate_never_overwrites_a_part_in_its_workdir(tmp_path: Path) -> None:
+    first = narrate_with(FakeVoice(), LONG_SCRIPT[:1], tmp_path)
+
+    with pytest.raises(FileExistsError):
+        narrate_with(FakeVoice(), LONG_SCRIPT[:1], tmp_path)
+
+    assert first == [tmp_path / "voice_001.wav"]

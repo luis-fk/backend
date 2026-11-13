@@ -1,4 +1,5 @@
 import asyncio
+from collections.abc import Sequence
 from pathlib import Path
 
 import httpx
@@ -6,13 +7,14 @@ import pytest
 from langchain_core.language_models import BaseChatModel
 from pytest_django import Settings
 
+from news_podcast.api.core.config import VOICE_RETRY_MINUTES
 from news_podcast.api.core.llm import TextError
-from news_podcast.api.core.schemas import Script, Turn, Usage
+from news_podcast.api.core.schemas import Host, Script, Turn, Usage
 from news_podcast.api.core.telegram import (
     TelegramClient,
     TelegramError,
 )
-from news_podcast.api.core.voice.base import VoiceError
+from news_podcast.api.core.voice.base import VoiceError, VoiceUnavailableError
 from news_podcast.api.episode import service as service_module
 from news_podcast.api.episode.run import episode_settings
 from news_podcast.api.episode.schemas import (
@@ -347,3 +349,62 @@ def test_without_the_gemini_key_the_voice_step_fails_before_any_request(
     assert [chat_id for chat_id, _ in sent] == ["11"]
     assert "<b>Etapa:</b> voz" in sent[0][1]
     assert "GEMINI_API_KEY" in sent[0][1]
+
+
+class FlakyVoice:
+    """Unavailable once, then it answers."""
+
+    def __init__(self, usage: Usage) -> None:
+        self.usage = usage
+        self.failures: list[Exception] = [VoiceUnavailableError("503")]
+
+    async def synthesize(
+        self,
+        turns: list[Turn],
+        hosts: Sequence[Host],
+        *,
+        style: str,
+        headline_style: str,
+        step: str,
+    ) -> tuple[bytes, Usage]:
+        if self.failures:
+            raise self.failures.pop(0)
+        return b"audio", self.usage
+
+
+def test_the_voice_step_draws_on_the_run_s_waits_and_keeps_its_usage(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    waits = record_waits(monkeypatch)
+    voice_usage = Usage(step="voice", model="gemini-3.8-flash-lite-tts")
+    built: list[str] = []
+
+    def provider(model: str, http_client: httpx.AsyncClient) -> FlakyVoice:
+        built.append(model)
+        return FlakyVoice(voice_usage)
+
+    async def voice_note(*_args: object) -> float:
+        return 60.0
+
+    async def scenario() -> EpisodeService:
+        transport = httpx.MockTransport(no_voice_request)
+        async with httpx.AsyncClient(transport=transport) as client:
+            service = EpisodeService(
+                http_client=client,
+                telegram=None,
+                chat_id=None,
+                settings=episode_settings(PodcastSettings()),
+                sources=[],
+            )
+            reach_the_voice(monkeypatch, service, tmp_path)
+            monkeypatch.setattr(service_module, "voice_provider", provider)
+            monkeypatch.setattr(service_module, "build_voice_note", voice_note)
+            await service.generate_episode(scheduled=False, send=False)
+            return service
+
+    service = asyncio.run(scenario())
+
+    assert built == [service.settings.voice_model]
+    assert waits == [VOICE_RETRY_MINUTES[0] * 60]
+    assert service.voice_waits == list(VOICE_RETRY_MINUTES[1:])
+    assert service.usages == [TEXT_USAGE, voice_usage]

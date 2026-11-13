@@ -21,10 +21,11 @@ async def narrate(
     waits: list[int],
     step: str = "voice",
 ) -> list[Path]:
-    """The turns read aloud, one WAV file per chunk in workdir. Each chunk's usage
-    joins usages as soon as the chunk is done, so a run that fails later keeps its
-    cost. waits holds the minutes the run may still wait for an unavailable voice,
-    shared by all its chunks: there is no other voice to fall back on."""
+    """The turns read aloud, one WAV file per chunk in workdir, which never
+    overwrites a part already there. Each chunk's usage joins usages as soon as the
+    chunk is done, so a run that fails later keeps its cost. waits holds the minutes
+    the run may still wait for an unavailable voice, shared by all its chunks: there
+    is no other voice to fall back on."""
     chunks = chunk_turns(turns, TTS_CHUNK_WORDS)
     parts: list[Path] = []
     for index, chunk in enumerate(chunks, start=1):
@@ -39,7 +40,10 @@ async def narrate(
         )
         usages.append(usage)
         path = workdir / f"voice_{index:03d}.wav"
-        path.write_bytes(audio)
+        # "x" refuses an existing file: a second call in the same workdir would
+        # otherwise replace the first call's parts, and the episode would repeat one.
+        with path.open("xb") as part:
+            part.write(audio)
         parts.append(path)
     return parts
 

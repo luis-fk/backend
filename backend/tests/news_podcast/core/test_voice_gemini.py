@@ -247,19 +247,27 @@ def test_daily_quota_stops_without_retrying() -> None:
     assert len(calls) == 1
 
 
+@pytest.mark.parametrize(
+    ("status", "expected_waits"),
+    [
+        (503, [backoff_seconds(1), backoff_seconds(2)]),
+        (429, [RATE_LIMIT_WAIT_SECONDS, RATE_LIMIT_WAIT_SECONDS * 2]),
+    ],
+)
 def test_the_voice_gives_up_after_a_few_overloaded_attempts(
-    monkeypatch: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch, status: int, expected_waits: list[float]
 ) -> None:
-    record_waits(monkeypatch)
+    waits = record_waits(monkeypatch)
     calls: list[int] = []
 
     def handler(request: httpx.Request) -> httpx.Response:
         calls.append(1)
-        return httpx.Response(503, json={"error": {"message": "high demand"}})
+        return httpx.Response(status, json={"error": {"message": "high demand"}})
 
-    with pytest.raises(VoiceUnavailableError, match="503"):
+    with pytest.raises(VoiceUnavailableError, match=str(status)):
         synthesize_with(handler)
     assert len(calls) == MAX_ATTEMPTS
+    assert waits == expected_waits
 
 
 def test_the_voice_gives_up_after_a_few_connection_errors(

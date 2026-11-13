@@ -26,20 +26,47 @@ def module_name(path: Path) -> str:
     return ".".join(parts)
 
 
-def imported_modules(source: str, module: str, is_package: bool = False) -> set[str]:
-    """Every module a source imports, relative imports resolved. `from X import Y`
-    counts as importing X and X.Y, since Y may be a module."""
+def imports(
+    source: str, module: str, is_package: bool = False
+) -> list[tuple[str, str | None]]:
+    """(X, Y) for each `from X import Y` and (X, None) for each `import X`, relative
+    imports resolved."""
     package = module if is_package else module.rpartition(".")[0]
-    found: set[str] = set()
+    found: list[tuple[str, str | None]] = []
     for node in ast.walk(ast.parse(source)):
         if isinstance(node, ast.Import):
-            found.update(alias.name for alias in node.names)
+            found += [(alias.name, None) for alias in node.names]
         elif isinstance(node, ast.ImportFrom):
             name = "." * node.level + (node.module or "")
             base = importlib.util.resolve_name(name, package) if node.level else name
-            found.add(base)
-            found.update(f"{base}.{alias.name}" for alias in node.names)
+            found += [(base, alias.name) for alias in node.names]
     return found
+
+
+def imported_modules(source: str, module: str, is_package: bool = False) -> set[str]:
+    """Every module a source imports, relative imports resolved. `from X import Y`
+    counts as importing X and X.Y, since Y may be a module."""
+    found: set[str] = set()
+    for base, name in imports(source, module, is_package):
+        found.add(base)
+        if name is not None:
+            found.add(f"{base}.{name}")
+    return found
+
+
+def defined_in(base: str, name: str | None) -> str:
+    """The module that defines what an import brings in: the module imported, or the
+    one where the imported object was written, so a name another module re-exports
+    counts where it comes from."""
+    if name is None:
+        return base
+    try:
+        if importlib.util.find_spec(f"{base}.{name}"):
+            return f"{base}.{name}"
+    except ModuleNotFoundError:
+        pass
+    value = getattr(importlib.import_module(base), name, None)
+    return str(getattr(value, "__module__", None) or base)
 
 
 def inside(name: str, package: str) -> bool:
@@ -56,20 +83,26 @@ def broken_rules(module: str, imports: set[str]) -> list[str]:
         forbidden.append(EPISODE)
     if module not in ORM_MODULES and not inside(module, COMMANDS):
         forbidden.append(MODELS)
-    broken = [
+    return [
         f"{module} imports {name}"
         for name in sorted(imports)
         for package in forbidden
         if inside(name, package)
     ]
-    if inside(module, EPISODE) or inside(module, LESSON):
-        broken += [
-            f"{module} imports {name}"
-            for name in sorted(imports)
-            if inside(name, VOICE)
-            and name != VOICE
-            and not any(inside(name, allowed) for allowed in VOICE_INTERFACE)
-        ]
+
+
+def broken_voice_rules(module: str, found: list[tuple[str, str | None]]) -> list[str]:
+    if not (inside(module, EPISODE) or inside(module, LESSON)):
+        return []
+    broken: list[str] = []
+    for base, name in found:
+        target = base if name is None else f"{base}.{name}"
+        if not (inside(base, VOICE) or inside(target, VOICE)):
+            continue
+        # A * import can bring anything, the implementations included.
+        origin = VOICE if name == "*" else defined_in(base, name)
+        if not any(inside(origin, allowed) for allowed in VOICE_INTERFACE):
+            broken.append(f"{module} imports {target}, from {origin}")
     return broken
 
 
@@ -79,10 +112,10 @@ def test_the_app_follows_its_import_rules() -> None:
         if "migrations" in path.relative_to(APP_DIR).parts:
             continue
         module = module_name(path)
-        imports = imported_modules(
-            path.read_text(), module, is_package=path.name == "__init__.py"
-        )
-        broken += broken_rules(module, imports)
+        source = path.read_text()
+        is_package = path.name == "__init__.py"
+        broken += broken_rules(module, imported_modules(source, module, is_package))
+        broken += broken_voice_rules(module, imports(source, module, is_package))
 
     assert broken == []
 
@@ -144,17 +177,23 @@ def test_only_the_django_layer_may_import_the_models(
     [
         ("from news_podcast.api.core.voice.narration import narrate", True),
         ("from news_podcast.api.core.voice.providers import voice_provider", True),
+        ("from news_podcast.api.core.voice.providers import VOICE_PROVIDERS", True),
         ("from news_podcast.api.core.voice.base import VoiceError", True),
         ("from news_podcast.api.core.voice import narration", True),
+        ("import news_podcast.api.core.voice.narration", True),
         ("from news_podcast.api.core.voice import gemini", False),
         ("from news_podcast.api.core.voice.gemini import GeminiVoice", False),
         ("from ..core.voice.gemini import GeminiVoice", False),
+        ("from news_podcast.api.core.voice.providers import GeminiVoice", False),
+        ("from news_podcast.api.core.voice.providers import *", False),
+        ("from news_podcast.api.core import voice", False),
+        ("import news_podcast.api.core.voice", False),
     ],
 )
 def test_the_features_reach_the_voice_only_through_its_interface(
     line: str, allowed: bool
 ) -> None:
     for module in (f"{EPISODE}.service", f"{LESSON}.service"):
-        imports = imported_modules(line, module)
+        found = imports(line, module)
 
-        assert (broken_rules(module, imports) == []) is allowed
+        assert (broken_voice_rules(module, found) == []) is allowed
