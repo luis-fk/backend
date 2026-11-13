@@ -133,34 +133,30 @@ def select_today(*, model_factory: ModelFactory = chat_model) -> Selection:
     """The day's stories, from the feeds and the selection only, with no episode and
     nothing sent. It never raises: a failure comes back with no stories, the answers
     already paid for and the error."""
+    usages: list[Usage] = []
     try:
         snapshot = episode_settings(PodcastSettings.load())
         sources = Feed.sources()
+        stories = asyncio.run(select(snapshot, sources, usages, model_factory))
     except Exception as error:
-        logger.warning(f"Could not read the settings or the feeds: {error}")
-        return Selection([], [], error)
-    return asyncio.run(select(snapshot, sources, model_factory))
+        logger.warning(f"The day's selection failed: {error}")
+        return Selection([], usages, error)
+    return Selection(stories, usages, None)
 
 
 async def select(
-    snapshot: EpisodeSettings, sources: list[FeedSource], model_factory: ModelFactory
-) -> Selection:
-    usages: list[Usage] = []
+    snapshot: EpisodeSettings,
+    sources: list[FeedSource],
+    usages: list[Usage],
+    model_factory: ModelFactory,
+) -> list[NewsStory]:
     start, end = news_window(
         datetime.now(UTC), None, NEWS_WINDOW_HOURS, NEWS_CUTOFF_HOURS_BEFORE_SEND
     )
     async with httpx.AsyncClient() as http_client:
         text = TextModels(snapshot.text_models, usages, http_client, model_factory)
-        try:
-            items = await fetch_items(http_client, sources, start, end)
-            if not items:
-                raise EpisodeError("Nenhuma notícia encontrada nos feeds")
-            stories = await select_stories(text, snapshot, items, start, end)
-        except Exception as error:
-            logger.warning(f"The day's selection failed: {error}")
-            return Selection([], usages, error)
-    return Selection(
-        [NewsStory(story.title, story.category, story.angle) for story in stories],
-        usages,
-        None,
-    )
+        items = await fetch_items(http_client, sources, start, end)
+        if not items:
+            raise EpisodeError("Nenhuma notícia encontrada nos feeds")
+        stories = await select_stories(text, snapshot, items, start, end)
+    return [NewsStory(story.title, story.category, story.angle) for story in stories]

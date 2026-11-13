@@ -31,6 +31,7 @@ from news_podcast.api.core.gemini import (
     MAX_ATTEMPTS,
     MAX_RETRY_DELAY_SECONDS,
     RATE_LIMIT_WAIT_SECONDS,
+    RETRYABLE_STATUS,
     backoff_seconds,
     is_daily_quota,
     retry_delay,
@@ -70,9 +71,10 @@ class ModelDroppedError(Exception):
 
 
 class RawAnswer(TypedDict):
+    """What include_raw returns. Its parsed value is left out: LangChain's parser
+    closes what a cut answer left open, so the raw text is read instead."""
+
     raw: AIMessage
-    parsed: Any
-    parsing_error: BaseException | None
 
 
 ModelFactory = Callable[[str, str, str, httpx.AsyncClient], BaseChatModel]
@@ -91,8 +93,8 @@ def split_model(name: str) -> tuple[str, str]:
 
 
 def model_name_error(name: str) -> str | None:
-    provider, _ = split_model(name)
-    if provider in API_KEY_SETTINGS:
+    provider, model = split_model(name)
+    if provider in API_KEY_SETTINGS and model.split() == [model]:
         return None
     return (
         "Write provider:model, with google_genai or openai, such as "
@@ -193,11 +195,11 @@ class TextModels:
         """The model for a saved name, built on its first use with the key from the
         settings, so a key in the environment can't take over."""
         if name not in self.models:
-            provider, model = split_model(name)
-            if provider not in API_KEY_SETTINGS:
+            if model_name_error(name):
                 raise ModelDroppedError(
-                    f"provedor desconhecido; use google_genai ou openai ({name})"
+                    f"nome inválido; use google_genai:modelo ou openai:modelo ({name})"
                 )
+            provider, model = split_model(name)
             setting = API_KEY_SETTINGS[provider]
             api_key = getattr(settings, setting, None)
             if not api_key:
@@ -206,9 +208,11 @@ class TextModels:
                 self.models[name] = self.factory(
                     provider, model, api_key, self.http_client
                 )
-            except ImportError as error:
+            except Exception as error:
+                # Building a model makes no request, so it fails the same way every
+                # time: a missing integration, a bad option.
                 raise ModelDroppedError(
-                    f"a integração de {provider} não está instalada: {error}"
+                    f"o modelo não pôde ser criado: {error_text(error)}"
                 ) from error
         return self.models[name]
 
@@ -243,6 +247,14 @@ class TextModels:
             except (BadAnswerError, ValidationError) as error:
                 logger.warning(f"{name} failed during {step}: {error}")
                 errors.append(f"{name}: {error}")
+            except Exception as error:
+                # An error the sorting doesn't know, such as an odd status or an
+                # unreadable error body, counts as a failed answer, so the next model
+                # still gets its turn.
+                logger.exception(
+                    f"{name} failed during {step} with an unexpected error"
+                )
+                errors.append(f"{name}: {error_text(error)}")
         raise TextError(" | ".join(errors) or "Nenhum modelo de texto disponível")
 
     async def _answer(
@@ -262,11 +274,8 @@ class TextModels:
             logger.warning(
                 f"{name} ({step}) stopped before the end of its answer: {finish_reason}"
             )
-        if answer["parsing_error"] is not None or answer["parsed"] is None:
-            raise BadAnswerError(
-                broken_answer(str(raw.text), name, step, finish_reason)
-            )
-        return check(schema.model_validate(answer["parsed"]))
+        data = parsed_json(str(raw.text), name, step, finish_reason)
+        return check(schema.model_validate(data))
 
     async def _send(
         self,
@@ -302,19 +311,27 @@ class TextModels:
 def wait_before_next_attempt(error: Exception, attempt: int) -> float:
     """The wait before trying the same model again, or the outcome that ends its
     turn: ModelDroppedError (out of quota or refused) or ModelDownError (a timeout,
-    or a passing failure after the last attempt). An error from neither the provider
-    nor the network goes up as it is."""
+    or a passing failure after the last attempt). Any other error goes up as it is,
+    and the round counts it as a failed answer."""
+    status = status_code(error)
     if is_rate_limit(error) and is_out_of_quota(error):
         raise ModelDroppedError(f"sem cota: {error_text(error)}") from error
     if isinstance(error, (ModelTimeoutError, TimeoutError)):
         raise ModelDownError(f"não respondeu em {TEXT_TIMEOUT_SECONDS:.0f}s") from error
+    if status == 408:
+        raise ModelDownError(error_text(error)) from error
     if is_rate_limit(error):
         delay = suggested_delay(error) or RATE_LIMIT_WAIT_SECONDS * attempt
-    elif is_server_error(error) or isinstance(
-        error, (ModelConnectionError, aiohttp.ClientError)
+    elif status in RETRYABLE_STATUS or (
+        status is None
+        and isinstance(
+            error, (ModelAPIError, ModelConnectionError, aiohttp.ClientError)
+        )
     ):
         delay = suggested_delay(error) or backoff_seconds(attempt)
-    elif isinstance(error, ModelError) or 400 <= (status_code(error) or 0) < 500:
+    elif (status is not None and 400 <= status < 500) or (
+        status is None and isinstance(error, ModelError)
+    ):
         raise ModelDroppedError(error_text(error)) from error
     else:
         raise error
@@ -335,10 +352,6 @@ def status_code(error: BaseException) -> int | None:
 
 def is_rate_limit(error: Exception) -> bool:
     return isinstance(error, ModelRateLimitError) or status_code(error) == 429
-
-
-def is_server_error(error: Exception) -> bool:
-    return isinstance(error, ModelAPIError) or (status_code(error) or 0) >= 500
 
 
 def gemini_body(error: BaseException) -> dict[str, Any] | None:
@@ -391,16 +404,19 @@ def answer_usage(raw: AIMessage, step: str, name: str) -> Usage:
     )
 
 
-def broken_answer(text: str, name: str, step: str, finish_reason: str) -> str:
-    """Logs where a broken JSON breaks and returns the error for the round."""
+def parsed_json(text: str, name: str, step: str, finish_reason: str) -> Any:
+    """The answer's JSON, read strictly. A broken one is a bad answer, and the log
+    shows where it breaks."""
     if not text.strip():
-        return f"o modelo devolveu um texto vazio ({finish_reason or 'sem motivo'})"
+        raise BadAnswerError(
+            f"o modelo devolveu um texto vazio ({finish_reason or 'sem motivo'})"
+        )
     try:
-        json.loads(text)
+        return json.loads(text)
     except json.JSONDecodeError as error:
         around = text[max(error.pos - 150, 0) : error.pos + 150]
         logger.warning(
             f"{name} ({step}): the JSON breaks at character {error.pos} of "
             f"{len(text)} ({error.msg}): {around!r}"
         )
-    return "o modelo devolveu um JSON inválido"
+        raise BadAnswerError("o modelo devolveu um JSON inválido") from error

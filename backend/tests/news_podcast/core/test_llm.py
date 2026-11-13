@@ -13,7 +13,10 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnableBinding
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_google_genai.chat_models import (
+    ChatGoogleGenerativeAIError,
     GoogleAPIError,
+    GoogleAuthenticationError,
+    GoogleInvalidRequestError,
     GoogleModelNotFoundError,
     GoogleRateLimitError,
 )
@@ -44,7 +47,7 @@ from news_podcast.api.core.llm import (
     split_model,
     structured_model,
 )
-from news_podcast.api.core.schemas import Script, Usage
+from news_podcast.api.core.schemas import Script, Turn, Usage
 from news_podcast.api.episode.schemas import StorySelection
 from tests.news_podcast.fake_models import FakeChatModel, fake_factory
 
@@ -747,7 +750,14 @@ def test_a_refused_model_is_dropped_for_the_run_with_the_providers_message(
 
 
 @pytest.mark.parametrize(
-    "name", ["anthropic:claude-x", "google_vertexai:gemini-3.8-flash", "gpt-4.1-mini"]
+    "name",
+    [
+        "anthropic:claude-x",
+        "google_vertexai:gemini-3.8-flash",
+        "gpt-4.1-mini",
+        "openai:",
+        "openai: gpt-4.1-mini",
+    ],
 )
 def test_a_model_with_an_unknown_provider_is_refused_and_the_fallback_answers(
     name: str,
@@ -758,14 +768,19 @@ def test_a_model_with_an_unknown_provider_is_refused_and_the_fallback_answers(
     assert asked == [FALLBACK]
 
 
-def test_a_provider_whose_integration_is_missing_is_refused() -> None:
+@pytest.mark.parametrize(
+    "failure",
+    [ImportError("Unable to import langchain_google_genai"), ValueError("bad option")],
+    ids=["missing-integration", "bad-option"],
+)
+def test_a_model_that_cannot_be_built_is_refused(failure: Exception) -> None:
     asked: list[str] = []
 
     def missing(
         provider: str, model: str, api_key: str, http_client: httpx.AsyncClient
     ) -> BaseChatModel:
         if model == MAIN:
-            raise ImportError("Unable to import langchain_google_genai")
+            raise failure
         return FakeChatModel(model=model, outcomes=[ANSWER], asked=asked)
 
     async def scenario() -> Answer:
@@ -830,3 +845,113 @@ def test_the_gemini_key_comes_from_the_settings_not_the_environment(
     assert isinstance(model, ChatGoogleGenerativeAI)
     assert model.google_api_key is not None
     assert model.google_api_key.get_secret_value() == "from-the-settings"
+
+
+def gemini_client_error(
+    error_class: type[Exception], code: int, status: str
+) -> Exception:
+    """A Gemini 4xx as langchain-google-genai raises it, from the SDK's ClientError."""
+    cause = genai_errors.ClientError(code, gemini_body(code, status, []))
+    error = error_class(f"Error calling model '{MAIN}' ({status}): {cause}")
+    error.__cause__ = cause
+    return error
+
+
+def test_a_cut_answer_is_asked_again_even_when_its_json_could_be_closed() -> None:
+    script = Script(turns=[Turn(speaker="Bia", text="O STF decidiu hoje")] * 3)
+    complete = script.model_dump_json()
+    cut = complete[: complete.rindex("decidiu")]
+    asked: list[str] = []
+
+    async def scenario() -> Script:
+        async with httpx.AsyncClient() as client:
+            text = TextModels(
+                [MAIN], [], client, fake_factory({MAIN: [cut, complete]}, asked)
+            )
+            return await text.ask(
+                PROMPT, VALUES, step="script", schema=Script, check=lambda s: s
+            )
+
+    assert asyncio.run(scenario()) == script
+    assert asked == [MAIN, MAIN]
+
+
+def test_an_error_the_sorting_does_not_know_lets_the_next_model_answer(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    unknown = RuntimeError("corpo de erro ilegível")
+
+    with caplog.at_level(logging.ERROR):
+        asked, error = ask_scripted({MAIN: [unknown, unknown], FALLBACK: [ANSWER]})
+
+    assert error is None
+    assert asked == [MAIN, MAIN, FALLBACK]
+    assert "corpo de erro ilegível" in caplog.text
+
+
+@pytest.mark.parametrize(
+    ("failure", "expected"),
+    [
+        (
+            GoogleAPIError(501, gemini_body(501, "NOT_IMPLEMENTED", [])),
+            [MAIN, MAIN, FALLBACK],
+        ),
+        (
+            GoogleAPIError(403, gemini_body(403, "PERMISSION_DENIED", [])),
+            [MAIN, FALLBACK],
+        ),
+    ],
+    ids=["a-5xx-that-does-not-pass", "a-4xx-in-a-server-error-class"],
+)
+def test_only_the_statuses_that_pass_are_tried_again(
+    monkeypatch: pytest.MonkeyPatch, failure: Exception, expected: list[str]
+) -> None:
+    waits = record_waits(monkeypatch)
+
+    asked, error = ask_scripted({MAIN: [failure, failure], FALLBACK: [ANSWER]})
+
+    assert error is None
+    assert asked == expected
+    assert waits == []
+
+
+def test_a_request_timeout_from_the_provider_marks_the_model_down(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    waits = record_waits(monkeypatch)
+    request_timeout = gemini_client_error(
+        ChatGoogleGenerativeAIError, 408, "DEADLINE_EXCEEDED"
+    )
+
+    asked, error = ask_scripted(
+        {MAIN: [request_timeout, ANSWER], FALLBACK: [TimeoutError()]}
+    )
+
+    assert error is None
+    assert asked == [MAIN, FALLBACK, MAIN]
+    assert waits == [TEXT_RETRY_MINUTES[0] * 60]
+
+
+@pytest.mark.parametrize(
+    "refusal",
+    [
+        gemini_client_error(GoogleInvalidRequestError, 400, "INVALID_ARGUMENT"),
+        gemini_client_error(GoogleAuthenticationError, 401, "UNAUTHENTICATED"),
+        gemini_client_error(GoogleModelNotFoundError, 404, "NOT_FOUND"),
+    ],
+    ids=["400", "401", "404"],
+)
+def test_a_refusal_reaches_the_error_with_the_providers_message(
+    refusal: Exception,
+) -> None:
+    asked, error = ask_scripted({MAIN: [refusal], FALLBACK: [refusal]})
+
+    assert asked == [MAIN, FALLBACK]
+    message = llm.error_text(refusal)
+    assert str(error) == f"{MAIN}: {message} | {FALLBACK}: {message}"
+
+
+def test_an_unknown_provider_reaches_the_error() -> None:
+    _, error = ask_scripted({}, names=("anthropic:claude-x",))
+
+    assert "anthropic:claude-x" in str(error)

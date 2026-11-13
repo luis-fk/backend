@@ -1,10 +1,10 @@
-import json
 from typing import Any
 
 import httpx
 from langchain_core.exceptions import OutputParserException
 from langchain_core.language_models import BaseChatModel, LanguageModelInput
 from langchain_core.messages import AIMessage, BaseMessage
+from langchain_core.output_parsers import JsonOutputParser
 from langchain_core.outputs import ChatResult
 from langchain_core.runnables import Runnable, RunnableLambda
 from pydantic import BaseModel, Field, SkipValidation
@@ -70,14 +70,12 @@ class FakeChatModel(BaseChatModel):
             usage_metadata=self.usage,
             response_metadata={"finish_reason": self.finish_reason},
         )
+        # Parsed as both integrations parse a dict schema, which closes what a cut
+        # answer left open.
         try:
-            parsed = json.loads(outcome)
-        except json.JSONDecodeError as error:
-            return {
-                "raw": raw,
-                "parsed": None,
-                "parsing_error": OutputParserException(str(error)),
-            }
+            parsed = JsonOutputParser().parse(outcome)
+        except OutputParserException as error:
+            return {"raw": raw, "parsed": None, "parsing_error": error}
         return {"raw": raw, "parsed": parsed, "parsing_error": None}
 
 

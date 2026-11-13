@@ -80,7 +80,15 @@ def test_a_prompt_may_use_its_placeholders_and_doubled_braces() -> None:
 
 @pytest.mark.parametrize("field", ["text_model", "fallback_model"])
 @pytest.mark.parametrize(
-    "name", ["anthropic:claude-x", "google_vertexai:gemini-3.8-flash", "gpt-4.1-mini"]
+    "name",
+    [
+        "anthropic:claude-x",
+        "google_vertexai:gemini-3.8-flash",
+        "gpt-4.1-mini",
+        "openai:",
+        "google_genai:",
+        "openai: gpt-4.1-mini",
+    ],
 )
 def test_a_text_model_needs_a_provider_the_podcast_knows(field: str, name: str) -> None:
     with pytest.raises(ValidationError) as caught:

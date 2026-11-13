@@ -18,7 +18,7 @@ from news_podcast.api.core.schemas import NewsStory, Usage
 from news_podcast.api.episode import config, run
 from news_podcast.api.episode.schemas import EpisodeReport, NewsItem
 from news_podcast.api.episode.service import EpisodeError, EpisodeService
-from news_podcast.models import Episode, PodcastSettings
+from news_podcast.models import Episode, Feed, PodcastSettings
 from tests.news_podcast.fake_models import fake_factory
 
 # transaction=True: the command closes its connection before writing the history,
@@ -255,7 +255,9 @@ def test_select_today_returns_the_days_stories_and_makes_no_episode(
 
 
 @DATABASE
-@pytest.mark.parametrize("failure", ["settings", "no news", "no answer"])
+@pytest.mark.parametrize(
+    "failure", ["settings", "feeds", "window", "no news", "no answer"]
+)
 def test_select_today_returns_the_error_instead_of_raising(
     monkeypatch: pytest.MonkeyPatch, settings: Settings, failure: str
 ) -> None:
@@ -270,6 +272,10 @@ def test_select_today_returns_the_error_instead_of_raising(
     monkeypatch.setattr(run, "fetch_items", fetch)
     if failure == "settings":
         monkeypatch.setattr(PodcastSettings, "load", broken)
+    if failure == "feeds":
+        monkeypatch.setattr(Feed, "sources", broken)
+    if failure == "window":
+        monkeypatch.setattr(run, "news_window", broken)
     no_stories = '{"stories": []}'
     outcomes = {
         config.TEXT_MODEL: [no_stories] * 2,

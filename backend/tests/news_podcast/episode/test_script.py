@@ -196,3 +196,19 @@ def test_the_lengthened_script_is_kept_only_when_it_has_more_words(
     short, lengthening = built[MAIN].received
     assert lengthening[0].content == short[0].content
     assert str(lengthening[1].content).startswith(f"{short[1].content}\n\n")
+
+
+def test_an_unexpected_error_while_lengthening_keeps_the_short_script(
+    settings: Settings,
+) -> None:
+    settings.GEMINI_API_KEY = "test-key"
+    unexpected = RuntimeError("resposta ilegível")
+
+    script = write_with(
+        {
+            MAIN: [script_text(2), unexpected, unexpected],
+            FALLBACK: [unexpected, unexpected],
+        }
+    )
+
+    assert len(script.turns[0].text.split()) == 2
