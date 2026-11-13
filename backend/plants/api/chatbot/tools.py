@@ -1,8 +1,8 @@
 from typing import Annotated, Any
 
 from django.db import connections
-from langchain_community.tools.tavily_search import TavilySearchResults
 from langchain_core.tools import BaseTool, tool
+from langchain_tavily import TavilySearch
 from langgraph.prebuilt import InjectedState
 
 from plants.api.sensors.summary import plant_summary, plants_overview
@@ -11,7 +11,7 @@ from plants.api.sensors.summary import plant_summary, plants_overview
 @tool
 def web_search(web_search_input: str) -> Any:
     """Returns web search related questions."""
-    search = TavilySearchResults(max_results=3)
+    search = TavilySearch(max_results=3, search_depth="advanced")
     return search.invoke(input=web_search_input)
 
 

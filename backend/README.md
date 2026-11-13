@@ -23,7 +23,7 @@ The sample data (`make seed`) belongs to `demo`, the name to log in with in plan
 
 Users are created in the Django admin.
 
-Other commands, with the database up for the tests: `make test`, `make check` (what CI runs, without changing any file), `make lint`, `make type-check`, `make db-down` (stops PostgreSQL and keeps the data), `make db-reset` (deletes the local databases and makes them again, sample data included), `make requirements` (regenerates `requirements.txt`, which Railway installs from).
+Other commands, with the database up for the tests: `make test`, `make check` (what CI runs, without changing any file), `make lint`, `make type-check`, `make db-down` (stops PostgreSQL and keeps the data), `make db-reset` (deletes the local databases and makes them again, sample data included).
 
 ## API access
 Every API endpoint checks a token ([`backend/api_auth.py`](backend/api_auth.py)); `/admin/` keeps Django's login. The frontend signs JWTs (HS256) with `API_TOKEN_SECRET`, so both services need the same value, with at least 32 characters (`openssl rand -base64 32`). The browser sends the logged-in user's token as `Authorization: Bearer <token>`, or as the WebSocket subprotocols `bearer` and `<token>`, and the login Server Actions send a 60-second login token to `/api/<app>/users/<name>`.

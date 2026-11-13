@@ -2,7 +2,6 @@ import re
 from collections import Counter
 
 from django.db import router, transaction
-from langchain_community.document_loaders import PyPDFLoader
 from langchain_core.documents import Document
 from langchain_core.prompts import (
     AIMessagePromptTemplate,
@@ -12,6 +11,7 @@ from langchain_core.prompts import (
 )
 from langchain_openai import OpenAIEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
+from pypdf import PdfReader
 
 from political_culture.api.utils import llm_4
 from political_culture.api.word_counter.prompts import (
@@ -175,9 +175,10 @@ def add_pdf_text(path: str, file_hash: str, user_id: int) -> Texts:
     """Reads a PDF into the library: its text, its chunks with their embeddings, its
     title, author and summary, and its word count. The model calls come first and
     the rows are saved in one transaction, so a failure leaves nothing behind."""
-    pages = PyPDFLoader(path).load()
-    for page in pages:
-        page.page_content = readable(page.page_content)
+    pages = [
+        Document(page_content=readable(page.extract_text().strip()))
+        for page in PdfReader(path).pages
+    ]
     text = "".join(page.page_content for page in pages)
     if not text.strip():
         raise NoText()
