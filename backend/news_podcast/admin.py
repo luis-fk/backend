@@ -9,8 +9,8 @@ from django.shortcuts import redirect
 from django.template.response import TemplateResponse
 from django.utils.text import Truncator
 
-from news_podcast.api.episode.config import LOCAL_TZ
-from news_podcast.api.episode.messages import brl
+from news_podcast.api.core.config import LOCAL_TZ
+from news_podcast.api.core.messages import brl
 from news_podcast.models import Episode, Feed, PodcastSettings
 
 LONG_PROMPTS = ["selection_prompt", "script_prompt"]

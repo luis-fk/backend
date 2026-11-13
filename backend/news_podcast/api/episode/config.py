@@ -1,11 +1,4 @@
-from pathlib import Path
-from zoneinfo import ZoneInfo
-
-from news_podcast.api.episode.schemas import Host, ModelPrice
-
-APP_DIR = Path(__file__).resolve().parents[2]
-OUTPUT_DIR = APP_DIR.parent / "news_podcast_output"
-LOCAL_TZ = ZoneInfo("America/Sao_Paulo")
+from news_podcast.api.core.schemas import ModelPrice
 
 
 def google_news_search(query: str, period: str) -> str:
@@ -49,11 +42,13 @@ STARTING_FEEDS = (
     ("Poder360", "Política", "https://www.poder360.com.br/feed/"),
     ("g1", "Política", "https://g1.globo.com/rss/g1/politica/"),
 )
-
 NEWS_WINDOW_HOURS = 24
+
+
 # The Railway cron starts in the hour before the episode's hour, so the scheduled
 # news window closes at :00 of the hour the run starts in.
 NEWS_CUTOFF_HOURS_BEFORE_SEND = 1
+
 
 # The DEFAULT_* values, the models, their prices and the styles only fill the settings
 # row in the Django admin when it is created (news_podcast/models.py); after that,
@@ -61,25 +56,13 @@ NEWS_CUTOFF_HOURS_BEFORE_SEND = 1
 DEFAULT_MIN_MINUTES = 12
 DEFAULT_MAX_MINUTES = 18
 DEFAULT_SPEECH_SPEED = 1.0
-SHORTEST_EPISODE_MINUTES = 5
-# Each voice request covers about 4 minutes of speech and the free tier allows 10
-# requests a day, so 30 minutes (about 8 requests) leaves room for a retry.
-MAX_SPEECH_MINUTES = 30
-SPEECH_SPEED_LIMITS = (0.5, 2.0)
-NATURAL_WORDS_PER_MINUTE = 170
 MINUTES_PER_STORY = 1.5
 SHORT_SCRIPT_RATIO = 0.85
-
-HOSTS = (
-    Host(name="Bia", speaker_id="Bia", gemini_voice="Kore"),
-    Host(name="Léo", speaker_id="Leo", gemini_voice="Charon"),
-)
-
-THINKING_LEVEL = "medium"
-
 TEXT_MODEL = "gemini-3.8-flash"
 TEXT_FALLBACK_MODEL = "gemini-3.6-flash"
 TTS_MODEL = "gemini-3.8-flash-lite-tts"
+
+
 # US$ per million tokens of input and output, the paid-plan prices. They are
 # promotional until 2026-12-31 and double on 2027-01-01.
 TEXT_MODEL_PRICE = ModelPrice(0.75, 3.75)
@@ -94,17 +77,6 @@ HEADLINE_TTS_STYLE = (
     "impactful delivery that stresses the key words, with a brief pause at the end; "
     "neutral Brazilian accent; clear diction."
 )
-TTS_CHUNK_WORDS = 650
-AUDIO_TOKENS_PER_SECOND = 25
-VOICE_RETRY_MINUTES = (10, 20)
-TEXT_RETRY_MINUTES = (10, 20)
-# Railway doesn't start a scheduled run while the previous one is still running, so a
-# stuck run would block the next days. Two hours fit a run that waits for the text and
-# the voice retries.
-MAX_RUN_MINUTES = 120
-
-BRL_PER_USD = 5.50
-
 FULL_TEXT_DOMAINS = (
     "g1.globo.com",
     "cnnbrasil.com.br",

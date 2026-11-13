@@ -1,7 +1,8 @@
 from datetime import datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
-from news_podcast.api.episode import config
+from news_podcast.api.core.config import NATURAL_WORDS_PER_MINUTE
+from news_podcast.api.episode.config import MINUTES_PER_STORY
 from news_podcast.api.episode.schemas import EpisodeOptions
 
 PODCAST_NAMES = {
@@ -16,7 +17,7 @@ def target_minutes(options: EpisodeOptions) -> float:
 
 
 def words_per_minute(options: EpisodeOptions) -> int:
-    return round(config.NATURAL_WORDS_PER_MINUTE * options.speech_speed)
+    return round(NATURAL_WORDS_PER_MINUTE * options.speech_speed)
 
 
 def word_range(options: EpisodeOptions) -> tuple[int, int]:
@@ -26,8 +27,8 @@ def word_range(options: EpisodeOptions) -> tuple[int, int]:
 
 def story_range(options: EpisodeOptions) -> tuple[int, int]:
     return (
-        round(options.min_minutes / config.MINUTES_PER_STORY),
-        round(options.max_minutes / config.MINUTES_PER_STORY),
+        round(options.min_minutes / MINUTES_PER_STORY),
+        round(options.max_minutes / MINUTES_PER_STORY),
     )
 
 
@@ -54,3 +55,17 @@ def next_send(now: datetime, local_tz: ZoneInfo) -> datetime:
     that starts at 6h40 makes the 7h episode, so the Railway cron alone sets it."""
     local_now = now.astimezone(local_tz)
     return local_now.replace(minute=0, second=0, microsecond=0) + timedelta(hours=1)
+
+
+def news_window(
+    now: datetime,
+    scheduled_for: datetime | None,
+    hours: int,
+    hours_before_send: int,
+) -> tuple[datetime, datetime]:
+    if scheduled_for is None:
+        return now - timedelta(hours=hours), now
+
+    top_of_send_hour = scheduled_for.replace(minute=0, second=0, microsecond=0)
+    end = top_of_send_hour - timedelta(hours=hours_before_send)
+    return end - timedelta(hours=hours), end

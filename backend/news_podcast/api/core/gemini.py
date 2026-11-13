@@ -11,8 +11,8 @@ from typing import Any
 
 import httpx
 
-from news_podcast.api.episode.config import AUDIO_TOKENS_PER_SECOND
-from news_podcast.api.episode.schemas import Host, Turn, Usage
+from news_podcast.api.core.config import AUDIO_TOKENS_PER_SECOND
+from news_podcast.api.core.schemas import Host, Turn, Usage
 
 logger = logging.getLogger(__name__)
 

@@ -8,33 +8,45 @@ from typing import Any
 import httpx
 import pytest
 
-from news_podcast.api.episode import config, prompts
-from news_podcast.api.episode.gemini import (
+from news_podcast.api.core import config as core_config
+from news_podcast.api.core.gemini import (
     GeminiClient,
     GeminiError,
     GeminiQuotaExhaustedError,
     GeminiUnavailableError,
 )
-from news_podcast.api.episode.schemas import (
-    EpisodeOptions,
-    EpisodeReport,
+from news_podcast.api.core.schemas import (
     Host,
     Script,
-    StorySelection,
     TelegramChat,
     Turn,
     Usage,
 )
-from news_podcast.api.episode.service import (
+from news_podcast.api.core.telegram import (
+    TelegramClient,
+    TelegramError,
+)
+from news_podcast.api.core.turns import (
     MIN_SCRIPT_TURNS,
-    EpisodeError,
-    NewsPodcastService,
+)
+from news_podcast.api.episode import config, prompts
+from news_podcast.api.episode.run import episode_settings
+from news_podcast.api.episode.schemas import (
+    EpisodeOptions,
+    EpisodeReport,
+    StorySelection,
+)
+from news_podcast.api.episode.script import (
     expand_prompt,
     script_prompt,
-    selection_prompt,
-    send_chat_ids,
 )
-from news_podcast.api.episode.telegram import TelegramClient, TelegramError
+from news_podcast.api.episode.selection import (
+    selection_prompt,
+)
+from news_podcast.api.episode.service import (
+    EpisodeError,
+    EpisodeService,
+)
 from news_podcast.models import PodcastSettings
 
 TURNS = [Turn(speaker="Bia", text="Bom dia")]
@@ -98,13 +110,13 @@ class FakeGemini(GeminiClient):
 
 def make_service(
     http_client: httpx.AsyncClient, gemini: GeminiClient
-) -> NewsPodcastService:
-    return NewsPodcastService(
+) -> EpisodeService:
+    return EpisodeService(
         http_client=http_client,
         gemini=gemini,
         telegram=None,
         chat_id=None,
-        podcast_settings=PodcastSettings(),
+        settings=episode_settings(PodcastSettings()),
         sources=[],
     )
 
@@ -284,18 +296,18 @@ def test_text_waits_and_asks_every_model_again_when_none_answers(
     asked, error = ask_scripted({MAIN: [BUSY, BUSY], FALLBACK: [BUSY, ANSWER]})
 
     assert error is None
-    assert waits == [config.TEXT_RETRY_MINUTES[0] * 60]
+    assert waits == [core_config.TEXT_RETRY_MINUTES[0] * 60]
     assert asked == [MAIN, FALLBACK, MAIN, FALLBACK]
 
 
 def test_text_gives_up_after_the_last_retry(monkeypatch: pytest.MonkeyPatch) -> None:
     waits = record_waits(monkeypatch)
-    rounds = len(config.TEXT_RETRY_MINUTES) + 1
+    rounds = len(core_config.TEXT_RETRY_MINUTES) + 1
 
     _, error = ask_scripted({MAIN: [BUSY] * rounds, FALLBACK: [BUSY] * rounds})
 
     assert error is not None
-    assert waits == [minutes * 60 for minutes in config.TEXT_RETRY_MINUTES]
+    assert waits == [minutes * 60 for minutes in core_config.TEXT_RETRY_MINUTES]
 
 
 def test_the_text_waits_are_shared_by_the_whole_run(
@@ -323,7 +335,7 @@ def test_the_text_waits_are_shared_by_the_whole_run(
     error = asyncio.run(scenario())
 
     assert error is not None
-    assert waits == [minutes * 60 for minutes in config.TEXT_RETRY_MINUTES]
+    assert waits == [minutes * 60 for minutes in core_config.TEXT_RETRY_MINUTES]
 
 
 def test_text_does_not_wait_when_the_answers_are_bad(
@@ -371,7 +383,7 @@ def test_lengthening_the_script_does_not_wait_for_the_models(
     waits = record_waits(monkeypatch)
     turn = {"speaker": "Bia", "text": "Bom dia", "headline": False}
     short_script = json.dumps({"turns": [turn] * MIN_SCRIPT_TURNS})
-    start = datetime(2026, 11, 9, 6, 0, tzinfo=config.LOCAL_TZ)
+    start = datetime(2026, 11, 9, 6, 0, tzinfo=core_config.LOCAL_TZ)
 
     async def scenario() -> Script:
         async with httpx.AsyncClient() as client:
@@ -397,19 +409,19 @@ def test_voice_waits_and_tries_again_when_gemini_is_unavailable(
 
     remaining = asyncio.run(synthesize_with([GeminiUnavailableError("503")]))
 
-    assert waits == [config.VOICE_RETRY_MINUTES[0] * 60]
-    assert remaining == list(config.VOICE_RETRY_MINUTES[1:])
+    assert waits == [core_config.VOICE_RETRY_MINUTES[0] * 60]
+    assert remaining == list(core_config.VOICE_RETRY_MINUTES[1:])
 
 
 def test_voice_gives_up_after_the_last_retry(monkeypatch: pytest.MonkeyPatch) -> None:
     waits = record_waits(monkeypatch)
-    retries = len(config.VOICE_RETRY_MINUTES)
+    retries = len(core_config.VOICE_RETRY_MINUTES)
     failures: list[Exception] = [GeminiUnavailableError("503")] * (retries + 1)
 
     with pytest.raises(GeminiUnavailableError):
         asyncio.run(synthesize_with(failures))
 
-    assert waits == [minutes * 60 for minutes in config.VOICE_RETRY_MINUTES]
+    assert waits == [minutes * 60 for minutes in core_config.VOICE_RETRY_MINUTES]
 
 
 def test_voice_does_not_wait_when_the_daily_quota_is_over(
@@ -425,8 +437,8 @@ def test_voice_does_not_wait_when_the_daily_quota_is_over(
 
 def test_prompts_follow_the_configured_options() -> None:
     options = EpisodeOptions(20, 30, 1.0)
-    start = datetime(2026, 11, 6, 20, 0, tzinfo=config.LOCAL_TZ)
-    end = datetime(2026, 11, 7, 20, 0, tzinfo=config.LOCAL_TZ)
+    start = datetime(2026, 11, 6, 20, 0, tzinfo=core_config.LOCAL_TZ)
+    end = datetime(2026, 11, 7, 20, 0, tzinfo=core_config.LOCAL_TZ)
 
     selection = selection_prompt(prompts.SELECTION_PROMPT, options, start, end)
     script = script_prompt(
@@ -442,8 +454,8 @@ def test_prompts_follow_the_configured_options() -> None:
 
 
 def test_default_prompts_keep_the_morning_episode() -> None:
-    start = datetime(2026, 11, 5, 6, 0, tzinfo=config.LOCAL_TZ)
-    end = datetime(2026, 11, 6, 6, 0, tzinfo=config.LOCAL_TZ)
+    start = datetime(2026, 11, 5, 6, 0, tzinfo=core_config.LOCAL_TZ)
+    end = datetime(2026, 11, 6, 6, 0, tzinfo=core_config.LOCAL_TZ)
 
     selection = selection_prompt(prompts.SELECTION_PROMPT, DEFAULT_OPTIONS, start, end)
     script = script_prompt(
@@ -485,8 +497,8 @@ def every_placeholder(fields: tuple[str, ...]) -> str:
 
 def test_the_service_fills_every_placeholder_the_admin_accepts() -> None:
     # str.format raises KeyError for a placeholder it is not given.
-    start = datetime(2026, 11, 6, 6, 0, tzinfo=config.LOCAL_TZ)
-    end = datetime(2026, 11, 7, 6, 0, tzinfo=config.LOCAL_TZ)
+    start = datetime(2026, 11, 6, 6, 0, tzinfo=core_config.LOCAL_TZ)
+    end = datetime(2026, 11, 7, 6, 0, tzinfo=core_config.LOCAL_TZ)
 
     selection = selection_prompt(
         every_placeholder(prompts.SELECTION_FIELDS), DEFAULT_OPTIONS, start, end
@@ -530,23 +542,16 @@ def telegram_service(
     telegram: TelegramClient,
     chat_id: str | None,
     admin_chat_id: str | None = None,
-) -> NewsPodcastService:
-    return NewsPodcastService(
+) -> EpisodeService:
+    return EpisodeService(
         http_client=client,
         gemini=None,
         telegram=telegram,
         chat_id=chat_id,
-        podcast_settings=PodcastSettings(),
+        settings=episode_settings(PodcastSettings()),
         sources=[],
         admin_chat_id=admin_chat_id,
     )
-
-
-async def report_chats(admin_chat_id: str | None) -> list[tuple[str, str]]:
-    async with httpx.AsyncClient() as client:
-        telegram = FakeTelegram(client)
-        await send_chat_ids(telegram, admin_chat_id)
-        return telegram.sent
 
 
 def test_episode_goes_out_as_a_single_voice_message(tmp_path: Path) -> None:
@@ -632,7 +637,7 @@ def test_a_refused_send_warns_the_admin_chat(
 def test_a_run_past_the_time_limit_stops_and_warns_the_admin_chat(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(config, "MAX_RUN_MINUTES", 0.001)
+    monkeypatch.setattr(core_config, "MAX_RUN_MINUTES", 0.001)
 
     async def scenario() -> list[tuple[str, str]]:
         async with httpx.AsyncClient() as client:
@@ -674,14 +679,6 @@ def test_a_timeout_inside_the_run_keeps_its_own_error(
         asyncio.run(scenario())
 
 
-def test_chat_list_goes_only_to_the_admin_chat() -> None:
-    sent = asyncio.run(report_chats(admin_chat_id="11"))
-
-    assert [chat_id for chat_id, _ in sent] == ["11"]
-    assert "👤 Felipe: <code>11</code>" in sent[0][1]
-    assert "👥 Resumo &amp; cia: <code>-22</code>" in sent[0][1]
-
-
 def test_errors_go_to_the_admin_chat_not_the_group(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -698,10 +695,3 @@ def test_errors_go_to_the_admin_chat_not_the_group(
             return telegram.sent
 
     assert [chat_id for chat_id, _ in asyncio.run(scenario())] == ["11"]
-
-
-def test_first_setup_sends_each_chat_its_own_id() -> None:
-    sent = asyncio.run(report_chats(admin_chat_id=None))
-
-    assert [chat_id for chat_id, _ in sent] == ["11", "-22"]
-    assert all(f"<code>{chat_id}</code>" in text for chat_id, text in sent)

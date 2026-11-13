@@ -6,11 +6,18 @@ from django.core.exceptions import ValidationError
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 
+from news_podcast.api.core.config import (
+    LOCAL_TZ,
+    MAX_SPEECH_MINUTES,
+    SHORTEST_EPISODE_MINUTES,
+    SPEECH_SPEED_LIMITS,
+)
+from news_podcast.api.core.schemas import ModelPrice
 from news_podcast.api.episode import config, prompts
 from news_podcast.api.episode.feeds import GOOGLE_NEWS_HOST
-from news_podcast.api.episode.schemas import EpisodeOptions, FeedSource, ModelPrice
+from news_podcast.api.episode.schemas import EpisodeOptions, FeedSource
 
-SLOWEST, FASTEST = config.SPEECH_SPEED_LIMITS
+SLOWEST, FASTEST = SPEECH_SPEED_LIMITS
 BRACES_HELP = "Write a literal brace as {{ or }}."
 PROMPT_FIELDS = {
     "selection_prompt": prompts.SELECTION_FIELDS,
@@ -81,7 +88,7 @@ class PodcastSettings(models.Model):
     min_minutes = models.PositiveSmallIntegerField(
         "minimum minutes",
         default=partial(starting_value, "min_minutes"),
-        validators=[MinValueValidator(config.SHORTEST_EPISODE_MINUTES)],
+        validators=[MinValueValidator(SHORTEST_EPISODE_MINUTES)],
         help_text="Length of the file on Telegram, at the speech speed.",
     )
     max_minutes = models.PositiveSmallIntegerField(
@@ -169,12 +176,12 @@ class PodcastSettings(models.Model):
         speech_minutes = self.max_minutes * self.speech_speed
         if self.min_minutes > self.max_minutes:
             errors["max_minutes"] = "Must not be less than the minimum."
-        elif speech_minutes > config.MAX_SPEECH_MINUTES:
+        elif speech_minutes > MAX_SPEECH_MINUTES:
             errors["max_minutes"] = (
                 f"{self.max_minutes} minutes at {self.speech_speed:g}x are "
                 f"{speech_minutes:g} minutes of speech, over the limit of "
-                f"{config.MAX_SPEECH_MINUTES} (MAX_SPEECH_MINUTES in config.py). Lower "
-                "the maximum or the speed."
+                f"{MAX_SPEECH_MINUTES} (MAX_SPEECH_MINUTES in api/core/config.py). "
+                "Lower the maximum or the speed."
             )
         for name, fields in PROMPT_FIELDS.items():
             error = placeholder_error(getattr(self, name), fields)
@@ -298,4 +305,4 @@ class Episode(models.Model):
         ordering = ["-started_at"]
 
     def __str__(self) -> str:
-        return f"{self.started_at.astimezone(config.LOCAL_TZ):%d/%m/%Y %H:%M}"
+        return f"{self.started_at.astimezone(LOCAL_TZ):%d/%m/%Y %H:%M}"

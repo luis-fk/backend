@@ -1,17 +1,20 @@
-from datetime import datetime, time
+from datetime import UTC, datetime, time
 from zoneinfo import ZoneInfo
 
 import pytest
 
 from news_podcast.api.episode.options import (
     greeting,
+    news_window,
     next_send,
     podcast_name,
     spoken_time,
     story_range,
     word_range,
 )
-from news_podcast.api.episode.schemas import EpisodeOptions
+from news_podcast.api.episode.schemas import (
+    EpisodeOptions,
+)
 
 SAO_PAULO = ZoneInfo("America/Sao_Paulo")
 DEFAULTS = EpisodeOptions(12, 18, 1.0)
@@ -62,3 +65,32 @@ def test_the_episode_hour_is_local_and_can_fall_on_the_next_day() -> None:
     now = datetime(2026, 11, 8, 2, 10, tzinfo=ZoneInfo("UTC"))
 
     assert next_send(now, SAO_PAULO) == datetime(2026, 11, 8, 0, 0, tzinfo=SAO_PAULO)
+
+
+def test_manual_window_ends_now() -> None:
+    now = datetime(2026, 11, 6, 17, 30, tzinfo=UTC)
+
+    start, end = news_window(now, None, 24, 1)
+
+    assert end == now
+    assert start == datetime(2026, 11, 5, 17, 30, tzinfo=UTC)
+
+
+def test_scheduled_window_closes_at_the_top_of_the_hour_before_sending() -> None:
+    now = datetime(2026, 11, 6, 6, 15, tzinfo=SAO_PAULO)
+    send = datetime(2026, 11, 6, 7, 30, tzinfo=SAO_PAULO)
+
+    start, end = news_window(now, send, 24, 1)
+
+    assert end == datetime(2026, 11, 6, 6, 0, tzinfo=SAO_PAULO)
+    assert start == datetime(2026, 11, 5, 6, 0, tzinfo=SAO_PAULO)
+
+
+def test_evening_window_covers_the_day() -> None:
+    now = datetime(2026, 11, 6, 20, 10, tzinfo=SAO_PAULO)
+    send = datetime(2026, 11, 6, 21, 0, tzinfo=SAO_PAULO)
+
+    start, end = news_window(now, send, 24, 1)
+
+    assert end == datetime(2026, 11, 6, 20, 0, tzinfo=SAO_PAULO)
+    assert start == datetime(2026, 11, 5, 20, 0, tzinfo=SAO_PAULO)

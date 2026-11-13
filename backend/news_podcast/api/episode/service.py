@@ -2,7 +2,7 @@ import asyncio
 import json
 import logging
 import tempfile
-from collections.abc import Callable, Sequence
+from collections.abc import Callable
 from datetime import UTC, date, datetime, time
 from pathlib import Path
 from typing import Any, TypeVar
@@ -10,65 +10,64 @@ from typing import Any, TypeVar
 import httpx
 from pydantic import BaseModel, ValidationError
 
-from news_podcast.api.episode import config
-from news_podcast.api.episode.articles import build_briefs
-from news_podcast.api.episode.audio import build_voice_note
-from news_podcast.api.episode.feeds import (
-    fetch_items,
-    format_for_selection,
-)
-from news_podcast.api.episode.gemini import (
+from news_podcast.api.core import config
+from news_podcast.api.core.audio import build_voice_note
+from news_podcast.api.core.gemini import (
     GeminiClient,
     GeminiError,
     GeminiQuotaExhaustedError,
     GeminiUnavailableError,
     answer_json,
 )
+from news_podcast.api.core.schemas import Script, Turn, Usage
+from news_podcast.api.core.telegram import TelegramClient, notify_failure
+from news_podcast.api.core.turns import chunk_turns, count_words
+from news_podcast.api.episode.articles import build_briefs
+from news_podcast.api.episode.config import (
+    NEWS_CUTOFF_HOURS_BEFORE_SEND,
+    NEWS_WINDOW_HOURS,
+    SHORT_SCRIPT_RATIO,
+)
+from news_podcast.api.episode.feeds import fetch_items, format_for_selection
 from news_podcast.api.episode.messages import (
-    chat_id_message,
-    chat_list_message,
+    FAILURE_SUBJECT,
     episode_caption,
     episode_details,
-    failure_message,
-    long_date,
 )
 from news_podcast.api.episode.options import (
-    greeting,
+    news_window,
     next_send,
     podcast_name,
-    spoken_time,
     story_range,
-    target_minutes,
     word_range,
     words_per_minute,
 )
 from news_podcast.api.episode.schemas import (
-    EpisodeOptions,
     EpisodeReport,
+    EpisodeSettings,
     FeedSource,
     NewsItem,
-    Script,
     SelectedStory,
     StoryBrief,
     StorySelection,
-    Turn,
-    Usage,
 )
-from news_podcast.api.episode.telegram import TelegramClient, TelegramError
-from news_podcast.api.episode.utils import (
-    chunk_turns,
-    clean_turns,
-    count_words,
+from news_podcast.api.episode.script import (
+    expand_prompt,
     format_briefs,
-    news_window,
+    parse_script,
+    script_prompt,
+)
+from news_podcast.api.episode.selection import (
+    log_selection,
+    selection_prompt,
     valid_stories,
 )
-from news_podcast.models import PodcastSettings
 
 logger = logging.getLogger(__name__)
 
 T = TypeVar("T")
-MIN_SCRIPT_TURNS = 10
+
+
 # A failed answer, like invalid JSON, can be a one-off, so each model gets a second
 # try before the next one.
 ANSWERS_PER_MODEL = 2
@@ -78,14 +77,14 @@ class EpisodeError(Exception):
     pass
 
 
-class NewsPodcastService:
+class EpisodeService:
     def __init__(
         self,
         http_client: httpx.AsyncClient,
         gemini: GeminiClient | None,
         telegram: TelegramClient | None,
         chat_id: str | None,
-        podcast_settings: PodcastSettings,
+        settings: EpisodeSettings,
         sources: list[FeedSource],
         admin_chat_id: str | None = None,
     ) -> None:
@@ -95,10 +94,10 @@ class NewsPodcastService:
         self.chat_id = chat_id
         # Errors go here, not to the episode's chat.
         self.admin_chat_id = admin_chat_id or chat_id
-        self.podcast_settings = podcast_settings
-        # Read from the database by the command, outside the event loop.
+        self.settings = settings
+        # Read from the database by run.py, outside the event loop.
         self.sources = sources
-        self.options = podcast_settings.episode_options()
+        self.options = settings.options
         self.step = "início"
         # Every Gemini answer, kept as the run goes, so a failed run has its cost too.
         self.usages: list[Usage] = []
@@ -124,7 +123,7 @@ class NewsPodcastService:
             logger.exception(f"Episode failed during '{self.step}'")
             if send:
                 await notify_failure(
-                    self.telegram, self.admin_chat_id, self.step, error
+                    self.telegram, self.admin_chat_id, FAILURE_SUBJECT, self.step, error
                 )
             raise
         return report
@@ -160,8 +159,8 @@ class NewsPodcastService:
         start, end = news_window(
             now,
             scheduled_for,
-            config.NEWS_WINDOW_HOURS,
-            config.NEWS_CUTOFF_HOURS_BEFORE_SEND,
+            NEWS_WINDOW_HOURS,
+            NEWS_CUTOFF_HOURS_BEFORE_SEND,
         )
         logger.info(
             f"The {send_at:%H:%M} episode, of {self.options.min_minutes}-"
@@ -200,7 +199,7 @@ class NewsPodcastService:
 
         caption = episode_caption(podcast_name(send_at.time()), day)
         details = episode_details(
-            briefs=briefs, usages=self.usages, prices=self.podcast_settings.prices()
+            briefs=briefs, usages=self.usages, prices=self.settings.prices
         )
         logger.info(f"Episode ready: {duration:.0f}s\n{caption}\n{details}")
         return EpisodeReport(
@@ -215,7 +214,7 @@ class NewsPodcastService:
     ) -> list[SelectedStory]:
         items_by_id = {item.id: item for item in items}
         system_prompt = selection_prompt(
-            self.podcast_settings.selection_prompt, self.options, start, end
+            self.settings.selection_prompt, self.options, start, end
         )
         _, max_stories = story_range(self.options)
 
@@ -247,7 +246,7 @@ class NewsPodcastService:
     ) -> Script:
         min_words, _ = word_range(self.options)
         system_prompt = script_prompt(
-            self.podcast_settings.script_prompt, self.options, day, start, end, send_at
+            self.settings.script_prompt, self.options, day, start, end, send_at
         )
         user_prompt = format_briefs(briefs, words_per_minute(self.options))
         script = await self._ask_json(
@@ -256,12 +255,10 @@ class NewsPodcastService:
 
         words = count_words(script.turns)
         logger.info(f"Script has {words} words in {len(script.turns)} turns")
-        if words >= config.SHORT_SCRIPT_RATIO * min_words:
+        if words >= SHORT_SCRIPT_RATIO * min_words:
             return script
 
-        expand = expand_prompt(
-            self.podcast_settings.expand_prompt, self.options, script
-        )
+        expand = expand_prompt(self.settings.expand_prompt, self.options, script)
         try:
             # One round and no wait: the short script will do.
             longer = await self._ask_each_model(
@@ -362,7 +359,7 @@ class NewsPodcastService:
     def _available_text_models(self) -> list[str]:
         return [
             model
-            for model in self.podcast_settings.text_models()
+            for model in self.settings.text_models
             if model not in self.unavailable_models | self.exhausted_models
         ]
 
@@ -385,12 +382,12 @@ class NewsPodcastService:
         while True:
             try:
                 return await gemini.synthesize_dialogue(
-                    self.podcast_settings.voice_model,
+                    self.settings.voice_model,
                     turns,
                     config.HOSTS,
                     "voice",
-                    style=self.podcast_settings.voice_style,
-                    headline_style=self.podcast_settings.headline_voice_style,
+                    style=self.settings.voice_style,
+                    headline_style=self.settings.headline_voice_style,
                 )
             except GeminiQuotaExhaustedError:
                 raise
@@ -421,122 +418,6 @@ class NewsPodcastService:
         return self.telegram, self.chat_id
 
 
-async def send_chat_ids(
-    telegram: TelegramClient | None, admin_chat_id: str | None
-) -> int:
-    """Sends the list of the chats the bot saw to the admin chat. On the first setup,
-    with no chat configured, sends each chat its own id instead."""
-    if telegram is None:
-        raise EpisodeError("TELEGRAM_BOT_TOKEN não configurado")
-
-    chats = await telegram.recent_chats()
-    if not chats:
-        raise EpisodeError(
-            "Nenhuma conversa encontrada. Mande /start para o bot ou adicione ele "
-            "a um grupo no Telegram e rode de novo."
-        )
-    if admin_chat_id:
-        await telegram.send_message(admin_chat_id, chat_list_message(chats))
-        return len(chats)
-
-    for chat in chats:
-        await telegram.send_message(chat.id, chat_id_message(chat.id))
-    return len(chats)
-
-
-async def notify_failure(
-    telegram: TelegramClient | None, chat_id: str | None, step: str, error: Exception
-) -> None:
-    if telegram is None or not chat_id:
-        return
-    try:
-        await telegram.send_message(chat_id, failure_message(step, error))
-    except TelegramError as notify_error:
-        logger.error(f"Could not report the failure on Telegram: {notify_error}")
-
-
-def parse_script(data: Any) -> Script:
-    script = Script.model_validate(data)
-    turns = clean_turns(script.turns, config.HOSTS)
-    if len(turns) < MIN_SCRIPT_TURNS:
-        raise GeminiError(f"o roteiro veio com só {len(turns)} falas")
-    return script.model_copy(update={"turns": turns})
-
-
-# Each prompt gets the placeholders listed for it in prompts.py, the only ones the
-# admin accepts.
-
-
-def selection_prompt(
-    template: str, options: EpisodeOptions, start: datetime, end: datetime
-) -> str:
-    min_stories, max_stories = story_range(options)
-    return template.format(
-        min_minutes=options.min_minutes,
-        max_minutes=options.max_minutes,
-        target_minutes=round(target_minutes(options)),
-        min_stories=min_stories,
-        max_stories=max_stories,
-        window_start=local_label(start),
-        window_end=local_label(end),
-    )
-
-
-def script_prompt(
-    template: str,
-    options: EpisodeOptions,
-    day: date,
-    start: datetime,
-    end: datetime,
-    send_at: time,
-) -> str:
-    min_words, max_words = word_range(options)
-    return template.format(
-        podcast_name=podcast_name(send_at),
-        host_a=config.HOSTS[0].name,
-        host_b=config.HOSTS[1].name,
-        send_time=spoken_time(send_at),
-        greeting=greeting(send_at),
-        today=long_date(day),
-        window_start=local_label(start),
-        window_end=local_label(end),
-        min_words=min_words,
-        max_words=max_words,
-    )
-
-
-def expand_prompt(template: str, options: EpisodeOptions, script: Script) -> str:
-    min_words, max_words = word_range(options)
-    return template.format(
-        words=count_words(script.turns),
-        min_words=min_words,
-        max_words=max_words,
-        script=script.model_dump_json(),
-    )
-
-
-def local_label(moment: datetime) -> str:
-    return moment.astimezone(config.LOCAL_TZ).strftime("%d/%m às %H:%M")
-
-
 def save_debug(name: str, payload: Any) -> None:
     path = config.OUTPUT_DIR / name
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2, default=str))
-
-
-def log_selection(
-    stories: Sequence[SelectedStory], items_by_id: dict[str, NewsItem]
-) -> None:
-    for story in stories:
-        outlets = sorted({items_by_id[item_id].outlet for item_id in story.item_ids})
-        logger.info(
-            f"Story ({story.minutes} min): {story.title} | {', '.join(outlets)}"
-        )
-
-    has_preferred = any(
-        items_by_id[item_id].outlet in config.PREFERRED_OUTLETS
-        for story in stories
-        for item_id in story.item_ids
-    )
-    if not has_preferred:
-        logger.info("No story from the preferred outlets today")
