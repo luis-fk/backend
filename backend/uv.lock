@@ -319,7 +319,7 @@ wheels = [
 [[package]]
 name = "backend"
 version = "4.7.0"
-source = { editable = "." }
+source = { virtual = "." }
 dependencies = [
     { name = "channels" },
     { name = "channels-redis" },

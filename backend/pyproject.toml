@@ -47,20 +47,18 @@ dev = [
     "pytest-django==4.14.0",
 ]
 
-[build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
-
-
 [tool.mypy]
 strict = true
 warn_return_any = true
 ignore_missing_imports = true
 plugins = ["mypy_django_plugin.main", "pydantic.mypy"]
 exclude = [
-    "backend/settings.py",
     ".*/admin\\.py",
 ]
+
+[[tool.mypy.overrides]]
+module = "backend.settings"
+ignore_errors = true
 
 
 [tool.django-stubs]
