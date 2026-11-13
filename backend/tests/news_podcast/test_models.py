@@ -111,6 +111,31 @@ def test_the_fallback_model_may_be_empty() -> None:
     PodcastSettings(fallback_model="").full_clean()
 
 
+@pytest.mark.parametrize(
+    "name",
+    [
+        "openai:gpt-4o-mini-tts",
+        "eleven-v3",
+        "google_genai:",
+        "google_vertexai:gemini-3.8-flash-lite-tts",
+    ],
+)
+def test_the_voice_model_needs_a_voice_provider(name: str) -> None:
+    with pytest.raises(ValidationError) as caught:
+        PodcastSettings(voice_model=name).full_clean()
+
+    message = " ".join(caught.value.message_dict["voice_model"])
+    assert "google_genai" in message
+    assert "openai" not in message
+
+
+@pytest.mark.parametrize(
+    "name", ["gemini-3.8-flash-lite-tts", "google_genai:gemini-3.8-flash-lite-tts"]
+)
+def test_the_voice_model_is_a_bare_gemini_name_or_provider_model(name: str) -> None:
+    PodcastSettings(voice_model=name).full_clean()
+
+
 @DATABASES
 def test_the_feed_list_starts_with_the_one_in_the_code() -> None:
     sources = Feed.sources()

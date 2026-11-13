@@ -9,22 +9,32 @@ from collections.abc import Sequence
 from typing import Any
 
 import httpx
+from django.conf import settings
 
 from news_podcast.api.core.config import AUDIO_TOKENS_PER_SECOND
+from news_podcast.api.core.llm import split_model
+from news_podcast.api.core.retries import (
+    MAX_ATTEMPTS,
+    RATE_LIMIT_WAIT_SECONDS,
+    RETRYABLE_STATUS,
+    backoff_seconds,
+    is_daily_quota,
+    retry_delay,
+)
 from news_podcast.api.core.schemas import Host, Turn, Usage
+from news_podcast.api.core.voice.base import (
+    VoiceError,
+    VoiceQuotaExhaustedError,
+    VoiceUnavailableError,
+)
 
 logger = logging.getLogger(__name__)
 
 API_ROOT = "https://generativelanguage.googleapis.com/v1beta"
-MAX_ATTEMPTS = 3
-MAX_RETRY_DELAY_SECONDS = 90.0
-RATE_LIMIT_WAIT_SECONDS = 30.0
 TTS_TIMEOUT_SECONDS = 180.0
-RETRYABLE_STATUS = frozenset({429, 500, 502, 503, 504})
 PCM_SAMPLE_RATE = 24000
 PCM_SAMPLE_WIDTH = 2
 CHARS_PER_TOKEN = 4
-SECONDS_PATTERN = re.compile(r"([\d.]+)s")
 RATE_PATTERN = re.compile(r"rate=(\d+)")
 INPUT_TOKEN_KEYS = (
     "total_input_tokens",
@@ -34,41 +44,37 @@ INPUT_TOKEN_KEYS = (
 )
 
 
-class GeminiError(Exception):
-    pass
+class GeminiVoice:
+    """Gemini's voice: the Interactions API over httpx, with its own attempts."""
 
-
-class GeminiUnavailableError(GeminiError):
-    pass
-
-
-class GeminiQuotaExhaustedError(GeminiUnavailableError):
-    pass
-
-
-class GeminiClient:
-    def __init__(self, http_client: httpx.AsyncClient, api_key: str) -> None:
+    def __init__(self, model: str, http_client: httpx.AsyncClient) -> None:
+        api_key = getattr(settings, "GEMINI_API_KEY", None)
+        if not api_key:
+            raise VoiceError("GEMINI_API_KEY não configurada")
+        # The saved name stays the usage's model, the key to its price; the API gets
+        # the model without its provider.
+        self.model = model
+        self.model_id = split_model(model)[1]
         self.http_client = http_client
         self.api_key = api_key
 
-    async def synthesize_dialogue(
+    async def synthesize(
         self,
-        model: str,
         turns: list[Turn],
         hosts: Sequence[Host],
-        step: str,
         *,
         style: str,
         headline_style: str,
+        step: str,
     ) -> tuple[bytes, Usage]:
         data = await self._post(
             f"{API_ROOT}/interactions",
-            build_tts_body(model, turns, hosts, style, headline_style),
+            build_tts_body(self.model_id, turns, hosts, style, headline_style),
             TTS_TIMEOUT_SECONDS,
-            f"{model} ({step})",
+            f"{self.model} ({step})",
         )
         audio = extract_audio_wav(data)
-        return audio, tts_usage(data, step, model, wav_duration(audio), turns)
+        return audio, tts_usage(data, step, self.model, wav_duration(audio), turns)
 
     async def _post(
         self, url: str, body: dict[str, Any], timeout: float, label: str
@@ -90,17 +96,17 @@ class GeminiClient:
             error = json_object(response)
             message = error_message(response.status_code, error)
             if response.status_code == 429 and is_daily_quota(error):
-                raise GeminiQuotaExhaustedError(message)
+                raise VoiceQuotaExhaustedError(message)
             if response.status_code not in RETRYABLE_STATUS:
-                raise GeminiError(message)
+                raise VoiceError(message)
             if attempt == MAX_ATTEMPTS:
-                raise GeminiUnavailableError(message)
+                raise VoiceUnavailableError(message)
 
             delay = wait_seconds(response.status_code, error, attempt)
             logger.warning(f"Gemini {label}: {message}; retrying in {delay:.0f}s")
             await asyncio.sleep(delay)
 
-        raise GeminiUnavailableError(
+        raise VoiceUnavailableError(
             "O Gemini não respondeu depois de várias tentativas"
         )
 
@@ -115,22 +121,18 @@ class GeminiClient:
                 timeout=timeout,
             )
         except httpx.TimeoutException as error:
-            raise GeminiUnavailableError(
+            raise VoiceUnavailableError(
                 f"O Gemini não respondeu em {timeout:.0f}s"
             ) from error
         except httpx.TransportError as error:
             reason = f"{type(error).__name__} {error}".strip()
             if attempt == MAX_ATTEMPTS:
-                raise GeminiUnavailableError(
+                raise VoiceUnavailableError(
                     f"Falha de conexão com o Gemini: {reason}"
                 ) from error
             logger.warning(f"Gemini {label}: {reason}, retrying")
             await asyncio.sleep(backoff_seconds(attempt))
             return None
-
-
-def backoff_seconds(attempt: int) -> float:
-    return float(min(5 * 2 ** (attempt - 1), MAX_RETRY_DELAY_SECONDS))
 
 
 def wait_seconds(status: int, error: dict[str, Any], attempt: int) -> float:
@@ -148,29 +150,6 @@ def json_object(response: httpx.Response) -> dict[str, Any]:
     except ValueError:
         return {}
     return payload if isinstance(payload, dict) else {}
-
-
-def error_details(error: dict[str, Any]) -> list[dict[str, Any]]:
-    details = (error.get("error") or {}).get("details") or []
-    return [detail for detail in details if isinstance(detail, dict)]
-
-
-def is_daily_quota(error: dict[str, Any]) -> bool:
-    for detail in error_details(error):
-        for violation in detail.get("violations") or []:
-            quota_id = str(violation.get("quotaId", ""))
-            metric = str(violation.get("quotaMetric", ""))
-            if "PerDay" in quota_id or "per_day" in metric:
-                return True
-    return False
-
-
-def retry_delay(error: dict[str, Any]) -> float | None:
-    for detail in error_details(error):
-        match = SECONDS_PATTERN.fullmatch(str(detail.get("retryDelay", "")))
-        if match:
-            return min(float(match.group(1)) + 1, MAX_RETRY_DELAY_SECONDS)
-    return None
 
 
 def error_message(status: int, error: dict[str, Any]) -> str:
@@ -201,7 +180,8 @@ def build_tts_body(
         for turn in turns
     ]
     speakers = [
-        {"speaker": host.speaker_id, "voice": host.gemini_voice} for host in hosts
+        {"speaker": host.speaker_id, "voice": host.voices["google_genai"]}
+        for host in hosts
     ]
     return {
         "model": model,
@@ -214,7 +194,7 @@ def build_tts_body(
 def extract_audio_wav(data: dict[str, Any]) -> bytes:
     clips = [decode_clip(encoded, mime) for encoded, mime in find_audio_payloads(data)]
     if not clips:
-        raise GeminiError("O Gemini não devolveu áudio")
+        raise VoiceError("O Gemini não devolveu áudio")
     if len(clips) == 1:
         return clips[0]
 

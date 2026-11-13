@@ -6,7 +6,8 @@ from pydantic import BaseModel, ConfigDict, Field
 class Host(NamedTuple):
     name: str
     speaker_id: str
-    gemini_voice: str
+    # The host's voice in each voice provider, by the provider's name.
+    voices: dict[str, str]
 
 
 class ModelPrice(NamedTuple):

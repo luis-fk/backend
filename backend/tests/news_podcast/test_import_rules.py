@@ -13,6 +13,10 @@ MODELS = "news_podcast.models"
 # these modules and every command.
 ORM_MODULES = (MODELS, "news_podcast.admin", f"{EPISODE}.run", f"{LESSON}.run")
 COMMANDS = "news_podcast.management.commands"
+VOICE = f"{CORE}.voice"
+# The features reach the voice only through its interface, so an implementation such
+# as GeminiVoice stays behind voice_provider.
+VOICE_INTERFACE = (f"{VOICE}.base", f"{VOICE}.providers", f"{VOICE}.narration")
 
 
 def module_name(path: Path) -> str:
@@ -52,12 +56,21 @@ def broken_rules(module: str, imports: set[str]) -> list[str]:
         forbidden.append(EPISODE)
     if module not in ORM_MODULES and not inside(module, COMMANDS):
         forbidden.append(MODELS)
-    return [
+    broken = [
         f"{module} imports {name}"
         for name in sorted(imports)
         for package in forbidden
         if inside(name, package)
     ]
+    if inside(module, EPISODE) or inside(module, LESSON):
+        broken += [
+            f"{module} imports {name}"
+            for name in sorted(imports)
+            if inside(name, VOICE)
+            and name != VOICE
+            and not any(inside(name, allowed) for allowed in VOICE_INTERFACE)
+        ]
+    return broken
 
 
 def test_the_app_follows_its_import_rules() -> None:
@@ -124,3 +137,24 @@ def test_only_the_django_layer_may_import_the_models(
     module: str, may_use_the_orm: bool
 ) -> None:
     assert (broken_rules(module, {MODELS}) == []) is may_use_the_orm
+
+
+@pytest.mark.parametrize(
+    ("line", "allowed"),
+    [
+        ("from news_podcast.api.core.voice.narration import narrate", True),
+        ("from news_podcast.api.core.voice.providers import voice_provider", True),
+        ("from news_podcast.api.core.voice.base import VoiceError", True),
+        ("from news_podcast.api.core.voice import narration", True),
+        ("from news_podcast.api.core.voice import gemini", False),
+        ("from news_podcast.api.core.voice.gemini import GeminiVoice", False),
+        ("from ..core.voice.gemini import GeminiVoice", False),
+    ],
+)
+def test_the_features_reach_the_voice_only_through_its_interface(
+    line: str, allowed: bool
+) -> None:
+    for module in (f"{EPISODE}.service", f"{LESSON}.service"):
+        imports = imported_modules(line, module)
+
+        assert (broken_rules(module, imports) == []) is allowed

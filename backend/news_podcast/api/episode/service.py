@@ -10,22 +10,17 @@ import httpx
 
 from news_podcast.api.core.audio import build_voice_note
 from news_podcast.api.core.config import (
-    HOSTS,
     LOCAL_TZ,
     MAX_RUN_MINUTES,
     OUTPUT_DIR,
-    TTS_CHUNK_WORDS,
     VOICE_RETRY_MINUTES,
 )
-from news_podcast.api.core.gemini import (
-    GeminiClient,
-    GeminiQuotaExhaustedError,
-    GeminiUnavailableError,
-)
 from news_podcast.api.core.llm import ModelFactory, TextModels, chat_model
-from news_podcast.api.core.schemas import Script, Turn, Usage
+from news_podcast.api.core.schemas import Script, Usage
 from news_podcast.api.core.telegram import TelegramClient, notify_failure
-from news_podcast.api.core.turns import chunk_turns, count_words
+from news_podcast.api.core.turns import count_words
+from news_podcast.api.core.voice.narration import narrate
+from news_podcast.api.core.voice.providers import voice_provider
 from news_podcast.api.episode.articles import build_briefs
 from news_podcast.api.episode.config import (
     NEWS_CUTOFF_HOURS_BEFORE_SEND,
@@ -64,7 +59,6 @@ class EpisodeService:
     def __init__(
         self,
         http_client: httpx.AsyncClient,
-        gemini: GeminiClient | None,
         telegram: TelegramClient | None,
         chat_id: str | None,
         settings: EpisodeSettings,
@@ -73,7 +67,6 @@ class EpisodeService:
         model_factory: ModelFactory = chat_model,
     ) -> None:
         self.http_client = http_client
-        self.gemini = gemini
         self.telegram = telegram
         self.chat_id = chat_id
         # Errors go here, not to the episode's chat.
@@ -89,7 +82,7 @@ class EpisodeService:
         self.text = TextModels(
             settings.text_models, self.usages, http_client, model_factory
         )
-        self.voice_retry_minutes = list(VOICE_RETRY_MINUTES)
+        self.voice_waits = list(VOICE_RETRY_MINUTES)
 
     async def generate_episode(self, *, scheduled: bool, send: bool) -> EpisodeReport:
         now = datetime.now(UTC)
@@ -172,7 +165,17 @@ class EpisodeService:
         with tempfile.TemporaryDirectory(prefix="news_podcast_") as tmp:
             workdir = Path(tmp)
             self.step = "voz"
-            parts = await self._narrate(script.turns, workdir)
+            # Built here, so a voice model with no implementation or a missing key
+            # fails this step, with its notice and its history row.
+            parts = await narrate(
+                voice_provider(self.settings.voice_model, self.http_client),
+                script.turns,
+                style=self.settings.voice_style,
+                headline_style=self.settings.headline_voice_style,
+                workdir=workdir,
+                usages=self.usages,
+                waits=self.voice_waits,
+            )
 
             self.step = "montagem do áudio"
             audio_path = OUTPUT_DIR / f"resumo-{day:%Y-%m-%d}.ogg"
@@ -211,54 +214,11 @@ class EpisodeService:
             self.text, self.settings, briefs, day, start, end, send_at
         )
 
-    async def _narrate(self, turns: list[Turn], workdir: Path) -> list[Path]:
-        gemini = self._require_gemini()
-        chunks = chunk_turns(turns, TTS_CHUNK_WORDS)
-        parts: list[Path] = []
-        for index, chunk in enumerate(chunks, start=1):
-            logger.info(f"Gemini voice: part {index} of {len(chunks)}")
-            audio, usage = await self._synthesize_patiently(gemini, chunk)
-            self.usages.append(usage)
-            path = workdir / f"gemini_{index:03d}.wav"
-            path.write_bytes(audio)
-            parts.append(path)
-        return parts
-
-    async def _synthesize_patiently(
-        self, gemini: GeminiClient, turns: list[Turn]
-    ) -> tuple[bytes, Usage]:
-        while True:
-            try:
-                return await gemini.synthesize_dialogue(
-                    self.settings.voice_model,
-                    turns,
-                    HOSTS,
-                    "voice",
-                    style=self.settings.voice_style,
-                    headline_style=self.settings.headline_voice_style,
-                )
-            except GeminiQuotaExhaustedError:
-                raise
-            except GeminiUnavailableError as error:
-                if not self.voice_retry_minutes:
-                    raise
-                minutes = self.voice_retry_minutes.pop(0)
-                logger.warning(
-                    f"Gemini voice is unavailable ({error}); "
-                    f"trying again in {minutes} min"
-                )
-                await asyncio.sleep(minutes * 60)
-
     async def _deliver(self, report: EpisodeReport) -> None:
         telegram, chat_id = self._require_telegram()
         await telegram.send_voice(
             chat_id, report.audio_path, report.caption, round(report.duration_seconds)
         )
-
-    def _require_gemini(self) -> GeminiClient:
-        if self.gemini is None:
-            raise EpisodeError("GEMINI_API_KEY não configurada")
-        return self.gemini
 
     def _require_telegram(self) -> tuple[TelegramClient, str]:
         if self.telegram is None or not self.chat_id:

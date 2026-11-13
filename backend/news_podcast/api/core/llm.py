@@ -27,7 +27,7 @@ from news_podcast.api.core.config import (
     TEXT_RETRY_MINUTES,
     THINKING_LEVEL,
 )
-from news_podcast.api.core.gemini import (
+from news_podcast.api.core.retries import (
     MAX_ATTEMPTS,
     MAX_RETRY_DELAY_SECONDS,
     RATE_LIMIT_WAIT_SECONDS,

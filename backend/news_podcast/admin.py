@@ -49,7 +49,8 @@ class PodcastSettingsAdmin(admin.ModelAdmin):
             "Models",
             {
                 "description": "Text models are provider:model, with google_genai "
-                "or openai (a bare gemini-* name means google_genai). Prices in "
+                "or openai (a bare gemini-* name means google_genai); the voice "
+                "model too, with google_genai, the only voice provider. Prices in "
                 "US$ per million tokens, from each provider's price list; the "
                 "history computes each run's cost with them.",
                 # Each model, then its prices in the row below.

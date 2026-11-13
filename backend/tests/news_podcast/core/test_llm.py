@@ -34,11 +34,6 @@ from news_podcast.api.core.config import (
     TEXT_RETRY_MINUTES,
     THINKING_LEVEL,
 )
-from news_podcast.api.core.gemini import (
-    MAX_ATTEMPTS,
-    RATE_LIMIT_WAIT_SECONDS,
-    backoff_seconds,
-)
 from news_podcast.api.core.llm import (
     BadAnswerError,
     TextError,
@@ -46,6 +41,11 @@ from news_podcast.api.core.llm import (
     chat_model,
     split_model,
     structured_model,
+)
+from news_podcast.api.core.retries import (
+    MAX_ATTEMPTS,
+    RATE_LIMIT_WAIT_SECONDS,
+    backoff_seconds,
 )
 from news_podcast.api.core.schemas import Script, Turn, Usage
 from news_podcast.api.episode.schemas import StorySelection
