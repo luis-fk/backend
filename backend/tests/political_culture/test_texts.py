@@ -13,7 +13,6 @@ from channels.testing import WebsocketCommunicator
 from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import Client
-from langchain_core.documents import Document
 from langchain_core.runnables import RunnableLambda
 from pytest_django import Settings
 
@@ -93,10 +92,12 @@ def library_text(user: Users, title: str, **fields: Any) -> Texts:
 
 
 def pages(*contents: str) -> Any:
-    """Stands in for PyPDF, reading these pages from any file."""
-    loader = MagicMock()
-    loader.return_value.load.return_value = [Document(page_content=c) for c in contents]
-    return patch.object(word_counter, "PyPDFLoader", loader)
+    """Stands in for pypdf, reading these pages from any file."""
+    reader = MagicMock()
+    reader.return_value.pages = [
+        MagicMock(**{"extract_text.return_value": c}) for c in contents
+    ]
+    return patch.object(word_counter, "PdfReader", reader)
 
 
 @pytest.fixture
