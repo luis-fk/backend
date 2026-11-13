@@ -5,7 +5,7 @@ A personal monorepo used as a sandbox for prototyping ideas and improving coding
 The primary goal is learning — features are implemented carefully and with full understanding, not just shipped.
 
 It has two independent parts, each with its own `CLAUDE.md` that Claude Code loads when working in that folder:
-- **`backend/`** — Django backend with four apps: plants, political_culture, cfflch and news_podcast. See `backend/CLAUDE.md`.
+- **`backend/`** — Django backend with four apps: plants, political_culture, cfflch and news_podcast. See `backend/CLAUDE.md`; each backend app has its own `CLAUDE.md` with its decisions.
 - **`frontend/`** — Next.js frontend with the UIs for plants, political-culture and cfflch. See `frontend/CLAUDE.md`.
 
 Until November 2026 they were separate repositories: this one was `luis-fk/backend`, renamed to `luis-fk/projects` when `luis-fk/frontend` was merged into it. The backend was moved into `backend/` with `git mv`, so `git log --follow <file>` shows a backend file's history from before the move. The frontend history was rewritten with `git filter-repo --to-subdirectory-filter frontend` before the merge, so plain `git log` works for its files, and the PR numbers in those old commits were rewritten to `luis-fk/frontend#N`.
