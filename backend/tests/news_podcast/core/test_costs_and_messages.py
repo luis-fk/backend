@@ -20,26 +20,6 @@ PRICES = {
     "gemini-3.6-flash": ModelPrice(0.75, 3.75),
     "gemini-3.8-flash-lite-tts": ModelPrice(0.50, 6.00),
 }
-USAGES = [
-    Usage(
-        step="selection",
-        model="gemini-3.6-flash",
-        input_tokens=17_000,
-        output_tokens=4_400,
-    ),
-    Usage(
-        step="script",
-        model="gemini-3.6-flash",
-        input_tokens=20_000,
-        output_tokens=9_000,
-    ),
-    Usage(
-        step="voice",
-        model="gemini-3.8-flash-lite-tts",
-        input_tokens=3_500,
-        output_tokens=18_300,
-    ),
-]
 
 
 def test_voice_cost_follows_audio_tokens() -> None:

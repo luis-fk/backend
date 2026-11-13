@@ -9,14 +9,10 @@ CORE = "news_podcast.api.core"
 EPISODE = "news_podcast.api.episode"
 LESSON = "news_podcast.api.lesson"
 MODELS = "news_podcast.models"
-# The Django layer: the only modules that may use the ORM, outside the event loop.
-ORM_MODULES = (
-    "news_podcast.models",
-    "news_podcast.admin",
-    f"{EPISODE}.run",
-    f"{LESSON}.run",
-    "news_podcast.management.commands.",
-)
+# The Django layer, the only code that may use the ORM, outside the event loop:
+# these modules and every command.
+ORM_MODULES = (MODELS, "news_podcast.admin", f"{EPISODE}.run", f"{LESSON}.run")
+COMMANDS = "news_podcast.management.commands"
 
 
 def module_name(path: Path) -> str:
@@ -54,7 +50,7 @@ def broken_rules(module: str, imports: set[str]) -> list[str]:
         forbidden.append(LESSON)
     if inside(module, LESSON):
         forbidden.append(EPISODE)
-    if not module.startswith(ORM_MODULES) and module != MODELS:
+    if module not in ORM_MODULES and not inside(module, COMMANDS):
         forbidden.append(MODELS)
     return [
         f"{module} imports {name}"
@@ -108,4 +104,23 @@ def test_the_episode_may_use_core_but_not_the_lesson() -> None:
     )
     assert broken_rules(module, imported_modules("from ..lesson import run", module))
     assert broken_rules(module, imported_modules(f"import {MODELS}", module))
-    assert broken_rules(f"{EPISODE}.run", {MODELS}) == []
+
+
+@pytest.mark.parametrize(
+    ("module", "may_use_the_orm"),
+    [
+        ("news_podcast.admin", True),
+        (f"{EPISODE}.run", True),
+        (f"{LESSON}.run", True),
+        ("news_podcast.management.commands.news_podcast", True),
+        ("news_podcast.admin_actions", False),
+        ("news_podcast.models_cache", False),
+        (f"{EPISODE}.runner", False),
+        (f"{EPISODE}.run_helpers", False),
+        (f"{LESSON}.runtime", False),
+    ],
+)
+def test_only_the_django_layer_may_import_the_models(
+    module: str, may_use_the_orm: bool
+) -> None:
+    assert (broken_rules(module, {MODELS}) == []) is may_use_the_orm

@@ -10,8 +10,17 @@ from typing import Any, TypeVar
 import httpx
 from pydantic import BaseModel, ValidationError
 
-from news_podcast.api.core import config
 from news_podcast.api.core.audio import build_voice_note
+from news_podcast.api.core.config import (
+    HOSTS,
+    LOCAL_TZ,
+    MAX_RUN_MINUTES,
+    OUTPUT_DIR,
+    TEXT_RETRY_MINUTES,
+    THINKING_LEVEL,
+    TTS_CHUNK_WORDS,
+    VOICE_RETRY_MINUTES,
+)
 from news_podcast.api.core.gemini import (
     GeminiClient,
     GeminiError,
@@ -105,15 +114,15 @@ class EpisodeService:
         # don't.
         self.unavailable_models: set[str] = set()
         self.exhausted_models: set[str] = set()
-        self.text_retry_minutes = list(config.TEXT_RETRY_MINUTES)
-        self.voice_retry_minutes = list(config.VOICE_RETRY_MINUTES)
+        self.text_retry_minutes = list(TEXT_RETRY_MINUTES)
+        self.voice_retry_minutes = list(VOICE_RETRY_MINUTES)
 
     async def generate_episode(self, *, scheduled: bool, send: bool) -> EpisodeReport:
         now = datetime.now(UTC)
         # The hour the episode is named after. It goes out as soon as it is ready:
         # the cron's start time sets when it arrives, and a process left waiting for
         # the hour could die with the episode in it.
-        send_at = next_send(now, config.LOCAL_TZ)
+        send_at = next_send(now, LOCAL_TZ)
         # A scheduled run reads the news up to the full hour before send_at, where
         # the previous day's window ended; a run without --scheduled reads up to now.
         scheduled_for = send_at if scheduled else None
@@ -137,7 +146,7 @@ class EpisodeService:
     ) -> EpisodeReport:
         """Stops the run after MAX_RUN_MINUTES, at the await it is in. A call
         running in a thread, like trafilatura's, can't be stopped."""
-        limit = asyncio.timeout(config.MAX_RUN_MINUTES * 60)
+        limit = asyncio.timeout(MAX_RUN_MINUTES * 60)
         try:
             async with limit:
                 report = await self._generate(now, send_at, scheduled_for)
@@ -149,13 +158,13 @@ class EpisodeService:
             if not limit.expired():
                 raise
             raise EpisodeError(
-                f"A execução passou de {config.MAX_RUN_MINUTES} minutos"
+                f"A execução passou de {MAX_RUN_MINUTES} minutos"
             ) from error
 
     async def _generate(
         self, now: datetime, send_at: datetime, scheduled_for: datetime | None
     ) -> EpisodeReport:
-        day = (scheduled_for or now).astimezone(config.LOCAL_TZ).date()
+        day = (scheduled_for or now).astimezone(LOCAL_TZ).date()
         start, end = news_window(
             now,
             scheduled_for,
@@ -166,7 +175,7 @@ class EpisodeService:
             f"The {send_at:%H:%M} episode, of {self.options.min_minutes}-"
             f"{self.options.max_minutes} min at {self.options.speech_speed:g}x"
         )
-        config.OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+        OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
         self.step = "leitura dos feeds"
         items = await fetch_items(self.http_client, self.sources, start, end)
@@ -192,7 +201,7 @@ class EpisodeService:
             parts = await self._narrate(script.turns, workdir)
 
             self.step = "montagem do áudio"
-            audio_path = config.OUTPUT_DIR / f"resumo-{day:%Y-%m-%d}.ogg"
+            audio_path = OUTPUT_DIR / f"resumo-{day:%Y-%m-%d}.ogg"
             duration = await build_voice_note(
                 parts, audio_path, self.options.speech_speed, workdir
             )
@@ -227,7 +236,7 @@ class EpisodeService:
 
         stories = await self._ask_json(
             system_prompt,
-            format_for_selection(items, config.LOCAL_TZ),
+            format_for_selection(items, LOCAL_TZ),
             "selection",
             StorySelection,
             parse,
@@ -330,7 +339,7 @@ class EpisodeService:
                     system_prompt,
                     user_prompt,
                     step,
-                    config.THINKING_LEVEL,
+                    THINKING_LEVEL,
                     schema=schema,
                 )
                 self.usages.append(usage)
@@ -365,7 +374,7 @@ class EpisodeService:
 
     async def _narrate(self, turns: list[Turn], workdir: Path) -> list[Path]:
         gemini = self._require_gemini()
-        chunks = chunk_turns(turns, config.TTS_CHUNK_WORDS)
+        chunks = chunk_turns(turns, TTS_CHUNK_WORDS)
         parts: list[Path] = []
         for index, chunk in enumerate(chunks, start=1):
             logger.info(f"Gemini voice: part {index} of {len(chunks)}")
@@ -384,7 +393,7 @@ class EpisodeService:
                 return await gemini.synthesize_dialogue(
                     self.settings.voice_model,
                     turns,
-                    config.HOSTS,
+                    HOSTS,
                     "voice",
                     style=self.settings.voice_style,
                     headline_style=self.settings.headline_voice_style,
@@ -419,5 +428,5 @@ class EpisodeService:
 
 
 def save_debug(name: str, payload: Any) -> None:
-    path = config.OUTPUT_DIR / name
+    path = OUTPUT_DIR / name
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2, default=str))

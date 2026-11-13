@@ -1,5 +1,3 @@
-from zoneinfo import ZoneInfo
-
 from news_podcast.api.core.config import (
     HOSTS,
 )
@@ -11,8 +9,6 @@ from news_podcast.api.core.turns import (
     clean_turns,
     count_words,
 )
-
-SAO_PAULO = ZoneInfo("America/Sao_Paulo")
 
 
 def test_clean_turns_fixes_speakers_and_removes_markup() -> None:
