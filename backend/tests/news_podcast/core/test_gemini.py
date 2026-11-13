@@ -13,25 +13,33 @@ from news_podcast.api.core.gemini import (
     MAX_ATTEMPTS,
     RATE_LIMIT_WAIT_SECONDS,
     GeminiClient,
-    GeminiError,
     GeminiQuotaExhaustedError,
     GeminiUnavailableError,
-    answer_json,
     build_tts_body,
     extract_audio_wav,
     is_daily_quota,
-    parse_json_text,
     pcm_to_wav,
     retry_delay,
     wav_duration,
 )
 from news_podcast.api.core.schemas import (
-    Script,
     Turn,
 )
 
 ONE_SECOND_OF_SILENCE = pcm_to_wav(b"\x00\x00" * 24000)
-SCHEMA = {"type": "object"}
+AUDIO_ANSWER = {
+    "steps": [
+        {
+            "type": "model_output",
+            "content": [
+                {
+                    "type": "audio",
+                    "data": base64.b64encode(ONE_SECOND_OF_SILENCE).decode(),
+                }
+            ],
+        }
+    ]
+}
 STYLE = "Calm conversation."
 HEADLINE_STYLE = "Emphatic headlines."
 
@@ -55,58 +63,26 @@ def quota_error(quota_id: str) -> dict[str, Any]:
     }
 
 
-def test_invalid_json_is_logged_where_it_breaks(
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    text = '{"turns": [{"speaker": "Bia", "text": "O ministro disse "não"."}]}'
-
-    with pytest.raises(GeminiError, match="JSON inválido"):
-        parse_json_text(text)
-
-    assert "Expecting ',' delimiter" in caplog.text
-    assert 'disse "não"' in caplog.text
-
-
-def test_an_answer_that_stops_early_is_logged_with_its_reason(
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    candidate = {"content": {"parts": [{"text": '{"turns": ['}]}}
-    data = {"candidates": [{**candidate, "finishReason": "RECITATION"}]}
-
-    with pytest.raises(GeminiError, match="JSON inválido"):
-        answer_json(data)
-
-    assert "RECITATION" in caplog.text
+async def synthesize(client: httpx.AsyncClient) -> bytes:
+    audio, _ = await GeminiClient(client, "key").synthesize_dialogue(
+        "gemini-3.8-flash-lite-tts",
+        [Turn(speaker="Bia", text="Oi")],
+        HOSTS,
+        "voice",
+        style=STYLE,
+        headline_style=HEADLINE_STYLE,
+    )
+    return audio
 
 
-def test_generate_json_constrains_the_answer_to_a_schema() -> None:
-    bodies: list[dict[str, Any]] = []
+def record_waits(monkeypatch: pytest.MonkeyPatch) -> list[float]:
+    waits: list[float] = []
 
-    def handler(request: httpx.Request) -> httpx.Response:
-        bodies.append(json.loads(request.content))
-        text = '{"turns": []}'
-        return httpx.Response(
-            200, json={"candidates": [{"content": {"parts": [{"text": text}]}}]}
-        )
+    async def record(seconds: float) -> None:
+        waits.append(seconds)
 
-    async def scenario() -> None:
-        async with httpx.AsyncClient(
-            transport=httpx.MockTransport(handler)
-        ) as http_client:
-            client = GeminiClient(http_client, "key")
-            await client.generate_json(
-                "gemini-x",
-                "system",
-                "user",
-                "script",
-                schema=Script.model_json_schema(),
-            )
-
-    asyncio.run(scenario())
-
-    generation_config = bodies[0]["generationConfig"]
-    assert generation_config["responseMimeType"] == "application/json"
-    assert generation_config["responseJsonSchema"] == Script.model_json_schema()
+    monkeypatch.setattr(asyncio, "sleep", record)
+    return waits
 
 
 def test_daily_quota_is_told_apart_from_per_minute_limits() -> None:
@@ -129,15 +105,7 @@ def test_tts_body_uses_one_annotated_part_per_turn() -> None:
 
 
 def test_extract_audio_reads_the_model_output_step() -> None:
-    encoded = base64.b64encode(ONE_SECOND_OF_SILENCE).decode()
-    response = {
-        "steps": [
-            {"type": "user_input", "content": []},
-            {"type": "model_output", "content": [{"type": "audio", "data": encoded}]},
-        ]
-    }
-
-    audio = extract_audio_wav(response)
+    audio = extract_audio_wav(AUDIO_ANSWER)
 
     assert wav_duration(audio) == pytest.approx(1.0)
 
@@ -156,7 +124,10 @@ def test_extract_audio_wraps_raw_pcm_in_a_wav_header() -> None:
     assert wav_duration(extract_audio_wav(response)) == pytest.approx(0.5)
 
 
-def test_generate_json_retries_after_a_per_minute_limit() -> None:
+def test_the_voice_retries_after_a_per_minute_limit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    waits = record_waits(monkeypatch)
     calls: list[int] = []
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -165,30 +136,17 @@ def test_generate_json_retries_after_a_per_minute_limit() -> None:
             error = quota_error("GenerateRequestsPerMinutePerProject")
             error["error"]["details"][1]["retryDelay"] = "0s"
             return httpx.Response(429, json=error)
-        return httpx.Response(
-            200,
-            json={
-                "candidates": [{"content": {"parts": [{"text": '{"ok": true}'}]}}],
-                "usageMetadata": {
-                    "promptTokenCount": 100,
-                    "candidatesTokenCount": 10,
-                    "thoughtsTokenCount": 5,
-                },
-            },
-        )
+        return httpx.Response(200, json=AUDIO_ANSWER)
 
-    async def scenario() -> tuple[Any, int]:
+    async def scenario() -> bytes:
         async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
-            data, usage = await GeminiClient(client, "key").generate_json(
-                "gemini-3.8-flash", "system", "user", "selection", schema=SCHEMA
-            )
-            return answer_json(data), usage.output_tokens
+            return await synthesize(client)
 
-    data, output_tokens = asyncio.run(scenario())
+    audio = asyncio.run(scenario())
 
-    assert data == {"ok": True}
-    assert output_tokens == 15
+    assert wav_duration(audio) == pytest.approx(1.0)
     assert len(calls) == 2
+    assert waits == [1.0]
 
 
 def test_daily_quota_stops_without_retrying() -> None:
@@ -199,26 +157,17 @@ def test_daily_quota_stops_without_retrying() -> None:
 
     async def scenario() -> None:
         async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
-            await GeminiClient(client, "key").synthesize_dialogue(
-                "gemini-3.8-flash-tts",
-                [Turn(speaker="Bia", text="Oi")],
-                HOSTS,
-                "voice",
-                style=STYLE,
-                headline_style=HEADLINE_STYLE,
-            )
+            await synthesize(client)
 
     with pytest.raises(GeminiQuotaExhaustedError):
         asyncio.run(scenario())
 
 
-def test_generate_json_gives_up_after_a_few_overloaded_attempts(
+def test_the_voice_gives_up_after_a_few_overloaded_attempts(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    record_waits(monkeypatch)
     calls: list[int] = []
-
-    async def no_wait(seconds: float) -> None:
-        return None
 
     def handler(request: httpx.Request) -> httpx.Response:
         calls.append(1)
@@ -226,17 +175,14 @@ def test_generate_json_gives_up_after_a_few_overloaded_attempts(
 
     async def scenario() -> None:
         async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
-            await GeminiClient(client, "key").generate_json(
-                "gemini-3.8-flash", "system", "user", "script", schema=SCHEMA
-            )
+            await synthesize(client)
 
-    monkeypatch.setattr(asyncio, "sleep", no_wait)
     with pytest.raises(GeminiUnavailableError, match="503"):
         asyncio.run(scenario())
     assert len(calls) == MAX_ATTEMPTS
 
 
-def test_generate_json_does_not_insist_after_a_timeout() -> None:
+def test_the_voice_does_not_insist_after_a_timeout() -> None:
     calls: list[int] = []
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -245,9 +191,7 @@ def test_generate_json_does_not_insist_after_a_timeout() -> None:
 
     async def scenario() -> None:
         async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
-            await GeminiClient(client, "key").generate_json(
-                "gemini-3.8-flash", "system", "user", "selection", schema=SCHEMA
-            )
+            await synthesize(client)
 
     with pytest.raises(GeminiUnavailableError, match="não respondeu"):
         asyncio.run(scenario())
@@ -272,29 +216,18 @@ def test_tts_body_reads_the_headlines_with_an_emphatic_style() -> None:
 def test_rate_limit_without_a_suggested_delay_waits_half_a_minute(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    waits: list[float] = []
+    waits = record_waits(monkeypatch)
     calls: list[int] = []
-
-    async def record(seconds: float) -> None:
-        waits.append(seconds)
 
     def handler(request: httpx.Request) -> httpx.Response:
         calls.append(1)
         if len(calls) == 1:
             return httpx.Response(429, json={"error": {"message": "Rate limited"}})
-        return httpx.Response(
-            200,
-            json={"candidates": [{"content": {"parts": [{"text": '{"ok": true}'}]}}]},
-        )
+        return httpx.Response(200, json=AUDIO_ANSWER)
 
-    async def scenario() -> Any:
+    async def scenario() -> bytes:
         async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
-            data, _ = await GeminiClient(client, "key").generate_json(
-                "gemini-3.8-flash", "system", "user", "selection", schema=SCHEMA
-            )
-            return answer_json(data)
+            return await synthesize(client)
 
-    monkeypatch.setattr(asyncio, "sleep", record)
-
-    assert asyncio.run(scenario()) == {"ok": True}
+    assert wav_duration(asyncio.run(scenario())) == pytest.approx(1.0)
     assert waits == [RATE_LIMIT_WAIT_SECONDS]

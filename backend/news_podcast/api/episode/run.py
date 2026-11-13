@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from datetime import UTC, datetime
 from typing import NamedTuple
 
 import httpx
@@ -9,16 +10,24 @@ from django.utils import timezone
 
 from news_podcast.api.core.costs import total_cost_usd
 from news_podcast.api.core.gemini import GeminiClient
-from news_podcast.api.core.schemas import Usage
+from news_podcast.api.core.llm import ModelFactory, TextModels, chat_model
+from news_podcast.api.core.schemas import NewsStory, Usage
 from news_podcast.api.core.telegram import (
     admin_chat_id,
     chat_id,
     report_failure,
     telegram_client,
 )
+from news_podcast.api.episode.config import (
+    NEWS_CUTOFF_HOURS_BEFORE_SEND,
+    NEWS_WINDOW_HOURS,
+)
+from news_podcast.api.episode.feeds import fetch_items
 from news_podcast.api.episode.messages import FAILURE_SUBJECT
+from news_podcast.api.episode.options import news_window
 from news_podcast.api.episode.schemas import EpisodeReport, EpisodeSettings, FeedSource
-from news_podcast.api.episode.service import EpisodeService
+from news_podcast.api.episode.selection import select_stories
+from news_podcast.api.episode.service import EpisodeError, EpisodeService
 from news_podcast.models import Episode, Feed, PodcastSettings
 
 logger = logging.getLogger(__name__)
@@ -32,6 +41,14 @@ class Run(NamedTuple):
     error: Exception | None
     step: str
     usages: list[Usage]
+
+
+class Selection(NamedTuple):
+    """The day's stories, the answers paid for and the error, if any."""
+
+    stories: list[NewsStory]
+    usages: list[Usage]
+    error: Exception | None
 
 
 def episode_settings(podcast_settings: PodcastSettings) -> EpisodeSettings:
@@ -110,3 +127,40 @@ async def generate(
         except Exception as error:
             return Run(None, error, service.step, service.usages)
         return Run(report, None, service.step, service.usages)
+
+
+def select_today(*, model_factory: ModelFactory = chat_model) -> Selection:
+    """The day's stories, from the feeds and the selection only, with no episode and
+    nothing sent. It never raises: a failure comes back with no stories, the answers
+    already paid for and the error."""
+    try:
+        snapshot = episode_settings(PodcastSettings.load())
+        sources = Feed.sources()
+    except Exception as error:
+        logger.warning(f"Could not read the settings or the feeds: {error}")
+        return Selection([], [], error)
+    return asyncio.run(select(snapshot, sources, model_factory))
+
+
+async def select(
+    snapshot: EpisodeSettings, sources: list[FeedSource], model_factory: ModelFactory
+) -> Selection:
+    usages: list[Usage] = []
+    start, end = news_window(
+        datetime.now(UTC), None, NEWS_WINDOW_HOURS, NEWS_CUTOFF_HOURS_BEFORE_SEND
+    )
+    async with httpx.AsyncClient() as http_client:
+        text = TextModels(snapshot.text_models, usages, http_client, model_factory)
+        try:
+            items = await fetch_items(http_client, sources, start, end)
+            if not items:
+                raise EpisodeError("Nenhuma notícia encontrada nos feeds")
+            stories = await select_stories(text, snapshot, items, start, end)
+        except Exception as error:
+            logger.warning(f"The day's selection failed: {error}")
+            return Selection([], usages, error)
+    return Selection(
+        [NewsStory(story.title, story.category, story.angle) for story in stories],
+        usages,
+        None,
+    )

@@ -1,12 +1,18 @@
 import logging
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from datetime import datetime
+from typing import Any
 
+from news_podcast.api.core.config import LOCAL_TZ
+from news_podcast.api.core.llm import BadAnswerError, TextModels
 from news_podcast.api.episode.config import PREFERRED_OUTLETS
+from news_podcast.api.episode.feeds import format_for_selection
 from news_podcast.api.episode.messages import local_label
 from news_podcast.api.episode.options import story_range, target_minutes
+from news_podcast.api.episode.prompts import selection_template
 from news_podcast.api.episode.schemas import (
     EpisodeOptions,
+    EpisodeSettings,
     NewsItem,
     SelectedStory,
     StorySelection,
@@ -15,19 +21,55 @@ from news_podcast.api.episode.schemas import (
 logger = logging.getLogger(__name__)
 
 
-def selection_prompt(
-    template: str, options: EpisodeOptions, start: datetime, end: datetime
-) -> str:
-    min_stories, max_stories = story_range(options)
-    return template.format(
-        min_minutes=options.min_minutes,
-        max_minutes=options.max_minutes,
-        target_minutes=round(target_minutes(options)),
-        min_stories=min_stories,
-        max_stories=max_stories,
-        window_start=local_label(start),
-        window_end=local_label(end),
+async def select_stories(
+    text: TextModels,
+    settings: EpisodeSettings,
+    items: list[NewsItem],
+    start: datetime,
+    end: datetime,
+) -> list[SelectedStory]:
+    items_by_id = {item.id: item for item in items}
+    _, max_stories = story_range(settings.options)
+    stories = await text.ask(
+        selection_template(settings.selection_prompt),
+        {
+            "headlines": format_for_selection(items, LOCAL_TZ),
+            **selection_values(settings.options, start, end),
+        },
+        step="selection",
+        schema=StorySelection,
+        check=checked_selection(items_by_id, max_stories),
     )
+    log_selection(stories, items_by_id)
+    return stories
+
+
+def selection_values(
+    options: EpisodeOptions, start: datetime, end: datetime
+) -> dict[str, Any]:
+    """The values of the selection prompt's placeholders (SELECTION_FIELDS)."""
+    min_stories, max_stories = story_range(options)
+    return {
+        "min_minutes": options.min_minutes,
+        "max_minutes": options.max_minutes,
+        "target_minutes": round(target_minutes(options)),
+        "min_stories": min_stories,
+        "max_stories": max_stories,
+        "window_start": local_label(start),
+        "window_end": local_label(end),
+    }
+
+
+def checked_selection(
+    items_by_id: dict[str, NewsItem], max_stories: int
+) -> Callable[[StorySelection], list[SelectedStory]]:
+    def check(selection: StorySelection) -> list[SelectedStory]:
+        stories = valid_stories(selection, items_by_id, max_stories)
+        if not stories:
+            raise BadAnswerError("a seleção veio sem notícias válidas")
+        return stories
+
+    return check
 
 
 def log_selection(

@@ -2,6 +2,7 @@ import re
 import unicodedata
 from collections.abc import Sequence
 
+from news_podcast.api.core.llm import BadAnswerError
 from news_podcast.api.core.schemas import Host, Turn
 
 URL_PATTERN = re.compile(r"https?://\S+")
@@ -39,6 +40,14 @@ def clean_turns(turns: Sequence[Turn], hosts: Sequence[Host]) -> list[Turn]:
         fallback_speaker = hosts[len(cleaned) % len(hosts)].name
         speaker = names.get(ascii_fold(turn.speaker), fallback_speaker)
         cleaned.append(turn.model_copy(update={"speaker": speaker, "text": text}))
+    return cleaned
+
+
+def checked_turns(turns: Sequence[Turn], hosts: Sequence[Host]) -> list[Turn]:
+    """The cleaned turns, or BadAnswerError when too few are left for an episode."""
+    cleaned = clean_turns(turns, hosts)
+    if len(cleaned) < MIN_SCRIPT_TURNS:
+        raise BadAnswerError(f"o roteiro veio com só {len(cleaned)} falas")
     return cleaned
 
 

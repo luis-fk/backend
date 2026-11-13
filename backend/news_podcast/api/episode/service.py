@@ -2,13 +2,11 @@ import asyncio
 import json
 import logging
 import tempfile
-from collections.abc import Callable
 from datetime import UTC, date, datetime, time
 from pathlib import Path
-from typing import Any, TypeVar
+from typing import Any
 
 import httpx
-from pydantic import BaseModel, ValidationError
 
 from news_podcast.api.core.audio import build_voice_note
 from news_podcast.api.core.config import (
@@ -16,18 +14,15 @@ from news_podcast.api.core.config import (
     LOCAL_TZ,
     MAX_RUN_MINUTES,
     OUTPUT_DIR,
-    TEXT_RETRY_MINUTES,
-    THINKING_LEVEL,
     TTS_CHUNK_WORDS,
     VOICE_RETRY_MINUTES,
 )
 from news_podcast.api.core.gemini import (
     GeminiClient,
-    GeminiError,
     GeminiQuotaExhaustedError,
     GeminiUnavailableError,
-    answer_json,
 )
+from news_podcast.api.core.llm import ModelFactory, TextModels, chat_model
 from news_podcast.api.core.schemas import Script, Turn, Usage
 from news_podcast.api.core.telegram import TelegramClient, notify_failure
 from news_podcast.api.core.turns import chunk_turns, count_words
@@ -35,9 +30,8 @@ from news_podcast.api.episode.articles import build_briefs
 from news_podcast.api.episode.config import (
     NEWS_CUTOFF_HOURS_BEFORE_SEND,
     NEWS_WINDOW_HOURS,
-    SHORT_SCRIPT_RATIO,
 )
-from news_podcast.api.episode.feeds import fetch_items, format_for_selection
+from news_podcast.api.episode.feeds import fetch_items
 from news_podcast.api.episode.messages import (
     FAILURE_SUBJECT,
     episode_caption,
@@ -47,9 +41,6 @@ from news_podcast.api.episode.options import (
     news_window,
     next_send,
     podcast_name,
-    story_range,
-    word_range,
-    words_per_minute,
 )
 from news_podcast.api.episode.schemas import (
     EpisodeReport,
@@ -58,28 +49,11 @@ from news_podcast.api.episode.schemas import (
     NewsItem,
     SelectedStory,
     StoryBrief,
-    StorySelection,
 )
-from news_podcast.api.episode.script import (
-    expand_prompt,
-    format_briefs,
-    parse_script,
-    script_prompt,
-)
-from news_podcast.api.episode.selection import (
-    log_selection,
-    selection_prompt,
-    valid_stories,
-)
+from news_podcast.api.episode.script import write_script
+from news_podcast.api.episode.selection import select_stories
 
 logger = logging.getLogger(__name__)
-
-T = TypeVar("T")
-
-
-# A failed answer, like invalid JSON, can be a one-off, so each model gets a second
-# try before the next one.
-ANSWERS_PER_MODEL = 2
 
 
 class EpisodeError(Exception):
@@ -96,6 +70,7 @@ class EpisodeService:
         settings: EpisodeSettings,
         sources: list[FeedSource],
         admin_chat_id: str | None = None,
+        model_factory: ModelFactory = chat_model,
     ) -> None:
         self.http_client = http_client
         self.gemini = gemini
@@ -108,13 +83,12 @@ class EpisodeService:
         self.sources = sources
         self.options = settings.options
         self.step = "início"
-        # Every Gemini answer, kept as the run goes, so a failed run has its cost too.
+        # Every answer, kept as the run goes, so a failed run has its cost too.
         self.usages: list[Usage] = []
-        # Text models that are down get asked again after a wait; the ones out of quota
-        # don't.
-        self.unavailable_models: set[str] = set()
-        self.exhausted_models: set[str] = set()
-        self.text_retry_minutes = list(TEXT_RETRY_MINUTES)
+        # Built inside the run, so its waits and model marks are this run's.
+        self.text = TextModels(
+            settings.text_models, self.usages, http_client, model_factory
+        )
         self.voice_retry_minutes = list(VOICE_RETRY_MINUTES)
 
     async def generate_episode(self, *, scheduled: bool, send: bool) -> EpisodeReport:
@@ -221,28 +195,8 @@ class EpisodeService:
     async def _select_stories(
         self, items: list[NewsItem], start: datetime, end: datetime
     ) -> list[SelectedStory]:
-        items_by_id = {item.id: item for item in items}
-        system_prompt = selection_prompt(
-            self.settings.selection_prompt, self.options, start, end
-        )
-        _, max_stories = story_range(self.options)
-
-        def parse(data: Any) -> list[SelectedStory]:
-            selection = StorySelection.model_validate(data)
-            stories = valid_stories(selection, items_by_id, max_stories)
-            if not stories:
-                raise GeminiError("a seleção veio sem notícias válidas")
-            return stories
-
-        stories = await self._ask_json(
-            system_prompt,
-            format_for_selection(items, LOCAL_TZ),
-            "selection",
-            StorySelection,
-            parse,
-        )
+        stories = await select_stories(self.text, self.settings, items, start, end)
         save_debug("selection.json", [story.model_dump() for story in stories])
-        log_selection(stories, items_by_id)
         return stories
 
     async def _write_script(
@@ -253,124 +207,9 @@ class EpisodeService:
         day: date,
         send_at: time,
     ) -> Script:
-        min_words, _ = word_range(self.options)
-        system_prompt = script_prompt(
-            self.settings.script_prompt, self.options, day, start, end, send_at
+        return await write_script(
+            self.text, self.settings, briefs, day, start, end, send_at
         )
-        user_prompt = format_briefs(briefs, words_per_minute(self.options))
-        script = await self._ask_json(
-            system_prompt, user_prompt, "script", Script, parse_script
-        )
-
-        words = count_words(script.turns)
-        logger.info(f"Script has {words} words in {len(script.turns)} turns")
-        if words >= SHORT_SCRIPT_RATIO * min_words:
-            return script
-
-        expand = expand_prompt(self.settings.expand_prompt, self.options, script)
-        try:
-            # One round and no wait: the short script will do.
-            longer = await self._ask_each_model(
-                system_prompt,
-                f"{user_prompt}\n\n{expand}",
-                "script",
-                Script,
-                parse_script,
-            )
-        except EpisodeError as error:
-            logger.warning(f"Could not lengthen the script: {error}")
-            return script
-
-        logger.info(f"Lengthened script has {count_words(longer.turns)} words")
-        return longer if count_words(longer.turns) > words else script
-
-    async def _ask_json(
-        self,
-        system_prompt: str,
-        user_prompt: str,
-        step: str,
-        answer_model: type[BaseModel],
-        parse: Callable[[Any], T],
-    ) -> T:
-        """When no text model answers well and one of them is marked down, waits
-        TEXT_RETRY_MINUTES and asks them all again. The waits are shared by the whole
-        run."""
-        while True:
-            try:
-                return await self._ask_each_model(
-                    system_prompt, user_prompt, step, answer_model, parse
-                )
-            except EpisodeError:
-                # With no model down, bad answers and a used-up quota don't get better
-                # with time.
-                if not (self.unavailable_models and self.text_retry_minutes):
-                    raise
-            minutes = self.text_retry_minutes.pop(0)
-            logger.warning(f"No text model answered; asking again in {minutes} min")
-            await asyncio.sleep(minutes * 60)
-            self.unavailable_models.clear()
-
-    async def _ask_each_model(
-        self,
-        system_prompt: str,
-        user_prompt: str,
-        step: str,
-        answer_model: type[BaseModel],
-        parse: Callable[[Any], T],
-    ) -> T:
-        """One round: asks each available text model up to ANSWERS_PER_MODEL times."""
-        gemini = self._require_gemini()
-        # The serialization schema requires the fields that have defaults too
-        # (json_schema_serialization_defaults_required), so Gemini writes them all.
-        schema = answer_model.model_json_schema(mode="serialization")
-        errors: list[str] = []
-        attempts = [
-            model
-            for model in self._available_text_models()
-            for _ in range(ANSWERS_PER_MODEL)
-        ]
-
-        for model in attempts:
-            if model not in self._available_text_models():
-                continue
-            try:
-                data, usage = await gemini.generate_json(
-                    model,
-                    system_prompt,
-                    user_prompt,
-                    step,
-                    THINKING_LEVEL,
-                    schema=schema,
-                )
-                self.usages.append(usage)
-                result = parse(answer_json(data))
-            except GeminiQuotaExhaustedError as error:
-                self.exhausted_models.add(model)
-                logger.warning(
-                    f"{model} is out of quota, skipping it from now on: {error}"
-                )
-                errors.append(f"{model}: {error}")
-                continue
-            except GeminiUnavailableError as error:
-                self.unavailable_models.add(model)
-                logger.warning(f"{model} is unavailable, skipping it for now: {error}")
-                errors.append(f"{model}: {error}")
-                continue
-            except (GeminiError, ValidationError) as error:
-                logger.warning(f"{model} failed during {step}: {error}")
-                errors.append(f"{model}: {error}")
-                continue
-
-            return result
-
-        raise EpisodeError(" | ".join(errors) or "Nenhum modelo de texto disponível")
-
-    def _available_text_models(self) -> list[str]:
-        return [
-            model
-            for model in self.settings.text_models
-            if model not in self.unavailable_models | self.exhausted_models
-        ]
 
     async def _narrate(self, turns: list[Turn], workdir: Path) -> list[Path]:
         gemini = self._require_gemini()

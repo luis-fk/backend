@@ -45,6 +45,7 @@ REST_FRAMEWORK = {"DEFAULT_AUTHENTICATION_CLASSES": []}
 OPEN_WEATHER_API_KEY = env("OPEN_WEATHER_API_KEY")
 TAVILY_API_KEY = env("TAVILY_API_KEY", default=None)
 GEMINI_API_KEY = env("GEMINI_API_KEY", default=None)
+OPENAI_API_KEY = env("OPENAI_API_KEY", default=None)
 TELEGRAM_BOT_TOKEN = env("TELEGRAM_BOT_TOKEN", default=None)
 TELEGRAM_CHAT_ID = env("TELEGRAM_CHAT_ID", default=None)
 # Where the news podcast reports errors and chat ids, so they stay out of the group

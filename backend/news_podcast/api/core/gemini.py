@@ -1,7 +1,6 @@
 import asyncio
 import base64
 import io
-import json
 import logging
 import re
 import time
@@ -20,9 +19,7 @@ API_ROOT = "https://generativelanguage.googleapis.com/v1beta"
 MAX_ATTEMPTS = 3
 MAX_RETRY_DELAY_SECONDS = 90.0
 RATE_LIMIT_WAIT_SECONDS = 30.0
-TEXT_TIMEOUT_SECONDS = 180.0
 TTS_TIMEOUT_SECONDS = 180.0
-MAX_OUTPUT_TOKENS = 32768
 RETRYABLE_STATUS = frozenset({429, 500, 502, 503, 504})
 PCM_SAMPLE_RATE = 24000
 PCM_SAMPLE_WIDTH = 2
@@ -53,40 +50,6 @@ class GeminiClient:
     def __init__(self, http_client: httpx.AsyncClient, api_key: str) -> None:
         self.http_client = http_client
         self.api_key = api_key
-
-    async def generate_json(
-        self,
-        model: str,
-        system_prompt: str,
-        user_prompt: str,
-        step: str,
-        thinking_level: str | None = None,
-        *,
-        schema: dict[str, Any],
-    ) -> tuple[dict[str, Any], Usage]:
-        """Returns the raw answer and its usage. Gemini can only write JSON that
-        follows `schema`, a JSON Schema. The caller reads the JSON with answer_json()
-        after counting the usage, because a broken answer is billed too."""
-        generation_config: dict[str, Any] = {
-            "responseMimeType": "application/json",
-            "responseJsonSchema": schema,
-            "maxOutputTokens": MAX_OUTPUT_TOKENS,
-        }
-        if thinking_level:
-            generation_config["thinkingConfig"] = {"thinkingLevel": thinking_level}
-
-        body = {
-            "systemInstruction": {"parts": [{"text": system_prompt}]},
-            "contents": [{"role": "user", "parts": [{"text": user_prompt}]}],
-            "generationConfig": generation_config,
-        }
-        data = await self._post(
-            f"{API_ROOT}/models/{model}:generateContent",
-            body,
-            TEXT_TIMEOUT_SECONDS,
-            f"{model} ({step})",
-        )
-        return data, text_usage(data, step, model)
 
     async def synthesize_dialogue(
         self,
@@ -213,55 +176,6 @@ def retry_delay(error: dict[str, Any]) -> float | None:
 def error_message(status: int, error: dict[str, Any]) -> str:
     message = str((error.get("error") or {}).get("message", ""))[:300]
     return f"Gemini respondeu {status}: {message}".strip()
-
-
-def answer_json(data: dict[str, Any]) -> Any:
-    return parse_json_text(extract_text(data))
-
-
-def extract_text(data: dict[str, Any]) -> str:
-    candidates = data.get("candidates") or []
-    if not candidates:
-        reason = (data.get("promptFeedback") or {}).get("blockReason", "sem resposta")
-        raise GeminiError(f"O Gemini não gerou texto ({reason})")
-
-    candidate = candidates[0]
-    parts = (candidate.get("content") or {}).get("parts") or []
-    text = "".join(
-        str(part.get("text", "")) for part in parts if not part.get("thought")
-    )
-    finish_reason = candidate.get("finishReason", "")
-
-    if finish_reason not in ("STOP", ""):
-        logger.warning(f"Gemini stopped before the end of its answer: {finish_reason}")
-    if not text.strip():
-        raise GeminiError(f"O Gemini devolveu um texto vazio ({finish_reason})")
-    return text
-
-
-def parse_json_text(text: str) -> Any:
-    try:
-        return json.loads(text)
-    except json.JSONDecodeError as error:
-        around = text[max(error.pos - 150, 0) : error.pos + 150]
-        logger.warning(
-            f"Gemini's JSON breaks at character {error.pos} of {len(text)} "
-            f"({error.msg}): {around!r}"
-        )
-        raise GeminiError("O Gemini devolveu um JSON inválido") from error
-
-
-def text_usage(data: dict[str, Any], step: str, model: str) -> Usage:
-    metadata = data.get("usageMetadata") or {}
-    output_tokens = int(metadata.get("candidatesTokenCount", 0)) + int(
-        metadata.get("thoughtsTokenCount", 0)
-    )
-    return Usage(
-        step=step,
-        model=model,
-        input_tokens=int(metadata.get("promptTokenCount", 0)),
-        output_tokens=output_tokens,
-    )
 
 
 def build_tts_body(

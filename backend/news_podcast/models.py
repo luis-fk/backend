@@ -12,6 +12,7 @@ from news_podcast.api.core.config import (
     SHORTEST_EPISODE_MINUTES,
     SPEECH_SPEED_LIMITS,
 )
+from news_podcast.api.core.llm import model_name_error
 from news_podcast.api.core.schemas import ModelPrice
 from news_podcast.api.episode import config, prompts
 from news_podcast.api.episode.feeds import GOOGLE_NEWS_HOST
@@ -183,6 +184,10 @@ class PodcastSettings(models.Model):
                 f"{MAX_SPEECH_MINUTES} (MAX_SPEECH_MINUTES in api/core/config.py). "
                 "Lower the maximum or the speed."
             )
+        for name in ("text_model", "fallback_model"):
+            model = getattr(self, name)
+            if model and (name_error := model_name_error(model)):
+                errors[name] = name_error
         for name, fields in PROMPT_FIELDS.items():
             error = placeholder_error(getattr(self, name), fields)
             if error:

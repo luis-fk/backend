@@ -16,9 +16,9 @@ configurações, os feeds e o histórico. O resto é um management command.
 | Etapa | Arquivo | O que acontece |
 |---|---|---|
 | Feeds | `api/episode/feeds.py` | Baixa em paralelo os feeds ativos do admin e mantém só o que saiu entre 6h de ontem e 6h de hoje. |
-| Seleção | `api/episode/selection.py` + prompt de seleção | O modelo de texto recebe todas as manchetes, junta as que falam do mesmo fato, aplica as regras editoriais e, pesando quantos veículos diferentes deram cada fato (cada veículo conta uma vez), escolhe uma história para cada minuto e meio de episódio (de 8 a 12 no padrão), com o tempo de cada uma. |
+| Seleção | `api/episode/selection.py` + prompt de seleção | O modelo de texto, pelo `TextModels` (`api/core/llm.py`, com LangChain), recebe todas as manchetes, junta as que falam do mesmo fato, aplica as regras editoriais e, pesando quantos veículos diferentes deram cada fato (cada veículo conta uma vez), escolhe uma história para cada minuto e meio de episódio (de 8 a 12 no padrão), com o tempo de cada uma. |
 | Leitura | `api/episode/articles.py` | Para cada história, lê o texto completo de até 3 veículos (o ICL vem primeiro). Os demais veículos que deram a notícia entram como manchete. Páginas de vídeo, que não têm texto, não são lidas, e outro veículo fica com a vaga. Todos os feeds são de sites sem paywall. |
-| Roteiro | `api/episode/script.py` + prompt do roteiro | O modelo de texto escreve o diálogo com 170 palavras por minuto de episódio, vezes a velocidade (de 2.040 a 3.060 palavras no padrão), abrindo com uma escalada de 3 a 5 manchetes curtas, como nos telejornais. Se vier curto demais, pede uma versão mais longa uma vez. |
+| Roteiro | `api/episode/script.py` + prompt do roteiro | O modelo de texto, também pelo `TextModels`, escreve o diálogo com 170 palavras por minuto de episódio, vezes a velocidade (de 2.040 a 3.060 palavras no padrão), abrindo com uma escalada de 3 a 5 manchetes curtas, como nos telejornais. Se vier curto demais, pede uma versão mais longa uma vez. |
 | Voz | `api/core/gemini.py` | O modelo de voz gera o diálogo com as duas vozes, em blocos de cerca de 650 palavras. Se o Gemini estiver fora do ar, o código espera e tenta de novo (veja *Bom saber*). |
 | Áudio | `api/core/audio.py` | O ffmpeg junta os trechos, normaliza o volume e gera um OGG/Opus de 32 kbps (cerca de 4 MB para 15 minutos), o formato das mensagens de voz do Telegram. |
 | Envio | `api/core/telegram.py` | `sendVoice` com o título e a data na legenda (por ser mensagem de voz, o Telegram mostra o botão de velocidade 1x, 1,5x, 2x). Sai assim que fica pronto, sem esperar a hora cheia. Se algo falhar, chega uma mensagem dizendo em qual etapa. |
@@ -47,7 +47,8 @@ Um serviço Cron no projeto do Railway, a partir do mesmo repositório:
    branch `main`, Custom Start Command `python manage.py news_podcast episode
    --scheduled` e Cron Schedule `40 9 * * *` (6h40 em Brasília; o Railway usa UTC).
 2. Em *Variables*: `RAILPACK_DEPLOY_APT_PACKAGES=ffmpeg` (instala o ffmpeg só neste
-   serviço), `GEMINI_API_KEY`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`,
+   serviço), `GEMINI_API_KEY`, `OPENAI_API_KEY` (só se um modelo de texto for da
+   OpenAI), `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`,
    `TELEGRAM_ADMIN_CHAT_ID` e `NEWS_PODCAST_DATABASE_URL`. O Django também exige, para
    subir, `SECRET_KEY`, `API_TOKEN_SECRET` (32 caracteres ou mais),
    `OPEN_WEATHER_API_KEY`, `SERVER_URL`, `NGROK_URL`, `FRONT_END_URL`,
@@ -109,8 +110,13 @@ não salva: o admin mostra o erro no campo.
   grátis permite 10 pedidos por dia, então 30 minutos dão uns 8 pedidos. No plano pago,
   dá para aumentar esse limite.
 - **Modelos e preços:** o modelo de texto, o reserva (opcional) e o de voz, cada um com
-  o preço em US$ por milhão de tokens de entrada e de saída, da tabela do Google. O custo
-  do histórico usa esses preços, então um modelo novo precisa do preço dele.
+  o preço em US$ por milhão de tokens de entrada e de saída, da tabela do provedor. O
+  custo do histórico usa esses preços, então um modelo novo precisa do preço dele. Os
+  modelos de texto se escrevem `provedor:modelo`, com `google_genai` ou `openai`
+  (`google_genai:gemini-3.8-flash`, `openai:gpt-4.1-mini`); um nome solto que começa
+  com `gemini` é do Google, e o admin recusa outro provedor. Para usar um modelo da
+  OpenAI, ponha antes a `OPENAI_API_KEY` no serviço do cron e os preços da tabela da
+  OpenAI.
 - **Prompts e estilos de voz:** o prompt da seleção, o do roteiro e o de alongamento
   (pedido uma vez, quando o roteiro vem curto), e os estilos da conversa e das manchetes
   da escalada. Cada prompt só aceita os `{campos}` listados embaixo dele, sem
@@ -141,7 +147,7 @@ desligado fica de fora sem ser apagado). A lista começa com o `STARTING_FEEDS` 
 Em *News podcast → Episodes*, uma linha por execução: hora de início (de Brasília),
 status (enviado, falhou ou, com `--no-send`, não enviado), duração, palavras por
 minuto, custo no plano pago em reais e, se falhou, a etapa e o erro. A página de cada
-execução mostra as palavras do roteiro e os tokens de cada resposta do Gemini. Na
+execução mostra as palavras do roteiro e os tokens de cada resposta dos modelos. Na
 velocidade 1x, as palavras por minuto são o ritmo da voz: se ficarem longe de 170, o
 `NATURAL_WORDS_PER_MINUTE` do `api/core/config.py` precisa de ajuste, senão o episódio sai mais
 curto ou mais longo que o pedido. O áudio não fica guardado. O topo da lista mostra o custo total
@@ -175,6 +181,13 @@ está no `.gitignore`.
   etapas seguintes já vão direto para ele. Se nenhum dos dois der uma resposta boa
   enquanto um deles estiver fora do ar, o código espera 10 minutos e depois 20 e
   pergunta aos dois de novo, e o episódio chega mais tarde na mesma medida.
+- Cada modelo tem duas respostas antes do próximo. Um pedido que falha por
+  sobrecarga, limite por minuto ou conexão é feito de novo até 3 vezes, esperando o
+  tempo que o provedor pede. Um modelo sem cota no dia, sem a chave, de provedor
+  desconhecido ou que recusa o pedido fica de fora até o fim da execução, com o
+  motivo no log e no erro.
+- Depois de trocar o modelo de texto, ouça os primeiros episódios: os prompts foram
+  ajustados para o Gemini.
 - A voz não tem reserva: se o Gemini estiver fora do ar, o código espera 10 minutos e
   depois 20 e tenta de novo, e o episódio chega mais tarde na mesma medida. Se ainda
   falhar, ou se a cota do dia acabar, o episódio do dia não sai e chega uma mensagem de
