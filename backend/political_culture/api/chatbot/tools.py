@@ -56,7 +56,7 @@ def get_ideologies() -> list[tuple[int, str]]:
 
     Returns:
         A list of tuples, where each tuple contains the id and name of the ideology.
-        If no ideologies are found, None is returned.
+        If no ideologies are found, the list is empty.
     """
     ideologies = IdeologiesDefinition.objects.values_list("id", "ideology")
 
@@ -64,7 +64,7 @@ def get_ideologies() -> list[tuple[int, str]]:
 
 
 @tool
-def get_ideology_definition(ideology_id: int) -> str:
+def get_ideology_definition(ideology_id: int) -> str | None:
     """
     Retrieve the definition of a specific ideology from the database.
 
@@ -74,13 +74,11 @@ def get_ideology_definition(ideology_id: int) -> str:
     Returns:
         A string containing the definition of the ideology, or None if not found.
     """
-    ideologies = (
+    return (
         IdeologiesDefinition.objects.filter(id=ideology_id)
-        .values_list("definition")
+        .values_list("definition", flat=True)
         .first()
     )
-
-    return cast(str, ideologies)
 
 
 class UserTools(NamedTuple):
