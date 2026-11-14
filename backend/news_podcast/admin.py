@@ -168,7 +168,7 @@ class EpisodeAdmin(admin.ModelAdmin):
         "status",
         "topic",
         "story_title",
-        "page_links",
+        "page_list",
         "length",
         "script_words",
         "pace",
@@ -177,7 +177,7 @@ class EpisodeAdmin(admin.ModelAdmin):
         "usage",
         "error",
     ]
-    readonly_fields = ["started", "page_links", "length", "pace", "cost"]
+    readonly_fields = ["started", "page_list", "length", "pace", "cost"]
 
     # The history is written by the runs only.
     def has_add_permission(self, request: HttpRequest) -> bool:
@@ -216,13 +216,14 @@ class EpisodeAdmin(admin.ModelAdmin):
         return Truncator(episode.error).chars(80)
 
     @admin.display(description="pages")
-    def page_links(self, episode: Episode) -> SafeString | str:
+    def page_list(self, episode: Episode) -> SafeString | str:
         if not episode.pages:
             return "-"
+        # Text, not links: the URLs come from a web search.
         return format_html_join(
             "\n",
-            '<a href="{}">{}</a><br>',
-            ((page["url"], page["title"]) for page in episode.pages),
+            "{}: {}<br>",
+            ((page.get("title", ""), page.get("url", "")) for page in episode.pages),
         )
 
     def changelist_view(

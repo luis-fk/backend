@@ -249,9 +249,15 @@ class Area(models.Model):
         return self.name
 
 
+# The area's pk keeps an area's topics together when two areas share a position.
+TEACHING_ORDER = ["area__position", "area__pk", "position", "pk"]
+
+
 class TopicQuerySet(models.QuerySet["Topic"]):
     def with_taught_at(self) -> "TopicQuerySet":
-        """Each topic with taught_at: when its latest sent lesson started, or None."""
+        """Each topic with taught_at: when its latest sent lesson started, or None.
+        The aggregate's GROUP BY drops Meta.ordering, so the teaching order is set
+        again."""
         return self.annotate(
             taught_at=Max(
                 "lessons__started_at",
@@ -260,7 +266,7 @@ class TopicQuerySet(models.QuerySet["Topic"]):
                     lessons__status=Episode.Status.SENT,
                 ),
             )
-        )
+        ).order_by(*TEACHING_ORDER)
 
 
 class Topic(models.Model):
@@ -278,8 +284,7 @@ class Topic(models.Model):
     objects = TopicQuerySet.as_manager()
 
     class Meta:
-        # The area's pk keeps an area's topics together when two areas share a position.
-        ordering = ["area__position", "area__pk", "position", "pk"]
+        ordering = TEACHING_ORDER
 
     def __str__(self) -> str:
         return self.title
@@ -311,8 +316,8 @@ class Episode(models.Model):
     )
     usage = models.JSONField(default=list, help_text="Tokens of each model answer.")
     error = models.TextField(blank=True, help_text="The step that failed and why.")
-    # The database defaults let the code of either version insert rows while the
-    # migration and the deploy happen in either order.
+    # The database defaults let the code still on main insert rows once this
+    # migration ran. The new code needs the new columns, so the migration runs first.
     kind = models.CharField(max_length=10, choices=Kind.choices, db_default=Kind.NEWS)
     topic = models.ForeignKey(
         Topic,

@@ -38,10 +38,10 @@ The daily episode runs on a Railway Cron service (see *Scheduling*).
   the settings row from `settings.json` when there is none, the feeds from
   `feeds.json` when the list is empty, and the lesson catalog from `catalog.json`
   when it has no area. So a value changed or a feed added in `seed/`
-  after a database was seeded reaches it only through the admin. Production already
-  has its data, so `make seed-prod` writes nothing there today: it runs only when
-  `PLAN.md` says so, for a release that brings starting data for a new table, and
-  it shows the database's address and asks for `yes`.
+  after a database was seeded reaches it only through the admin. `make seed-prod`
+  runs only when `PLAN.md` says so, for a release that brings starting data for a
+  new table, such as the lesson catalog, and it shows the database's address and
+  asks for `yes`.
 - **Your chat:** with `TELEGRAM_BOT_TOKEN` in `.env`, run
   `uv run python manage.py news_podcast chat-id` from the `backend/` folder. The bot sends
   you the conversation's number, which goes in the service's `TELEGRAM_CHAT_ID` (see

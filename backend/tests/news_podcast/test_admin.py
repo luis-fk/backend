@@ -194,6 +194,7 @@ def test_the_topics_list_shows_when_a_sent_lesson_taught_each_topic(
     assert page.count('<td class="field-taught">-</td>') == 2
     for column in ["title", "area", "position", "active", "taught"]:
         assert f"column-{column}" in page
+    assert "Taught on (Brasília)" in page
 
 
 @DATABASES
@@ -207,6 +208,9 @@ def test_the_topics_list_filters_by_area_and_by_active(admin_client: Client) -> 
     by_area = admin_client.get(TOPICS_URL, {"area__id__exact": justice.pk})
     inactive = admin_client.get(TOPICS_URL, {"active__exact": "0"})
 
+    # The changelist would apply a lookup from the URL even without the sidebar.
+    filters = [spec.title for spec in by_area.context["cl"].filter_specs]
+    assert filters == ["area", "active"]
     listed = [str(topic) for topic in by_area.context["cl"].result_list]
     assert listed == ["O STF: o que julga", "O CNJ: quem fiscaliza os juízes"]
     assert [str(topic) for topic in inactive.context["cl"].result_list] == [
@@ -221,13 +225,16 @@ def test_the_catalog_lists_keep_one_order_through_ties(admin_client: Client) -> 
     create_topic(first, title="Tópico B", position=1)
     create_topic(first, title="Tópico A", position=1)
     create_topic(tied, title="Tópico C", position=0)
+    # An update moves a row to the end of its table on PostgreSQL, so the tied rows
+    # created first no longer come back first on their own: only the pk orders them.
+    Area.objects.filter(pk=first.pk).update(position=1)
+    Topic.objects.filter(title="Tópico B").update(position=1)
 
-    for _ in range(2):
-        areas = admin_client.get(AREAS_URL).context["cl"].result_list
-        topics = admin_client.get(TOPICS_URL).context["cl"].result_list
+    areas = admin_client.get(AREAS_URL).context["cl"].result_list
+    topics = admin_client.get(TOPICS_URL).context["cl"].result_list
 
-        assert [str(area) for area in areas] == ["Primeira", "Segunda"]
-        assert [str(topic) for topic in topics] == ["Tópico B", "Tópico A", "Tópico C"]
+    assert [str(area) for area in areas] == ["Primeira", "Segunda"]
+    assert [str(topic) for topic in topics] == ["Tópico B", "Tópico A", "Tópico C"]
 
 
 @DATABASES
@@ -266,8 +273,11 @@ def test_the_kind_filter_lists_the_lessons_and_adds_up_their_cost(
         started_at=datetime(2026, 11, 15, 10, 0, tzinfo=UTC), cost_usd=0.30
     )
 
-    page = admin_client.get(EPISODES_URL, {"kind__exact": "lesson"}).content.decode()
+    response = admin_client.get(EPISODES_URL, {"kind__exact": "lesson"})
+    page = response.content.decode()
 
+    filters = [spec.title for spec in response.context["cl"].filter_specs]
+    assert filters == ["kind", "status"]
     assert page.count('<td class="field-kind">Lesson</td>') == 2
     assert '<td class="field-kind">News</td>' not in page
     assert "<strong>R$ 2,75</strong>" in page
@@ -294,7 +304,23 @@ def test_a_lesson_row_shows_its_topic_story_and_pages(admin_client: Client) -> N
     assert "Como o Congresso derruba um veto" in page
     assert "Congresso derruba veto ao &lt;marco&gt; &amp; cia" in page
     assert (
-        '<a href="https://www12.senado.leg.br/veto?a=1&amp;b=2">'
-        "Entenda o veto &amp; a sessão</a>"
+        "Entenda o veto &amp; a sessão: https://www12.senado.leg.br/veto?a=1&amp;b=2"
     ) in page
-    assert '<a href="https://www.camara.leg.br/vetos">Vetos</a>' in page
+    assert "Vetos: https://www.camara.leg.br/vetos" in page
+
+
+@DATABASES
+def test_a_lesson_row_with_odd_pages_still_opens_and_links_nothing(
+    admin_client: Client,
+) -> None:
+    lesson = create_lesson_row(
+        pages=[{"url": "javascript:alert(1)"}, {"title": "Sem endereço"}]
+    )
+
+    response = admin_client.get(f"{EPISODES_URL}{lesson.pk}/change/")
+
+    page = response.content.decode()
+    assert response.status_code == 200
+    assert ": javascript:alert(1)" in page
+    assert "Sem endereço: " in page
+    assert 'href="javascript:' not in page

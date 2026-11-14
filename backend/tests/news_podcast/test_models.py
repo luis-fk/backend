@@ -253,20 +253,29 @@ def test_areas_and_topics_keep_one_order_through_ties() -> None:
     create_topic(first, title="A", position=1)
     create_topic(tied, title="C", position=0)
     create_topic(later, title="D", position=1)
+    # An update moves a row to the end of its table on PostgreSQL, so the tied rows
+    # created first no longer come back first on their own: only the pk orders them.
+    Area.objects.filter(pk=first.pk).update(position=1)
+    Topic.objects.filter(title="B").update(position=1)
 
-    for _ in range(2):
-        assert list(Area.objects.values_list("name", flat=True)) == [
-            "O Congresso e as leis",
-            "Eleições e partidos",
-            "Justiça",
-        ]
-        # An area's topics stay together, even when two areas share a position.
-        assert list(Topic.objects.values_list("title", flat=True)) == [
-            "B",
-            "A",
-            "C",
-            "D",
-        ]
+    assert list(Area.objects.values_list("name", flat=True)) == [
+        "O Congresso e as leis",
+        "Eleições e partidos",
+        "Justiça",
+    ]
+    # An area's topics stay together, even when two areas share a position.
+    assert list(Topic.objects.values_list("title", flat=True)) == ["B", "A", "C", "D"]
+
+
+@DATABASES
+def test_the_taught_date_keeps_the_teaching_order() -> None:
+    area = create_area()
+    for position in (3, 1, 2):
+        create_topic(area, title=f"tópico {position}", position=position)
+
+    titles = [topic.title for topic in Topic.objects.with_taught_at()]
+
+    assert titles == ["tópico 1", "tópico 2", "tópico 3"]
 
 
 @DATABASES

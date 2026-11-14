@@ -251,10 +251,13 @@ def test_an_empty_catalog_is_filled_and_the_other_tables_kept() -> None:
     seed()
     Area.objects.all().delete()
     PodcastSettings.objects.update(max_minutes=20)
+    Feed.objects.filter(outlet="g1").update(active=False)
+    feeds_before = list(Feed.objects.order_by("pk").values())
 
     seed()
 
     assert PodcastSettings.objects.get().max_minutes == 20
+    assert list(Feed.objects.order_by("pk").values()) == feeds_before
     assert Topic.objects.count() == 101
 
 
