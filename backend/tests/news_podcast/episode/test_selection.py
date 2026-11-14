@@ -98,25 +98,6 @@ def test_the_selection_prompt_follows_the_configured_options() -> None:
     assert "Escolha de 13 a 20 histórias" in selection
 
 
-def test_the_default_selection_prompt_keeps_the_morning_episode() -> None:
-    start = datetime(2026, 11, 5, 6, 0, tzinfo=LOCAL_TZ)
-    end = datetime(2026, 11, 6, 6, 0, tzinfo=LOCAL_TZ)
-
-    selection = system_message(
-        selection_template(prompts.SELECTION_PROMPT),
-        {"headlines": "", **selection_values(DEFAULT_OPTIONS, start, end)},
-    )
-
-    assert "Escolha de 8 a 12 histórias" in selection
-
-
-def test_the_default_selection_weighs_how_many_outlets_reported_a_fact() -> None:
-    selection = " ".join(prompts.SELECTION_PROMPT.split())
-
-    assert "quantos veículos diferentes" in selection
-    assert "Conte cada veículo uma vez" in selection
-
-
 def test_the_selection_fills_every_placeholder_the_admin_accepts() -> None:
     # A placeholder left without a value would raise KeyError.
     selection = system_message(

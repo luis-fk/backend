@@ -175,16 +175,20 @@ class PodcastSettings(models.Model):
 
     def clean(self) -> None:
         errors: dict[str, str] = {}
-        speech_minutes = self.max_minutes * self.speech_speed
-        if self.min_minutes > self.max_minutes:
-            errors["max_minutes"] = "Must not be less than the minimum."
-        elif speech_minutes > MAX_SPEECH_MINUTES:
-            errors["max_minutes"] = (
-                f"{self.max_minutes} minutes at {self.speech_speed:g}x are "
-                f"{speech_minutes:g} minutes of speech, over the limit of "
-                f"{MAX_SPEECH_MINUTES} (MAX_SPEECH_MINUTES in api/core/config.py). "
-                "Lower the maximum or the speed."
-            )
+        # Django runs clean() even after clean_fields() refused a value, such as a
+        # null or a word in a seed file, so only numbers and text are checked here.
+        numbers = (self.min_minutes, self.max_minutes, self.speech_speed)
+        if all(isinstance(number, int | float) for number in numbers):
+            speech_minutes = self.max_minutes * self.speech_speed
+            if self.min_minutes > self.max_minutes:
+                errors["max_minutes"] = "Must not be less than the minimum."
+            elif speech_minutes > MAX_SPEECH_MINUTES:
+                errors["max_minutes"] = (
+                    f"{self.max_minutes} minutes at {self.speech_speed:g}x are "
+                    f"{speech_minutes:g} minutes of speech, over the limit of "
+                    f"{MAX_SPEECH_MINUTES} (MAX_SPEECH_MINUTES in api/core/config.py). "
+                    "Lower the maximum or the speed."
+                )
         for name in ("text_model", "fallback_model"):
             model = getattr(self, name)
             if model and (name_error := model_name_error(model)):
@@ -192,8 +196,8 @@ class PodcastSettings(models.Model):
         if self.voice_model and (name_error := voice_model_error(self.voice_model)):
             errors["voice_model"] = name_error
         for name, fields in PROMPT_FIELDS.items():
-            error = placeholder_error(getattr(self, name), fields)
-            if error:
+            prompt = getattr(self, name)
+            if isinstance(prompt, str) and (error := placeholder_error(prompt, fields)):
                 errors[name] = error
         if errors:
             raise ValidationError(errors)

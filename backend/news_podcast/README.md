@@ -33,6 +33,12 @@ The daily episode runs on a Railway Cron service (see *Scheduling*).
 - **Database:** `news_podcast_db` on Railway's Postgres, with
   `NEWS_PODCAST_DATABASE_URL` also on the backend service (the admin uses the database),
   and the migrations applied (`make migrate-prod`, which reads `.env.production`).
+- **Starting data:** `make seed` fills a local database from `news_podcast/seed/`:
+  the settings row from `settings.json` and the feeds from `feeds.json`. It only
+  creates a missing row and fills an empty feed list, so a value changed in `seed/`
+  after a database was seeded reaches it only through the admin. Production already
+  has its data: `make seed-prod` runs only when `PLAN.md` says so, for a release that
+  brings new starting data, and it shows the database's address and asks for `yes`.
 - **Your chat:** with `TELEGRAM_BOT_TOKEN` in `.env`, run
   `uv run python manage.py news_podcast chat-id` from the `backend/` folder. The bot sends
   you the conversation's number, which goes in the service's `TELEGRAM_CHAT_ID` (see
@@ -169,7 +175,8 @@ midway records the cost of what already ran.
   `api/core/config.py`.
 
 To run it locally without sending, from the `backend/` folder, with ffmpeg installed,
-the keys and `NEWS_PODCAST_DATABASE_URL` in `.env`, and the migrations applied:
+the keys and `NEWS_PODCAST_DATABASE_URL` in `.env`, the migrations applied and
+`make seed` run:
 
 ```
 uv run python manage.py news_podcast episode --no-send

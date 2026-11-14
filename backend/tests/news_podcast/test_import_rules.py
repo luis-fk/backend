@@ -13,6 +13,7 @@ MODELS = "news_podcast.models"
 # these modules and every command.
 ORM_MODULES = (MODELS, "news_podcast.admin", f"{EPISODE}.run", f"{LESSON}.run")
 COMMANDS = "news_podcast.management.commands"
+SEED_COMMAND = f"{COMMANDS}.seed_news_podcast"
 VOICE = f"{CORE}.voice"
 # The features reach the voice only through its interface, so an implementation such
 # as GeminiVoice stays behind voice_provider.
@@ -197,3 +198,39 @@ def test_the_features_reach_the_voice_only_through_its_interface(
         found = imports(line, module)
 
         assert (broken_voice_rules(module, found) == []) is allowed
+
+
+def names_the_seed_folder(source: str) -> bool:
+    """Whether a source builds a path into seed/: a string that is the folder's name,
+    or one that starts with it. A text that only mentions seed/ doesn't count."""
+    return any(
+        isinstance(node, ast.Constant)
+        and isinstance(node.value, str)
+        and (node.value == "seed" or node.value.startswith("seed/"))
+        for node in ast.walk(ast.parse(source))
+    )
+
+
+def test_only_the_seed_command_reads_the_seed_folder() -> None:
+    readers = [
+        module_name(path)
+        for path in sorted(APP_DIR.rglob("*.py"))
+        if names_the_seed_folder(path.read_text())
+    ]
+
+    assert readers == [SEED_COMMAND]
+
+
+@pytest.mark.parametrize(
+    ("source", "found"),
+    [
+        ('SEED_DIR = Path(__file__).parent / "seed"', True),
+        ('path = Path("seed/settings.json")', True),
+        ('"""Fills the database from seed/."""', False),
+        ('help = "Reads the files in news_podcast/seed/."', False),
+    ],
+)
+def test_the_seed_folder_rule_counts_paths_not_mentions(
+    source: str, found: bool
+) -> None:
+    assert names_the_seed_folder(source) is found
