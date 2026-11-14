@@ -1,8 +1,9 @@
 from typing import Any
 
 from django import forms
-from django.contrib import admin
+from django.contrib import admin, messages
 from django.contrib.admin.widgets import AdminTextareaWidget
+from django.core.exceptions import PermissionDenied
 from django.db.models import Sum
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import redirect
@@ -11,7 +12,7 @@ from django.utils.text import Truncator
 
 from news_podcast.api.core.config import LOCAL_TZ
 from news_podcast.api.core.messages import brl
-from news_podcast.models import Episode, Feed, PodcastSettings
+from news_podcast.models import Episode, Feed, PodcastSettings, SettingsMissing
 
 LONG_PROMPTS = ["selection_prompt", "script_prompt"]
 NUMBERS = [
@@ -78,8 +79,8 @@ class PodcastSettingsAdmin(admin.ModelAdmin):
         ),
     ]
 
-    # A single row, which changelist_view creates. These permissions must not query
-    # the database: the admin checks them on every page, for its menu.
+    # A single row, which only seed_news_podcast creates. These permissions must not
+    # query the database: the admin checks them on every page, for its menu.
     def has_add_permission(self, request: HttpRequest) -> bool:
         return False
 
@@ -91,8 +92,16 @@ class PodcastSettingsAdmin(admin.ModelAdmin):
     def changelist_view(
         self, request: HttpRequest, extra_context: dict[str, Any] | None = None
     ) -> HttpResponse:
+        # Django checks the permission only in the list it renders, after the row
+        # would have been read and its link or the seed message shown.
+        if not self.has_view_or_change_permission(request):
+            raise PermissionDenied
         # The list goes straight to the form of the single row.
-        podcast_settings = PodcastSettings.load()
+        try:
+            podcast_settings = PodcastSettings.load()
+        except SettingsMissing as error:
+            self.message_user(request, str(error), messages.ERROR)
+            return super().changelist_view(request, extra_context)
         return redirect(
             "admin:news_podcast_podcastsettings_change", podcast_settings.pk
         )
@@ -104,13 +113,6 @@ class FeedAdmin(admin.ModelAdmin):
     list_editable = ["active"]
     list_filter = ["section", "active"]
     search_fields = ["outlet", "url"]
-
-    def changelist_view(
-        self, request: HttpRequest, extra_context: dict[str, Any] | None = None
-    ) -> HttpResponse:
-        # Before the first run, the list starts with the feeds in config.py.
-        Feed.start_if_empty()
-        return super().changelist_view(request, extra_context)
 
 
 @admin.register(Episode)

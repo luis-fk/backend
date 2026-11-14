@@ -15,7 +15,7 @@ from news_podcast.api.core.schemas import (
     ModelPrice,
     Usage,
 )
-from news_podcast.models import PodcastSettings
+from tests.news_podcast.factories import build_settings
 
 NOVEMBER = date(2026, 11, 6)
 PRICES = {
@@ -65,7 +65,7 @@ def test_a_failure_notice_names_what_failed(subject: str, first_line: str) -> No
 
 @pytest.mark.parametrize("name", ["gemini-3.8-flash", "google_genai:gemini-3.8-flash"])
 def test_a_text_model_finds_its_price_under_the_name_as_saved(name: str) -> None:
-    prices = PodcastSettings(
+    prices = build_settings(
         text_model=name, text_input_price=0.75, text_output_price=3.75
     ).prices()
     usage = Usage(step="script", model=name, input_tokens=1_000_000)

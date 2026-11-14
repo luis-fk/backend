@@ -1,47 +1,3 @@
-from news_podcast.api.core.schemas import ModelPrice
-
-
-def google_news_search(query: str, period: str) -> str:
-    return (
-        f"https://news.google.com/rss/search?q={query}+when:{period}"
-        "&hl=pt-BR&gl=BR&ceid=BR:pt-419"
-    )
-
-
-# The feeds (outlet, section, url) a new feed list starts with; after that they
-# change in the admin. A Google News search returns at most 100 items, so big sites
-# come in by section, and the SBT search leaves its video pages out.
-STARTING_FEEDS = (
-    ("g1", "Economia", "https://g1.globo.com/rss/g1/economia/"),
-    (
-        "Poder360",
-        "Economia",
-        google_news_search("site:poder360.com.br/poder-economia", "1d"),
-    ),
-    ("Aos Fatos", "Geral", google_news_search("site:aosfatos.org", "7d")),
-    ("ICL Notícias", "Geral", google_news_search("site:iclnoticias.com.br", "2d")),
-    (
-        "SBT News",
-        "Geral",
-        google_news_search(
-            "site:sbtnews.sbt.com.br+-site:sbtnews.sbt.com.br/videos", "1d"
-        ),
-    ),
-    ("BBC News Brasil", "Geral", "https://feeds.bbci.co.uk/portuguese/rss.xml"),
-    ("g1", "Mundo", "https://g1.globo.com/rss/g1/mundo/"),
-    (
-        "Poder360",
-        "Mundo",
-        google_news_search("site:poder360.com.br/poder-internacional", "1d"),
-    ),
-    (
-        "CNN Brasil",
-        "Política",
-        google_news_search("site:cnnbrasil.com.br/politica", "1d"),
-    ),
-    ("Poder360", "Política", "https://www.poder360.com.br/feed/"),
-    ("g1", "Política", "https://g1.globo.com/rss/g1/politica/"),
-)
 NEWS_WINDOW_HOURS = 24
 
 
@@ -50,33 +6,8 @@ NEWS_WINDOW_HOURS = 24
 NEWS_CUTOFF_HOURS_BEFORE_SEND = 1
 
 
-# The DEFAULT_* values, the models, their prices and the styles only fill the settings
-# row in the Django admin when it is created (news_podcast/models.py); after that,
-# they change in the admin.
-DEFAULT_MIN_MINUTES = 12
-DEFAULT_MAX_MINUTES = 18
-DEFAULT_SPEECH_SPEED = 1.0
 MINUTES_PER_STORY = 1.5
 SHORT_SCRIPT_RATIO = 0.85
-TEXT_MODEL = "gemini-3.8-flash"
-TEXT_FALLBACK_MODEL = "gemini-3.6-flash"
-TTS_MODEL = "gemini-3.8-flash-lite-tts"
-
-
-# US$ per million tokens of input and output, the paid-plan prices. They are
-# promotional until 2026-12-31 and double on 2027-01-01.
-TEXT_MODEL_PRICE = ModelPrice(0.75, 3.75)
-TEXT_FALLBACK_MODEL_PRICE = ModelPrice(0.75, 3.75)
-TTS_MODEL_PRICE = ModelPrice(0.50, 6.00)
-TTS_STYLE = (
-    "Warm, conversational news podcast host speaking Brazilian Portuguese "
-    "with a neutral Brazilian accent; clear diction; brisk, fast pace."
-)
-HEADLINE_TTS_STYLE = (
-    "Brazilian TV news anchor reading the opening headlines: firm, emphatic and "
-    "impactful delivery that stresses the key words, with a brief pause at the end; "
-    "neutral Brazilian accent; clear diction."
-)
 FULL_TEXT_DOMAINS = (
     "g1.globo.com",
     "cnnbrasil.com.br",

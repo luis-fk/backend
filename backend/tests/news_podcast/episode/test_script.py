@@ -12,7 +12,7 @@ from news_podcast.api.core.config import LOCAL_TZ
 from news_podcast.api.core.llm import TextModels
 from news_podcast.api.core.schemas import Script, Turn
 from news_podcast.api.core.turns import MIN_SCRIPT_TURNS
-from news_podcast.api.episode import config, prompts
+from news_podcast.api.episode import prompts
 from news_podcast.api.episode.prompts import lengthening_template, script_template
 from news_podcast.api.episode.run import episode_settings
 from news_podcast.api.episode.schemas import EpisodeOptions
@@ -21,13 +21,13 @@ from news_podcast.api.episode.script import (
     script_values,
     write_script,
 )
-from news_podcast.models import PodcastSettings
+from tests.news_podcast.factories import SETTINGS, build_settings
 from tests.news_podcast.fake_models import FakeChatModel, fake_factory
 
 TURNS = [Turn(speaker="Bia", text="Bom dia")]
 DEFAULT_OPTIONS = EpisodeOptions(12, 18, 1.0)
-MAIN = config.TEXT_MODEL
-FALLBACK = config.TEXT_FALLBACK_MODEL
+MAIN = SETTINGS["text_model"]
+FALLBACK = SETTINGS["fallback_model"]
 
 
 def system_message(template: ChatPromptTemplate, values: dict[str, Any]) -> str:
@@ -58,8 +58,14 @@ def test_the_script_prompt_follows_the_configured_options() -> None:
     start = datetime(2026, 11, 6, 20, 0, tzinfo=LOCAL_TZ)
     end = datetime(2026, 11, 7, 20, 0, tzinfo=LOCAL_TZ)
 
+    template = (
+        'Podcast chamado "{podcast_name}". É o episódio das {send_time} de {today}. '
+        "Abra com uma fala curta com {greeting} e a data. Escreva entre {min_words} e "
+        "{max_words} palavras."
+    )
+
     script = system_message(
-        script_template(prompts.SCRIPT_PROMPT),
+        script_template(template),
         {
             "briefs": "",
             **script_values(options, date(2026, 11, 7), start, end, time(21, 0)),
@@ -129,7 +135,7 @@ def write_with(
             text = TextModels(
                 [MAIN, FALLBACK], [], client, fake_factory(outcomes, [], built)
             )
-            snapshot = episode_settings(PodcastSettings())
+            snapshot = episode_settings(build_settings())
             return await write_script(
                 text, snapshot, [], start.date(), start, start, time(7, 0)
             )

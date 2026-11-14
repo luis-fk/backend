@@ -103,10 +103,10 @@ steps 2 and 3.
 ## Settings
 
 They live in the Django admin, under *News podcast → Settings*. It is a single row,
-which starts with the values in `api/episode/config.py` and `api/episode/prompts.py`;
-after that, changing those files doesn't change what is in the database. Each change
-applies from the next run on, and an invalid value doesn't save: the admin shows the
-error on the field.
+created only by the seed (`make seed`, see *Setup*), and after that it changes only in
+the admin. Without it, a run fails at "configurações" and the Settings page says to
+run the seed. Each change applies from the next run on, and an invalid value doesn't
+save: the admin shows the error on the field.
 
 - **Paused:** Railway's runs (the cron and *Run now*) end with no episode.
 - **Length and speed:** the length is the file's, already at the chosen speed. With
@@ -137,9 +137,9 @@ error on the field.
 ## Feeds
 
 They live in the admin, under *News podcast → Feeds*: outlet, section, URL and whether
-it is active (a feed turned off stays out without being deleted). The list starts with
-`STARTING_FEEDS` in `api/episode/config.py` and, after that, changes only in the admin;
-deleting them all makes it start again.
+it is active (a feed turned off stays out without being deleted). The list comes from
+the seed and, after that, changes only in the admin; with every feed deleted, a run
+fails at "leitura dos feeds".
 
 - **Which sites:** only sites without a paywall. To read the full article, the domain
   must be in `FULL_TEXT_DOMAINS` (`api/episode/config.py`); outside that list, the
