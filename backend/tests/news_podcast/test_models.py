@@ -72,6 +72,26 @@ def test_invalid_settings_say_what_is_wrong(
     assert message in " ".join(caught.value.message_dict[field])
 
 
+@pytest.mark.parametrize(
+    ("field", "value", "message"),
+    [
+        ("min_minutes", None, "cannot be null"),
+        ("max_minutes", None, "cannot be null"),
+        ("speech_speed", "rápido", "must be a float"),
+        ("selection_prompt", None, "cannot be null"),
+        ("text_model", ["google_genai:gemini-3.8-flash"] * 4, "at most 100"),
+        ("voice_model", ["google_genai:gemini-3.8-flash-lite-tts"] * 3, "at most 100"),
+    ],
+)
+def test_a_value_of_the_wrong_type_is_named_instead_of_crashing_clean(
+    field: str, value: Any, message: str
+) -> None:
+    with pytest.raises(ValidationError) as caught:
+        PodcastSettings(**{field: value}).full_clean()
+
+    assert message in " ".join(caught.value.message_dict[field])
+
+
 def test_a_prompt_may_use_its_placeholders_and_doubled_braces() -> None:
     PodcastSettings(
         script_prompt='{podcast_name}, com {host_a}: {{"turns": []}}'

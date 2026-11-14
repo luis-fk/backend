@@ -1,0 +1,68 @@
+[
+  {
+    "outlet": "g1",
+    "section": "Economia",
+    "url": "https://g1.globo.com/rss/g1/economia/",
+    "active": true
+  },
+  {
+    "outlet": "Poder360",
+    "section": "Economia",
+    "url": "https://news.google.com/rss/search?q=site:poder360.com.br/poder-economia+when:1d&hl=pt-BR&gl=BR&ceid=BR:pt-419",
+    "active": true
+  },
+  {
+    "outlet": "Aos Fatos",
+    "section": "Geral",
+    "url": "https://news.google.com/rss/search?q=site:aosfatos.org+when:7d&hl=pt-BR&gl=BR&ceid=BR:pt-419",
+    "active": true
+  },
+  {
+    "outlet": "ICL Notícias",
+    "section": "Geral",
+    "url": "https://news.google.com/rss/search?q=site:iclnoticias.com.br+when:2d&hl=pt-BR&gl=BR&ceid=BR:pt-419",
+    "active": true
+  },
+  {
+    "outlet": "SBT News",
+    "section": "Geral",
+    "url": "https://news.google.com/rss/search?q=site:sbtnews.sbt.com.br+-site:sbtnews.sbt.com.br/videos+when:1d&hl=pt-BR&gl=BR&ceid=BR:pt-419",
+    "active": true
+  },
+  {
+    "outlet": "BBC News Brasil",
+    "section": "Geral",
+    "url": "https://feeds.bbci.co.uk/portuguese/rss.xml",
+    "active": true
+  },
+  {
+    "outlet": "g1",
+    "section": "Mundo",
+    "url": "https://g1.globo.com/rss/g1/mundo/",
+    "active": true
+  },
+  {
+    "outlet": "Poder360",
+    "section": "Mundo",
+    "url": "https://news.google.com/rss/search?q=site:poder360.com.br/poder-internacional+when:1d&hl=pt-BR&gl=BR&ceid=BR:pt-419",
+    "active": true
+  },
+  {
+    "outlet": "CNN Brasil",
+    "section": "Política",
+    "url": "https://news.google.com/rss/search?q=site:cnnbrasil.com.br/politica+when:1d&hl=pt-BR&gl=BR&ceid=BR:pt-419",
+    "active": true
+  },
+  {
+    "outlet": "Poder360",
+    "section": "Política",
+    "url": "https://www.poder360.com.br/feed/",
+    "active": true
+  },
+  {
+    "outlet": "g1",
+    "section": "Política",
+    "url": "https://g1.globo.com/rss/g1/politica/",
+    "active": true
+  }
+]

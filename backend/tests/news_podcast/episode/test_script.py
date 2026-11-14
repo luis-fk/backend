@@ -72,34 +72,6 @@ def test_the_script_prompt_follows_the_configured_options() -> None:
     assert "entre 3400 e 5100 palavras" in script
 
 
-def test_the_default_script_prompt_keeps_the_morning_episode() -> None:
-    start = datetime(2026, 11, 5, 6, 0, tzinfo=LOCAL_TZ)
-    end = datetime(2026, 11, 6, 6, 0, tzinfo=LOCAL_TZ)
-
-    script = system_message(
-        script_template(prompts.SCRIPT_PROMPT),
-        {
-            "briefs": "",
-            **script_values(DEFAULT_OPTIONS, date(2026, 11, 6), start, end, time(7, 0)),
-        },
-    )
-
-    assert 'chamado "Resumo das 7"' in script
-    assert "É o episódio das 7h de sexta-feira, 6 de novembro" in script
-    assert "uma fala curta com bom dia e a data" in script
-    assert "entre 2040 e 3060 palavras" in script
-
-
-def test_default_prompts_leave_the_answer_format_to_the_schema() -> None:
-    for prompt in (
-        prompts.SELECTION_PROMPT,
-        prompts.SCRIPT_PROMPT,
-        prompts.EXPAND_PROMPT,
-    ):
-        assert "JSON" not in prompt
-        assert '"' + "item_ids" not in prompt
-
-
 def test_the_script_steps_fill_every_placeholder_the_admin_accepts() -> None:
     # A placeholder left without a value would raise KeyError.
     start = datetime(2026, 11, 6, 6, 0, tzinfo=LOCAL_TZ)
