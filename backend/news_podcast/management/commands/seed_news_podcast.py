@@ -10,7 +10,7 @@ from django.core.exceptions import ValidationError
 from django.core.management.base import BaseCommand, CommandError, CommandParser
 from django.db import models, router, transaction
 
-from news_podcast.models import Area, Feed, PodcastSettings, Topic
+from news_podcast.models import Area, Feed, LessonSettings, PodcastSettings, Topic
 
 SEED_DIR = Path(__file__).resolve().parents[2] / "seed"
 # An empty host, or a path, is PostgreSQL's socket on this machine.
@@ -19,10 +19,10 @@ LOCAL_HOSTS = {"", "localhost", "127.0.0.1", "::1"}
 
 class Command(BaseCommand):
     help = (
-        "Fills news_podcast's database from news_podcast/seed/: the settings row when "
-        "there is none, and the feeds and the lesson catalog when they are empty, "
-        "never changing a row. Only local databases or, with --production, the one "
-        "shown after you confirm."
+        "Fills news_podcast's database from news_podcast/seed/: the settings and the "
+        "lesson settings rows when there are none, and the feeds and the lesson "
+        "catalog when they are empty, never changing a row. Only local databases or, "
+        "with --production, the one shown after you confirm."
     )
 
     def add_arguments(self, parser: CommandParser) -> None:
@@ -36,6 +36,7 @@ class Command(BaseCommand):
         podcast_settings = settings_row(read_seed_file("settings.json"))
         feeds = feed_rows(read_seed_file("feeds.json"))
         catalog = catalog_rows(read_seed_file("catalog.json"))
+        lesson_settings = lesson_settings_row(read_seed_file("lesson_settings.json"))
         database = router.db_for_write(PodcastSettings)
         if production:
             self.confirm(database)
@@ -45,6 +46,7 @@ class Command(BaseCommand):
             self.seed_settings(podcast_settings)
             self.seed_feeds(feeds)
             self.seed_catalog(catalog)
+            self.seed_lesson_settings(lesson_settings)
 
     def confirm(self, database: str) -> None:
         config = settings.DATABASES[database]
@@ -68,6 +70,17 @@ class Command(BaseCommand):
         Feed.objects.bulk_create(feeds)
         self.stdout.write(
             f"news_podcast: {len(feeds)} feeds created from seed/feeds.json"
+        )
+
+    def seed_lesson_settings(self, lesson_settings: LessonSettings) -> None:
+        if LessonSettings.objects.exists():
+            self.stdout.write(
+                "news_podcast: the lesson settings row already exists; left as it was"
+            )
+            return
+        lesson_settings.save()
+        self.stdout.write(
+            "news_podcast: lesson settings created from seed/lesson_settings.json"
         )
 
     def seed_catalog(self, catalog: list[tuple[Area, list[Topic]]]) -> None:
@@ -123,6 +136,14 @@ def settings_row(values: Any) -> PodcastSettings:
     podcast_settings = PodcastSettings(**values)
     check_values(podcast_settings, where)
     return podcast_settings
+
+
+def lesson_settings_row(values: Any) -> LessonSettings:
+    where = "seed/lesson_settings.json"
+    check_fields(values, LessonSettings, where)
+    lesson_settings = LessonSettings(**values)
+    check_values(lesson_settings, where)
+    return lesson_settings
 
 
 def feed_rows(entries: Any) -> list[Feed]:

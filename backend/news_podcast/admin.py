@@ -4,6 +4,7 @@ from django import forms
 from django.contrib import admin, messages
 from django.contrib.admin.widgets import AdminTextareaWidget
 from django.core.exceptions import PermissionDenied
+from django.db import models
 from django.db.models import QuerySet, Sum
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import redirect
@@ -18,12 +19,14 @@ from news_podcast.models import (
     Area,
     Episode,
     Feed,
+    LessonSettings,
     PodcastSettings,
     SettingsMissing,
     Topic,
 )
 
 LONG_PROMPTS = ["selection_prompt", "script_prompt"]
+LESSON_PROMPTS = ["choice_prompt", "pick_prompt", "script_prompt", "review_prompt"]
 NUMBERS = [
     "speech_speed",
     "text_input_price",
@@ -49,8 +52,55 @@ class PodcastSettingsForm(forms.ModelForm):
         }
 
 
+class LessonSettingsForm(forms.ModelForm):
+    class Meta:
+        model = LessonSettings
+        fields = "__all__"
+        widgets = {
+            **{
+                name: AdminTextareaWidget(attrs={"rows": 30}) for name in LESSON_PROMPTS
+            },
+            **{
+                name: forms.NumberInput(attrs={"class": "vIntegerField"})
+                for name in ["voice_input_price", "voice_output_price"]
+            },
+        }
+
+
+class SettingsRowAdmin(admin.ModelAdmin):
+    """A single settings row, which only seed_news_podcast creates. These permissions
+    must not query the database: the admin checks them on every page, for its
+    menu."""
+
+    def load_row(self) -> models.Model:
+        raise NotImplementedError
+
+    def has_add_permission(self, request: HttpRequest) -> bool:
+        return False
+
+    def has_delete_permission(
+        self, request: HttpRequest, obj: models.Model | None = None
+    ) -> bool:
+        return False
+
+    def changelist_view(
+        self, request: HttpRequest, extra_context: dict[str, Any] | None = None
+    ) -> HttpResponse:
+        # Django checks the permission only in the list it renders, after the row
+        # would have been read and its link or the seed message shown.
+        if not self.has_view_or_change_permission(request):
+            raise PermissionDenied
+        # The list goes straight to the form of the single row.
+        try:
+            row = self.load_row()
+        except SettingsMissing as error:
+            self.message_user(request, str(error), messages.ERROR)
+            return super().changelist_view(request, extra_context)
+        return redirect(f"admin:news_podcast_{self.opts.model_name}_change", row.pk)
+
+
 @admin.register(PodcastSettings)
-class PodcastSettingsAdmin(admin.ModelAdmin):
+class PodcastSettingsAdmin(SettingsRowAdmin):
     form = PodcastSettingsForm
     fieldsets = [
         (None, {"fields": ["paused"]}),
@@ -88,32 +138,33 @@ class PodcastSettingsAdmin(admin.ModelAdmin):
         ),
     ]
 
-    # A single row, which only seed_news_podcast creates. These permissions must not
-    # query the database: the admin checks them on every page, for its menu.
-    def has_add_permission(self, request: HttpRequest) -> bool:
-        return False
+    def load_row(self) -> PodcastSettings:
+        return PodcastSettings.load()
 
-    def has_delete_permission(
-        self, request: HttpRequest, obj: PodcastSettings | None = None
-    ) -> bool:
-        return False
 
-    def changelist_view(
-        self, request: HttpRequest, extra_context: dict[str, Any] | None = None
-    ) -> HttpResponse:
-        # Django checks the permission only in the list it renders, after the row
-        # would have been read and its link or the seed message shown.
-        if not self.has_view_or_change_permission(request):
-            raise PermissionDenied
-        # The list goes straight to the form of the single row.
-        try:
-            podcast_settings = PodcastSettings.load()
-        except SettingsMissing as error:
-            self.message_user(request, str(error), messages.ERROR)
-            return super().changelist_view(request, extra_context)
-        return redirect(
-            "admin:news_podcast_podcastsettings_change", podcast_settings.pk
-        )
+@admin.register(LessonSettings)
+class LessonSettingsAdmin(SettingsRowAdmin):
+    form = LessonSettingsForm
+    fieldsets = [
+        ("Lesson", {"fields": [("min_minutes", "max_minutes")]}),
+        (
+            "Voice",
+            {
+                "description": "The text models, their prices and the speech speed "
+                "come from Settings. Prices in US$ per million tokens; a lesson's "
+                "cost uses them for its voice.",
+                "fields": [
+                    "voice_model",
+                    ("voice_input_price", "voice_output_price"),
+                    "voice_style",
+                ],
+            },
+        ),
+        ("Prompts", {"fields": LESSON_PROMPTS}),
+    ]
+
+    def load_row(self) -> LessonSettings:
+        return LessonSettings.load()
 
 
 @admin.register(Feed)

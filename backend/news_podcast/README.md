@@ -35,7 +35,8 @@ The daily episode runs on a Railway Cron service (see *Scheduling*).
   `NEWS_PODCAST_DATABASE_URL` also on the backend service (the admin uses the database),
   and the migrations applied (`make migrate-prod`, which reads `.env.production`).
 - **Starting data:** `make seed` fills a local database from `news_podcast/seed/`:
-  the settings row from `settings.json` when there is none, the feeds from
+  the settings rows from `settings.json` and `lesson_settings.json` when they are
+  missing, the feeds from
   `feeds.json` when the list is empty, and the lesson catalog from `catalog.json`
   when it has no area. So a value changed or a feed added in `seed/`
   after a database was seeded reaches it only through the admin. `make seed-prod`
@@ -135,6 +136,13 @@ save: the admin shows the error on the field.
   brace is written `{{` or `}}`. If you change the style or the voice, adjust
   `NATURAL_WORDS_PER_MINUTE` (the voice's words per minute before ffmpeg); otherwise the
   episode comes out shorter or longer than planned.
+
+**Lesson settings** (*News podcast → Lesson settings*) are a second single row, also
+created only by the seed and shown the same way when it is missing. They hold the
+lesson's minimum and maximum minutes (at least 1, and under 10: `LESSON_MINUTES_LIMIT`
+in `api/lesson/config.py`), its own voice model with its two prices, the choice, pick,
+script and review prompts, and the lesson voice style. The text models, their prices
+and the speech speed come from *Settings*.
 
 ## Feeds
 
