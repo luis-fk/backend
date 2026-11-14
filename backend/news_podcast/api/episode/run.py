@@ -4,12 +4,10 @@ from datetime import UTC, datetime
 from typing import NamedTuple
 
 import httpx
-from django.conf import settings
 from django.db import DatabaseError, close_old_connections
 from django.utils import timezone
 
 from news_podcast.api.core.costs import total_cost_usd
-from news_podcast.api.core.gemini import GeminiClient
 from news_podcast.api.core.llm import ModelFactory, TextModels, chat_model
 from news_podcast.api.core.schemas import NewsStory, Usage
 from news_podcast.api.core.telegram import (
@@ -35,7 +33,7 @@ logger = logging.getLogger(__name__)
 
 class Run(NamedTuple):
     """What a run left for the history: the report or the error, the step it was
-    in and the Gemini answers it paid for."""
+    in and the answers it paid for, text and voice."""
 
     report: EpisodeReport | None
     error: Exception | None
@@ -111,11 +109,9 @@ async def generate(
     scheduled: bool,
     send: bool,
 ) -> Run:
-    api_key = getattr(settings, "GEMINI_API_KEY", None)
     async with httpx.AsyncClient() as http_client:
         service = EpisodeService(
             http_client=http_client,
-            gemini=GeminiClient(http_client, api_key) if api_key else None,
             telegram=telegram_client(http_client),
             chat_id=chat_id(),
             settings=snapshot,

@@ -1,3 +1,4 @@
+from collections.abc import Mapping
 from typing import NamedTuple
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -6,7 +7,8 @@ from pydantic import BaseModel, ConfigDict, Field
 class Host(NamedTuple):
     name: str
     speaker_id: str
-    gemini_voice: str
+    # The host's voice in each voice provider, by the provider's name.
+    voices: Mapping[str, str]
 
 
 class ModelPrice(NamedTuple):

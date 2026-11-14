@@ -18,7 +18,7 @@ settings, the feeds and the history. The rest is a management command.
 | Selection | `api/episode/selection.py` + selection prompt | The text model, through `TextModels` (`api/core/llm.py`, with LangChain), gets every headline, groups the ones about the same fact, applies the editorial rules and, weighing how many different outlets reported each fact (each outlet counts once), picks one story for every minute and a half of episode (8 to 12 by default), with each one's length. |
 | Reading | `api/episode/articles.py` | For each story, reads the full text from up to 3 outlets (ICL first). The other outlets that ran the story come in as headlines. Video pages, which have no text, are not read, and another outlet takes their slot. Every feed is from a site without a paywall. |
 | Script | `api/episode/script.py` + script prompt | The text model, also through `TextModels`, writes the dialogue at 170 words per minute of episode, times the speed (2,040 to 3,060 words by default), opening with 3 to 5 short headlines, as TV news shows do. If it comes out too short, it asks once for a longer version. |
-| Voice | `api/core/gemini.py` | The voice model reads the dialogue with the two voices, in chunks of about 650 words. If Gemini is down, the code waits and tries again (see *Good to know*). |
+| Voice | `api/core/voice/` | The voice model reads the dialogue with the two hosts' voices, in chunks of about 650 words, through its provider's implementation (`GeminiVoice`, the only one for now). If Gemini is down, the code waits and tries again (see *Good to know*). |
 | Audio | `api/core/audio.py` | ffmpeg joins the chunks, normalizes the volume and makes a 32 kbps OGG/Opus file (about 4 MB for 15 minutes), the format of Telegram voice messages. |
 | Sending | `api/core/telegram.py` | `sendVoice` with the title and the date in the caption (as a voice message, Telegram shows the 1x, 1.5x, 2x speed button). It goes out as soon as it is ready, without waiting for the full hour. If something fails, a message says in which step. |
 
@@ -116,7 +116,9 @@ error on the field.
   (`google_genai:gemini-3.8-flash`, `openai:gpt-4.1-mini`); a bare name that starts with
   `gemini` is Google's, and the admin refuses any other provider. To use an OpenAI model,
   first put `OPENAI_API_KEY` on the cron service, and the prices from OpenAI's price
-  list.
+  list. The voice model is written the same way, and `google_genai` is the only voice
+  provider for now (`google_genai:gemini-3.8-flash-lite-tts` or the bare
+  `gemini-3.8-flash-lite-tts`); *Adjustments* says how to add another.
 - **Prompts and voice styles:** the selection prompt, the script prompt and the
   lengthening prompt (asked once, when the script comes out short), and the styles of the
   conversation and of the opening headlines. Each prompt accepts only the `{fields}`
@@ -156,7 +158,13 @@ midway records the cost of what already ran.
 
 ## Adjustments
 
-- **The hosts and their voices:** `HOSTS` in `api/core/config.py`.
+- **The hosts and their voices:** `HOSTS` in `api/core/config.py`, with each host's
+  voice for each voice provider (on Gemini, Bia is Kore and Léo is Charon).
+- **Another voice provider:** write its implementation in `api/core/voice/`, a class
+  with `synthesize`, like `GeminiVoice` in `gemini.py`; add it to `VOICE_PROVIDERS` in
+  `api/core/voice/providers.py`, which builds the voice and which the admin checks the
+  voice model against; give each host in `HOSTS` its voice for that provider; then
+  write `provider:model` and its prices in the admin.
 - **The dollar rate used to show costs in reais:** `BRL_PER_USD` (fixed) in
   `api/core/config.py`.
 

@@ -7,27 +7,21 @@ import pytest
 from langchain_core.language_models import BaseChatModel
 from pytest_django import Settings
 
-from news_podcast.api.core import config as core_config
-from news_podcast.api.core.gemini import (
-    GeminiClient,
-    GeminiQuotaExhaustedError,
-    GeminiUnavailableError,
-)
+from news_podcast.api.core.config import VOICE_RETRY_MINUTES
 from news_podcast.api.core.llm import TextError
-from news_podcast.api.core.schemas import (
-    Host,
-    Turn,
-    Usage,
-)
+from news_podcast.api.core.schemas import Host, Script, Turn, Usage
 from news_podcast.api.core.telegram import (
     TelegramClient,
     TelegramError,
 )
+from news_podcast.api.core.voice.base import VoiceError, VoiceUnavailableError
 from news_podcast.api.episode import service as service_module
 from news_podcast.api.episode.run import episode_settings
 from news_podcast.api.episode.schemas import (
     EpisodeReport,
     NewsItem,
+    SelectedStory,
+    StoryBrief,
 )
 from news_podcast.api.episode.service import (
     EpisodeError,
@@ -36,43 +30,18 @@ from news_podcast.api.episode.service import (
 from news_podcast.models import PodcastSettings
 
 TURNS = [Turn(speaker="Bia", text="Bom dia")]
-
-
-class FakeGemini(GeminiClient):
-    """The voice fails with `voice_failures`, in order, and then answers."""
-
-    def __init__(
-        self, http_client: httpx.AsyncClient, voice_failures: list[Exception]
-    ) -> None:
-        super().__init__(http_client, "key")
-        self.voice_failures = voice_failures
-
-    async def synthesize_dialogue(
-        self,
-        model: str,
-        turns: list[Turn],
-        hosts: Sequence[Host],
-        step: str,
-        *,
-        style: str,
-        headline_style: str,
-    ) -> tuple[bytes, Usage]:
-        if self.voice_failures:
-            raise self.voice_failures.pop(0)
-        return b"audio", Usage(step=step, model=model)
-
-
-def make_service(
-    http_client: httpx.AsyncClient, gemini: GeminiClient
-) -> EpisodeService:
-    return EpisodeService(
-        http_client=http_client,
-        gemini=gemini,
-        telegram=None,
-        chat_id=None,
-        settings=episode_settings(PodcastSettings()),
-        sources=[],
-    )
+ITEM = NewsItem(
+    id="1",
+    outlet="g1",
+    section="Política",
+    title="t",
+    summary="",
+    link="",
+    published_at=None,
+)
+TEXT_USAGE = Usage(
+    step="selection", model="gemini-3.8-flash", input_tokens=10, output_tokens=5
+)
 
 
 def record_waits(monkeypatch: pytest.MonkeyPatch) -> list[float]:
@@ -83,47 +52,6 @@ def record_waits(monkeypatch: pytest.MonkeyPatch) -> list[float]:
 
     monkeypatch.setattr(asyncio, "sleep", record)
     return waits
-
-
-async def synthesize_with(failures: list[Exception]) -> list[int]:
-    async with httpx.AsyncClient() as client:
-        gemini = FakeGemini(client, voice_failures=failures)
-        service = make_service(client, gemini)
-        await service._synthesize_patiently(gemini, TURNS)
-        return service.voice_retry_minutes
-
-
-def test_voice_waits_and_tries_again_when_gemini_is_unavailable(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    waits = record_waits(monkeypatch)
-
-    remaining = asyncio.run(synthesize_with([GeminiUnavailableError("503")]))
-
-    assert waits == [core_config.VOICE_RETRY_MINUTES[0] * 60]
-    assert remaining == list(core_config.VOICE_RETRY_MINUTES[1:])
-
-
-def test_voice_gives_up_after_the_last_retry(monkeypatch: pytest.MonkeyPatch) -> None:
-    waits = record_waits(monkeypatch)
-    retries = len(core_config.VOICE_RETRY_MINUTES)
-    failures: list[Exception] = [GeminiUnavailableError("503")] * (retries + 1)
-
-    with pytest.raises(GeminiUnavailableError):
-        asyncio.run(synthesize_with(failures))
-
-    assert waits == [minutes * 60 for minutes in core_config.VOICE_RETRY_MINUTES]
-
-
-def test_voice_does_not_wait_when_the_daily_quota_is_over(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    waits = record_waits(monkeypatch)
-
-    with pytest.raises(GeminiQuotaExhaustedError):
-        asyncio.run(synthesize_with([GeminiQuotaExhaustedError("429")]))
-
-    assert waits == []
 
 
 class FakeTelegram(TelegramClient):
@@ -148,7 +76,6 @@ def telegram_service(
 ) -> EpisodeService:
     return EpisodeService(
         http_client=client,
-        gemini=None,
         telegram=telegram,
         chat_id=chat_id,
         settings=episode_settings(PodcastSettings()),
@@ -305,18 +232,9 @@ def test_without_the_gemini_key_the_run_fails_at_the_selection_at_once(
 ) -> None:
     settings.GEMINI_API_KEY = None
     waits = record_waits(monkeypatch)
-    item = NewsItem(
-        id="1",
-        outlet="g1",
-        section="Política",
-        title="t",
-        summary="",
-        link="",
-        published_at=None,
-    )
 
     async def one_item(*_args: object) -> list[NewsItem]:
-        return [item]
+        return [ITEM]
 
     def no_model(*_args: object) -> BaseChatModel:
         raise AssertionError("no model should be built without its key")
@@ -327,7 +245,6 @@ def test_without_the_gemini_key_the_run_fails_at_the_selection_at_once(
         async with httpx.AsyncClient() as client:
             service = EpisodeService(
                 http_client=client,
-                gemini=None,
                 telegram=None,
                 chat_id=None,
                 settings=episode_settings(PodcastSettings()),
@@ -342,3 +259,152 @@ def test_without_the_gemini_key_the_run_fails_at_the_selection_at_once(
 
     assert service.step == "seleção das notícias"
     assert waits == []
+
+
+def reach_the_voice(
+    monkeypatch: pytest.MonkeyPatch, service: EpisodeService, tmp_path: Path
+) -> None:
+    """Fakes the steps before the voice: one headline, a selection that paid for an
+    answer, no briefs and a script."""
+
+    async def one_item(*_args: object) -> list[NewsItem]:
+        return [ITEM]
+
+    async def select(*_args: object) -> list[SelectedStory]:
+        service.usages.append(TEXT_USAGE)
+        return []
+
+    async def no_briefs(*_args: object) -> list[StoryBrief]:
+        return []
+
+    async def write(*_args: object) -> Script:
+        return Script(turns=TURNS)
+
+    monkeypatch.setattr(service_module, "fetch_items", one_item)
+    monkeypatch.setattr(service_module, "build_briefs", no_briefs)
+    monkeypatch.setattr(service_module, "OUTPUT_DIR", tmp_path)
+    monkeypatch.setattr(service, "_select_stories", select)
+    monkeypatch.setattr(service, "_write_script", write)
+
+
+def no_voice_request(request: httpx.Request) -> httpx.Response:
+    raise AssertionError("no voice request should be made")
+
+
+def fail_at_the_voice(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, voice_model: str
+) -> tuple[EpisodeService, list[tuple[str, str]], VoiceError]:
+    async def scenario() -> tuple[EpisodeService, list[tuple[str, str]], VoiceError]:
+        transport = httpx.MockTransport(no_voice_request)
+        async with httpx.AsyncClient(transport=transport) as client:
+            telegram = FakeTelegram(client)
+            snapshot = episode_settings(PodcastSettings()).model_copy(
+                update={"voice_model": voice_model}
+            )
+            service = EpisodeService(
+                http_client=client,
+                telegram=telegram,
+                chat_id="-22",
+                settings=snapshot,
+                sources=[],
+                admin_chat_id="11",
+            )
+            reach_the_voice(monkeypatch, service, tmp_path)
+            with pytest.raises(VoiceError) as caught:
+                await service.generate_episode(scheduled=False, send=True)
+            return service, telegram.sent, caught.value
+
+    return asyncio.run(scenario())
+
+
+def test_a_voice_model_without_an_implementation_fails_at_the_voice_step(
+    monkeypatch: pytest.MonkeyPatch, settings: Settings, tmp_path: Path
+) -> None:
+    settings.GEMINI_API_KEY = "test-key"
+
+    service, sent, error = fail_at_the_voice(
+        monkeypatch, tmp_path, "openai:gpt-4o-mini-tts"
+    )
+
+    assert "openai:gpt-4o-mini-tts" in str(error)
+    assert service.step == "voz"
+    assert service.usages == [TEXT_USAGE]
+    assert [chat_id for chat_id, _ in sent] == ["11"]
+    assert "<b>Etapa:</b> voz" in sent[0][1]
+    assert "openai:gpt-4o-mini-tts" in sent[0][1]
+
+
+def test_without_the_gemini_key_the_voice_step_fails_before_any_request(
+    monkeypatch: pytest.MonkeyPatch, settings: Settings, tmp_path: Path
+) -> None:
+    settings.GEMINI_API_KEY = None
+
+    service, sent, error = fail_at_the_voice(
+        monkeypatch, tmp_path, "gemini-3.8-flash-lite-tts"
+    )
+
+    assert "GEMINI_API_KEY" in str(error)
+    assert service.step == "voz"
+    assert service.usages == [TEXT_USAGE]
+    assert [chat_id for chat_id, _ in sent] == ["11"]
+    assert "<b>Etapa:</b> voz" in sent[0][1]
+    assert "GEMINI_API_KEY" in sent[0][1]
+
+
+class FlakyVoice:
+    """Unavailable once, then it answers."""
+
+    def __init__(self, usage: Usage) -> None:
+        self.usage = usage
+        self.failures: list[Exception] = [VoiceUnavailableError("503")]
+
+    async def synthesize(
+        self,
+        turns: list[Turn],
+        hosts: Sequence[Host],
+        *,
+        style: str,
+        headline_style: str,
+        step: str,
+    ) -> tuple[bytes, Usage]:
+        if self.failures:
+            raise self.failures.pop(0)
+        return b"audio", self.usage
+
+
+def test_the_voice_step_draws_on_the_run_s_waits_and_keeps_its_usage(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    waits = record_waits(monkeypatch)
+    voice_usage = Usage(step="voice", model="gemini-3.8-flash-lite-tts")
+    built: list[str] = []
+
+    def provider(model: str, http_client: httpx.AsyncClient) -> FlakyVoice:
+        built.append(model)
+        return FlakyVoice(voice_usage)
+
+    async def voice_note(*_args: object) -> float:
+        return 60.0
+
+    async def scenario() -> EpisodeService:
+        transport = httpx.MockTransport(no_voice_request)
+        async with httpx.AsyncClient(transport=transport) as client:
+            service = EpisodeService(
+                http_client=client,
+                telegram=None,
+                chat_id=None,
+                settings=episode_settings(PodcastSettings()),
+                sources=[],
+            )
+            reach_the_voice(monkeypatch, service, tmp_path)
+            monkeypatch.setattr(service_module, "voice_provider", provider)
+            monkeypatch.setattr(service_module, "build_voice_note", voice_note)
+            await service.generate_episode(scheduled=False, send=False)
+            return service
+
+    service = asyncio.run(scenario())
+
+    assert built == [service.settings.voice_model]
+    assert waits == [VOICE_RETRY_MINUTES[0] * 60]
+    assert service.voice_waits == list(VOICE_RETRY_MINUTES[1:])
+    assert service.usages == [TEXT_USAGE, voice_usage]

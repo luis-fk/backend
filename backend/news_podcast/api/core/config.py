@@ -15,8 +15,8 @@ MAX_SPEECH_MINUTES = 30
 SPEECH_SPEED_LIMITS = (0.5, 2.0)
 NATURAL_WORDS_PER_MINUTE = 170
 HOSTS = (
-    Host(name="Bia", speaker_id="Bia", gemini_voice="Kore"),
-    Host(name="Léo", speaker_id="Leo", gemini_voice="Charon"),
+    Host(name="Bia", speaker_id="Bia", voices={"google_genai": "Kore"}),
+    Host(name="Léo", speaker_id="Leo", voices={"google_genai": "Charon"}),
 )
 THINKING_LEVEL = "medium"
 MAX_OUTPUT_TOKENS = 32768

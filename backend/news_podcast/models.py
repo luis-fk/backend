@@ -14,6 +14,7 @@ from news_podcast.api.core.config import (
 )
 from news_podcast.api.core.llm import model_name_error
 from news_podcast.api.core.schemas import ModelPrice
+from news_podcast.api.core.voice.providers import voice_model_error
 from news_podcast.api.episode import config, prompts
 from news_podcast.api.episode.feeds import GOOGLE_NEWS_HOST
 from news_podcast.api.episode.schemas import EpisodeOptions, FeedSource
@@ -188,6 +189,8 @@ class PodcastSettings(models.Model):
             model = getattr(self, name)
             if model and (name_error := model_name_error(model)):
                 errors[name] = name_error
+        if self.voice_model and (name_error := voice_model_error(self.voice_model)):
+            errors["voice_model"] = name_error
         for name, fields in PROMPT_FIELDS.items():
             error = placeholder_error(getattr(self, name), fields)
             if error:
