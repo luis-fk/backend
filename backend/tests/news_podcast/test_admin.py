@@ -2,16 +2,26 @@ from datetime import UTC, datetime
 from typing import Any
 
 import pytest
+from django.contrib import admin
 from django.contrib.auth import get_user_model
 from django.contrib.messages import get_messages
+from django.db import models
 from django.forms.models import model_to_dict
-from django.test import Client
+from django.test import Client, RequestFactory
 from pytest_django import DjangoAssertNumQueries
 
-from news_podcast.models import Area, Episode, Feed, PodcastSettings, Topic
+from news_podcast.models import (
+    Area,
+    Episode,
+    Feed,
+    LessonSettings,
+    PodcastSettings,
+    Topic,
+)
 from tests.news_podcast.factories import (
     create_area,
     create_lesson_row,
+    create_lesson_settings,
     create_settings,
     create_topic,
 )
@@ -21,10 +31,11 @@ EPISODES_URL = "/admin/news_podcast/episode/"
 FEEDS_URL = "/admin/news_podcast/feed/"
 AREAS_URL = "/admin/news_podcast/area/"
 TOPICS_URL = "/admin/news_podcast/topic/"
+LESSON_URL = "/admin/news_podcast/lessonsettings/"
 DATABASES = pytest.mark.django_db(databases=["default", "news_podcast_db"])
 
 
-def form_data(row: PodcastSettings, **changes: Any) -> dict[str, Any]:
+def form_data(row: models.Model, **changes: Any) -> dict[str, Any]:
     data = {**model_to_dict(row), **changes}
     del data["id"]
     return data
@@ -324,3 +335,97 @@ def test_a_lesson_row_with_odd_pages_still_opens_and_links_nothing(
     assert ": javascript:alert(1)" in page
     assert "Sem endereço: " in page
     assert 'href="javascript:' not in page
+
+
+@DATABASES
+def test_without_the_lesson_row_the_page_says_to_run_the_seed(
+    admin_client: Client,
+) -> None:
+    response = admin_client.get(LESSON_URL)
+
+    assert response.status_code == 200
+    assert "configurações da aula" in response.content.decode()
+    assert "seed_news_podcast" in response.content.decode()
+    assert not LessonSettings.objects.exists()
+
+
+@DATABASES
+def test_the_lesson_settings_page_opens_the_row(admin_client: Client) -> None:
+    row = create_lesson_settings()
+
+    response = admin_client.get(LESSON_URL)
+
+    assert response.status_code == 302
+    assert response["Location"] == f"{LESSON_URL}{row.pk}/change/"
+
+
+@DATABASES
+def test_the_lesson_row_can_be_neither_added_nor_deleted_and_asks_no_query(
+    admin_client: Client, django_assert_num_queries: DjangoAssertNumQueries
+) -> None:
+    row = create_lesson_settings()
+    model_admin = admin.site.get_model_admin(LessonSettings)
+    request = RequestFactory().get(LESSON_URL)
+
+    with django_assert_num_queries(0, using="news_podcast_db"):
+        assert not model_admin.has_add_permission(request)
+        assert not model_admin.has_delete_permission(request, row)
+    assert admin_client.get(f"{LESSON_URL}add/").status_code == 403
+    assert admin_client.get(f"{LESSON_URL}{row.pk}/delete/").status_code == 403
+
+
+@DATABASES
+@pytest.mark.parametrize("with_row", [True, False])
+def test_the_lesson_page_needs_the_permission_before_anything_else(
+    client: Client, with_row: bool
+) -> None:
+    if with_row:
+        create_lesson_settings()
+    staff = get_user_model().objects.create_user(
+        username="ana", password="senha", is_staff=True
+    )
+    client.force_login(staff)
+
+    response = client.get(LESSON_URL)
+
+    assert response.status_code == 403
+    assert list(get_messages(response.wsgi_request)) == []
+
+
+@DATABASES
+@pytest.mark.parametrize(
+    ("changes", "field"),
+    [
+        ({"min_minutes": 0}, "min_minutes"),
+        ({"max_minutes": 10}, "max_minutes"),
+        ({"min_minutes": 9, "max_minutes": 8}, "max_minutes"),
+        ({"review_prompt": "Revise {topico}."}, "review_prompt"),
+        ({"voice_model": "openai:gpt-4o-mini-tts"}, "voice_model"),
+    ],
+)
+def test_the_lesson_form_refuses_a_bad_value_and_keeps_the_row(
+    admin_client: Client, changes: dict[str, Any], field: str
+) -> None:
+    row = create_lesson_settings()
+    before = model_to_dict(row)
+
+    response = admin_client.post(
+        f"{LESSON_URL}{row.pk}/change/", form_data(row, **changes)
+    )
+
+    assert field in response.context["adminform"].form.errors
+    row.refresh_from_db()
+    assert model_to_dict(row) == before
+
+
+@DATABASES
+def test_the_lesson_form_saves_a_lesson_of_1_to_9_minutes(admin_client: Client) -> None:
+    row = create_lesson_settings()
+
+    response = admin_client.post(
+        f"{LESSON_URL}{row.pk}/change/", form_data(row, min_minutes=1, max_minutes=9)
+    )
+
+    assert response.status_code == 302
+    row.refresh_from_db()
+    assert (row.min_minutes, row.max_minutes) == (1, 9)

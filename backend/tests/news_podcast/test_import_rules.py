@@ -112,6 +112,12 @@ def broken_voice_rules(module: str, found: list[tuple[str, str | None]]) -> list
     return broken
 
 
+def test_the_rules_read_the_lesson_package() -> None:
+    modules = {module_name(path) for path in APP_DIR.rglob("*.py")}
+
+    assert {f"{LESSON}.config", f"{LESSON}.prompts"} <= modules
+
+
 def test_the_app_follows_its_import_rules() -> None:
     broken: list[str] = []
     for path in sorted(APP_DIR.rglob("*.py")):

@@ -22,8 +22,20 @@ from news_podcast.api.episode.prompts import (
 from news_podcast.api.episode.schemas import EpisodeOptions
 from news_podcast.api.episode.script import lengthening_values, script_values
 from news_podcast.api.episode.selection import selection_values
-from news_podcast.models import Area, Feed, PodcastSettings, Topic
-from tests.news_podcast.factories import create_area, create_topic
+from news_podcast.models import (
+    LESSON_PROMPT_FIELDS,
+    Area,
+    Feed,
+    LessonSettings,
+    PodcastSettings,
+    Topic,
+    placeholder_error,
+)
+from tests.news_podcast.factories import (
+    create_area,
+    create_lesson_settings,
+    create_topic,
+)
 
 DATABASES = pytest.mark.django_db(databases=["default", "news_podcast_db"])
 SEED_DIR = Path(__file__).resolve().parents[2] / "news_podcast" / "seed"
@@ -72,6 +84,7 @@ def nothing_written() -> bool:
         or Feed.objects.exists()
         or Area.objects.exists()
         or Topic.objects.exists()
+        or LessonSettings.objects.exists()
     )
 
 
@@ -87,7 +100,7 @@ def system_message(template: ChatPromptTemplate, values: dict[str, Any]) -> str:
 def seed_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     """A copy of the committed seed files, which the command reads instead, so a test
     can break one."""
-    for name in ("settings.json", "feeds.json", "catalog.json"):
+    for name in ("settings.json", "feeds.json", "catalog.json", "lesson_settings.json"):
         shutil.copy(SEED_DIR / name, tmp_path / name)
     monkeypatch.setattr(f"{COMMAND}.SEED_DIR", tmp_path)
     return tmp_path
@@ -101,6 +114,25 @@ def test_the_seed_catalog_has_the_design_s_areas_and_topics() -> None:
     assert len(titles) == 101
     assert all(isinstance(title, str) and title.strip() for title in titles)
     assert len(set(titles)) == len(titles)
+
+
+def test_the_seed_lesson_settings_pass_the_admin_checks() -> None:
+    values = read(SEED_DIR, "lesson_settings.json")
+
+    LessonSettings(**values).full_clean()
+    assert (values["min_minutes"], values["max_minutes"]) == (6, 9)
+    assert values["voice_model"] == "gemini-3.8-flash-tts"
+    assert (values["voice_input_price"], values["voice_output_price"]) == (0.5, 9.0)
+
+
+@pytest.mark.parametrize(("field", "fields"), list(LESSON_PROMPT_FIELDS.items()))
+def test_each_seed_lesson_prompt_fills_only_its_placeholders_and_never_asks_for_json(
+    field: str, fields: tuple[str, ...]
+) -> None:
+    prompt = read(SEED_DIR, "lesson_settings.json")[field]
+
+    assert placeholder_error(prompt, fields) is None
+    assert "json" not in prompt.lower()
 
 
 def test_the_seed_settings_pass_the_admin_checks() -> None:
@@ -259,6 +291,58 @@ def test_an_empty_catalog_is_filled_and_the_other_tables_kept() -> None:
     assert PodcastSettings.objects.get().max_minutes == 20
     assert list(Feed.objects.order_by("pk").values()) == feeds_before
     assert Topic.objects.count() == 101
+
+
+@DATABASES
+def test_a_missing_lesson_row_is_created_and_the_other_rows_kept() -> None:
+    seed()
+    LessonSettings.objects.all().delete()
+    PodcastSettings.objects.update(max_minutes=20)
+    Feed.objects.filter(outlet="g1").update(active=False)
+    feeds_before = list(Feed.objects.order_by("pk").values())
+
+    out = seed()
+
+    row = LessonSettings.objects.get()
+    values = read(SEED_DIR, "lesson_settings.json")
+    assert {name: getattr(row, name) for name in values} == values
+    row.full_clean()
+    assert PodcastSettings.objects.get().max_minutes == 20
+    assert list(Feed.objects.order_by("pk").values()) == feeds_before
+    assert "news_podcast: lesson settings created from seed/lesson_settings.json" in out
+
+
+@DATABASES
+@pytest.mark.parametrize("production", [False, True])
+def test_an_edited_lesson_row_is_left_as_it_is(
+    monkeypatch: pytest.MonkeyPatch, production: bool
+) -> None:
+    create_lesson_settings(max_minutes=8, voice_style="Outra.")
+    before = list(LessonSettings.objects.values())
+    if production:
+        monkeypatch.setattr(
+            settings, "DATABASES", {"default": REMOTE, "news_podcast_db": REMOTE}
+        )
+        answer(monkeypatch, "yes")
+
+    out = seed(production=production)
+
+    assert list(LessonSettings.objects.values()) == before
+    assert "news_podcast: the lesson settings row already exists; left as it was" in out
+
+
+@DATABASES
+def test_a_lesson_settings_file_without_a_field_stops_the_seed(seed_dir: Path) -> None:
+    values = read(seed_dir, "lesson_settings.json")
+    del values["review_prompt"]
+    write(seed_dir, "lesson_settings.json", values)
+
+    with pytest.raises(
+        CommandError, match="seed/lesson_settings.json lacks review_prompt"
+    ):
+        seed()
+
+    assert nothing_written()
 
 
 @DATABASES

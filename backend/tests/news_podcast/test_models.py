@@ -11,15 +11,20 @@ from django.db.models import ProtectedError
 from news_podcast.api.core.schemas import ModelPrice
 from news_podcast.api.episode.schemas import EpisodeOptions
 from news_podcast.models import (
+    LESSON_PROMPT_FIELDS,
     Area,
     Episode,
     Feed,
+    LessonSettings,
     PodcastSettings,
     SettingsMissing,
     Topic,
+    placeholder_error,
 )
 from tests.news_podcast.factories import (
+    LESSON_SETTINGS,
     SETTINGS,
+    build_lesson_settings,
     build_settings,
     create_area,
     create_lesson_row,
@@ -389,3 +394,106 @@ def test_main_s_code_still_saves_rows_after_the_migration() -> None:
     row = Episode.objects.get(pk=old.pk)
 
     assert (row.kind, row.story_title, row.pages) == ("news", "", [])
+
+
+def test_the_lesson_factory_builds_a_complete_row_that_passes_the_admin_checks() -> (
+    None
+):
+    editable = {
+        field.name
+        for field in LessonSettings._meta.concrete_fields
+        if field.editable and not field.primary_key
+    }
+
+    assert set(LESSON_SETTINGS) == editable
+    build_lesson_settings().full_clean()
+
+
+def test_no_lesson_setting_has_a_default() -> None:
+    fields = LessonSettings._meta.concrete_fields
+
+    assert [field.name for field in fields if field.has_default()] == []
+
+
+@pytest.mark.parametrize(
+    ("changes", "field"),
+    [
+        ({"min_minutes": 0}, "min_minutes"),
+        ({"max_minutes": 10}, "max_minutes"),
+        ({"min_minutes": 8, "max_minutes": 7}, "max_minutes"),
+        ({"voice_input_price": -1}, "voice_input_price"),
+        ({"voice_output_price": -1}, "voice_output_price"),
+    ],
+)
+def test_invalid_lesson_settings_say_what_is_wrong(
+    changes: dict[str, Any], field: str
+) -> None:
+    with pytest.raises(ValidationError) as caught:
+        build_lesson_settings(**changes).full_clean()
+
+    assert field in caught.value.message_dict
+
+
+def test_a_lesson_lasts_from_1_to_9_minutes() -> None:
+    build_lesson_settings(min_minutes=1, max_minutes=9).full_clean()
+
+
+@pytest.mark.parametrize("field", ["min_minutes", "max_minutes"])
+def test_an_empty_lesson_minute_is_named_instead_of_crashing_clean(field: str) -> None:
+    with pytest.raises(ValidationError) as caught:
+        build_lesson_settings(**{field: None}).full_clean()
+
+    assert list(caught.value.message_dict) == [field]
+
+
+@pytest.mark.parametrize(("field", "fields"), list(LESSON_PROMPT_FIELDS.items()))
+@pytest.mark.parametrize("bad", ["Oi, {ouvinte}!", "Hoje é {today:%d}.", "Uma { só"])
+def test_a_lesson_prompt_refuses_what_the_lesson_does_not_fill(
+    field: str, fields: tuple[str, ...], bad: str
+) -> None:
+    with pytest.raises(ValidationError) as caught:
+        build_lesson_settings(**{field: bad}).full_clean()
+
+    assert caught.value.message_dict[field] == [placeholder_error(bad, fields)]
+
+
+@pytest.mark.parametrize(("field", "fields"), list(LESSON_PROMPT_FIELDS.items()))
+def test_a_lesson_prompt_may_use_its_placeholders_and_doubled_braces(
+    field: str, fields: tuple[str, ...]
+) -> None:
+    prompt = " ".join(f"{{{name}}}" for name in fields) + " {{literal}}"
+
+    build_lesson_settings(**{field: prompt}).full_clean()
+
+
+@pytest.mark.parametrize("name", ["openai:gpt-4o-mini-tts", "tts-1"])
+def test_the_lesson_voice_needs_a_voice_provider(name: str) -> None:
+    with pytest.raises(ValidationError) as caught:
+        build_lesson_settings(voice_model=name).full_clean()
+
+    assert "voice_model" in caught.value.message_dict
+
+
+@pytest.mark.parametrize(
+    "name", ["gemini-3.8-flash-tts", "google_genai:gemini-3.8-flash-tts"]
+)
+def test_the_lesson_voice_is_a_bare_gemini_name_or_provider_model(name: str) -> None:
+    build_lesson_settings(voice_model=name).full_clean()
+
+
+def test_the_lesson_prices_key_the_voice_model_as_saved() -> None:
+    row = build_lesson_settings(
+        voice_model="google_genai:gemini-3.8-flash-tts",
+        voice_input_price=0.5,
+        voice_output_price=9.0,
+    )
+
+    assert row.prices() == {"google_genai:gemini-3.8-flash-tts": ModelPrice(0.5, 9.0)}
+
+
+@DATABASES
+def test_without_a_lesson_row_load_says_to_run_the_seed_and_creates_none() -> None:
+    with pytest.raises(SettingsMissing, match="seed_news_podcast"):
+        LessonSettings.load()
+
+    assert not LessonSettings.objects.exists()

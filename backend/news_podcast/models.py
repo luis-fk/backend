@@ -17,6 +17,8 @@ from news_podcast.api.core.voice.providers import voice_model_error
 from news_podcast.api.episode import prompts
 from news_podcast.api.episode.feeds import GOOGLE_NEWS_HOST
 from news_podcast.api.episode.schemas import EpisodeOptions, FeedSource
+from news_podcast.api.lesson import prompts as lesson_prompts
+from news_podcast.api.lesson.config import LESSON_MINUTES_LIMIT
 
 SLOWEST, FASTEST = SPEECH_SPEED_LIMITS
 BRACES_HELP = "Write a literal brace as {{ or }}."
@@ -24,6 +26,12 @@ PROMPT_FIELDS = {
     "selection_prompt": prompts.SELECTION_FIELDS,
     "script_prompt": prompts.SCRIPT_FIELDS,
     "expand_prompt": prompts.EXPAND_FIELDS,
+}
+LESSON_PROMPT_FIELDS = {
+    "choice_prompt": lesson_prompts.CHOICE_FIELDS,
+    "pick_prompt": lesson_prompts.PICK_FIELDS,
+    "script_prompt": lesson_prompts.SCRIPT_FIELDS,
+    "review_prompt": lesson_prompts.REVIEW_FIELDS,
 }
 
 
@@ -181,6 +189,94 @@ class PodcastSettings(models.Model):
             model: ModelPrice(input_price, output_price)
             for model, input_price, output_price in rows
             if model
+        }
+
+
+class LessonSettings(models.Model):
+    """The lesson settings, edited in the Django admin. A single row of its own, which
+    only seed_news_podcast creates; the text models, their prices and the speech
+    speed come from PodcastSettings."""
+
+    min_minutes = models.PositiveSmallIntegerField(
+        "minimum minutes",
+        validators=[MinValueValidator(1)],
+        help_text="Length of the lesson's file, at the speech speed in Settings.",
+    )
+    max_minutes = models.PositiveSmallIntegerField(
+        "maximum minutes",
+        help_text=f"Under {LESSON_MINUTES_LIMIT}: a lesson stays short.",
+    )
+    voice_model = models.CharField(
+        max_length=100, help_text="The lesson's own voice, with its own daily quota."
+    )
+    voice_input_price = models.FloatField(
+        "input price", validators=[MinValueValidator(0)]
+    )
+    voice_output_price = models.FloatField(
+        "output price", validators=[MinValueValidator(0)]
+    )
+    choice_prompt = models.TextField(
+        help_text="Picks the topic among the candidates, when one connects to a "
+        "story. " + placeholders_help(lesson_prompts.CHOICE_FIELDS)
+    )
+    pick_prompt = models.TextField(
+        help_text="Picks the pages among the search results. "
+        + placeholders_help(lesson_prompts.PICK_FIELDS)
+    )
+    script_prompt = models.TextField(
+        help_text=placeholders_help(lesson_prompts.SCRIPT_FIELDS)
+    )
+    review_prompt = models.TextField(
+        help_text="Checks the script against its pages. "
+        + placeholders_help(lesson_prompts.REVIEW_FIELDS)
+    )
+    voice_style = models.TextField(help_text="How the hosts talk in a lesson.")
+
+    class Meta:
+        verbose_name = "lesson settings"
+        verbose_name_plural = "lesson settings"
+
+    def __str__(self) -> str:
+        return "Lesson settings"
+
+    def clean(self) -> None:
+        errors: dict[str, str] = {}
+        # As in PodcastSettings, each check runs only on a value of its type.
+        minimum, maximum = self.min_minutes, self.max_minutes
+        if isinstance(minimum, int) and isinstance(maximum, int):
+            if minimum > maximum:
+                errors["max_minutes"] = "Must not be less than the minimum."
+            elif maximum >= LESSON_MINUTES_LIMIT:
+                errors["max_minutes"] = (
+                    f"Must be under {LESSON_MINUTES_LIMIT} minutes "
+                    "(LESSON_MINUTES_LIMIT in api/lesson/config.py)."
+                )
+        voice = self.voice_model
+        if isinstance(voice, str) and voice and (error := voice_model_error(voice)):
+            errors["voice_model"] = error
+        for name, fields in LESSON_PROMPT_FIELDS.items():
+            prompt = getattr(self, name)
+            if isinstance(prompt, str) and (error := placeholder_error(prompt, fields)):
+                errors[name] = error
+        if errors:
+            raise ValidationError(errors)
+
+    @classmethod
+    def load(cls) -> "LessonSettings":
+        """The lesson settings row, which only seed_news_podcast creates."""
+        lesson_settings = cls.objects.order_by("pk").first()
+        if lesson_settings is None:
+            raise SettingsMissing(
+                "Não há configurações da aula no banco: rode seed_news_podcast "
+                "(make seed no local, make seed-prod em produção)."
+            )
+        return lesson_settings
+
+    def prices(self) -> dict[str, ModelPrice]:
+        return {
+            self.voice_model: ModelPrice(
+                self.voice_input_price, self.voice_output_price
+            )
         }
 
 
