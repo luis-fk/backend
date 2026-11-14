@@ -110,8 +110,6 @@ def broken_voice_rules(module: str, found: list[tuple[str, str | None]]) -> list
 def test_the_app_follows_its_import_rules() -> None:
     broken: list[str] = []
     for path in sorted(APP_DIR.rglob("*.py")):
-        if "migrations" in path.relative_to(APP_DIR).parts:
-            continue
         module = module_name(path)
         source = path.read_text()
         is_package = path.name == "__init__.py"

@@ -6,8 +6,6 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
 
-    replaces = [('news_podcast', '0001_initial'), ('news_podcast', '0002_prompt_defaults'), ('news_podcast', '0003_episode_script_words'), ('news_podcast', '0004_selection_prompt_coverage'), ('news_podcast', '0005_starting_values_from_code'), ('news_podcast', '0006_feed'), ('news_podcast', '0007_no_code_defaults')]
-
     initial = True
 
     dependencies = [
