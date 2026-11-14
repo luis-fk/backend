@@ -13,12 +13,16 @@ from langchain_openai import ChatOpenAI
 from pydantic import ValidationError
 from pytest_django import Settings
 
+from news_podcast.api.core import telegram
 from news_podcast.api.core.llm import TextModels
-from news_podcast.api.core.schemas import NewsStory, Usage
-from news_podcast.api.episode import config, run
+from news_podcast.api.core.schemas import ModelPrice, NewsStory, Usage
+from news_podcast.api.core.telegram import TelegramClient
+from news_podcast.api.episode import run
+from news_podcast.api.episode import service as service_module
 from news_podcast.api.episode.schemas import EpisodeReport, NewsItem
 from news_podcast.api.episode.service import EpisodeError, EpisodeService
 from news_podcast.models import Episode, Feed, PodcastSettings
+from tests.news_podcast.factories import build_settings, create_settings
 from tests.news_podcast.fake_models import fake_factory
 
 # transaction=True: the command closes its connection before writing the history,
@@ -45,7 +49,11 @@ def replace_episode(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
         service: EpisodeService, *, scheduled: bool, send: bool
     ) -> EpisodeReport:
         service.usages.append(
-            Usage(step="voice", model=config.TTS_MODEL, output_tokens=1_000_000)
+            Usage(
+                step="voice",
+                model=service.settings.voice_model,
+                output_tokens=1_000_000,
+            )
         )
         return EpisodeReport(
             audio_path=tmp_path / "resumo.ogg",
@@ -71,6 +79,7 @@ def test_a_run_is_saved_with_its_length_words_and_cost(
     args: list[str],
     status: Episode.Status,
 ) -> None:
+    row = create_settings()
     replace_episode(monkeypatch, tmp_path)
 
     call_command("news_podcast", "episode", *args)
@@ -83,20 +92,26 @@ def test_a_run_is_saved_with_its_length_words_and_cost(
     assert episode.usage == [
         {
             "step": "voice",
-            "model": config.TTS_MODEL,
+            "model": row.voice_model,
             "input_tokens": 0,
             "output_tokens": 1_000_000,
         }
     ]
     assert episode.error == ""
-    # The first run creates the settings with the values in the code.
-    assert PodcastSettings.objects.get().text_model == config.TEXT_MODEL
 
 
 @DATABASE
 def test_a_run_reads_the_active_feeds_in_the_database(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
+    create_settings()
+    for outlet, active in [("g1", True), ("BBC", True), ("Valor", False)]:
+        Feed.objects.create(
+            outlet=outlet,
+            section=Feed.Section.GERAL,
+            url=f"https://{outlet.lower()}.example/rss",
+            active=active,
+        )
     read: list[int] = []
 
     async def make(
@@ -114,19 +129,20 @@ def test_a_run_reads_the_active_feeds_in_the_database(
 
     call_command("news_podcast", "episode", "--no-send")
 
-    assert read == [len(config.STARTING_FEEDS)]
+    assert read == [2]
 
 
 @DATABASE
 def test_a_failed_run_keeps_the_step_the_error_and_the_cost_so_far(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    create_settings(text_input_price=0.75)
+
     async def fail(
         service: EpisodeService, *, scheduled: bool, send: bool
     ) -> EpisodeReport:
-        service.usages.append(
-            Usage(step="script", model=config.TEXT_MODEL, input_tokens=1_000_000)
-        )
+        model = service.settings.text_models[0]
+        service.usages.append(Usage(step="script", model=model, input_tokens=1_000_000))
         service.step = "voz"
         raise EpisodeError("a cota do dia acabou")
 
@@ -142,11 +158,90 @@ def test_a_failed_run_keeps_the_step_the_error_and_the_cost_so_far(
     assert episode.cost_usd == pytest.approx(0.75)
 
 
+def record_notices(monkeypatch: pytest.MonkeyPatch) -> list[tuple[str, str]]:
+    """The messages the run's failure notices send, each as (chat, text). A run that
+    gets past the settings fails at once, before any request."""
+    sent: list[tuple[str, str]] = []
+
+    class RecordingTelegram(TelegramClient):
+        async def send_message(self, chat_id: str, text: str) -> None:
+            sent.append((chat_id, text))
+
+    async def no_run(
+        service: EpisodeService, *, scheduled: bool, send: bool
+    ) -> EpisodeReport:
+        raise AssertionError("the run must stop at the settings")
+
+    # report_failure looks the client up in core.telegram, not in run.py.
+    monkeypatch.setattr(
+        telegram, "telegram_client", lambda client: RecordingTelegram(client, "TOKEN")
+    )
+    monkeypatch.setattr(EpisodeService, "generate_episode", no_run)
+    return sent
+
+
+@DATABASE
+def test_without_the_settings_row_the_run_tells_the_admin_to_run_the_seed(
+    monkeypatch: pytest.MonkeyPatch, settings: Settings
+) -> None:
+    settings.TELEGRAM_ADMIN_CHAT_ID = "admin"
+    sent = record_notices(monkeypatch)
+
+    with pytest.raises(CommandError, match="seed_news_podcast"):
+        call_command("news_podcast", "episode", "--scheduled")
+
+    [(chat, text)] = sent
+    assert chat == "admin"
+    assert "Não consegui gerar o episódio de hoje" in text
+    assert "<b>Etapa:</b> configurações" in text
+    assert "seed_news_podcast" in text
+    assert not Episode.objects.exists()
+    assert not PodcastSettings.objects.exists()
+
+
+@DATABASE
+def test_without_the_settings_row_a_run_without_sending_only_fails(
+    monkeypatch: pytest.MonkeyPatch, settings: Settings
+) -> None:
+    settings.TELEGRAM_ADMIN_CHAT_ID = "admin"
+    sent = record_notices(monkeypatch)
+
+    with pytest.raises(CommandError, match="seed_news_podcast"):
+        call_command("news_podcast", "episode", "--no-send")
+
+    assert sent == []
+    assert not Episode.objects.exists()
+
+
+@DATABASE
+def test_with_no_feeds_the_run_fails_at_reading_them(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    create_settings()
+
+    async def fetch(
+        http_client: httpx.AsyncClient, sources: list[Any], *_window: object
+    ) -> list[NewsItem]:
+        assert sources == []
+        return []
+
+    monkeypatch.setattr(service_module, "fetch_items", fetch)
+    monkeypatch.setattr(service_module, "OUTPUT_DIR", tmp_path)
+
+    with pytest.raises(CommandError, match="Nenhuma notícia encontrada nos feeds"):
+        call_command("news_podcast", "episode", "--no-send")
+
+    episode = Episode.objects.get()
+    assert episode.status == Episode.Status.FAILED
+    assert episode.error == "leitura dos feeds: Nenhuma notícia encontrada nos feeds"
+    assert not Feed.objects.exists()
+
+
 @DATABASE
 def test_a_paused_podcast_makes_no_episode_on_railway(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    PodcastSettings.objects.create(paused=True)
+    create_settings(paused=True)
     replace_episode(monkeypatch, tmp_path)
 
     call_command("news_podcast", "episode", "--scheduled")
@@ -174,10 +269,14 @@ def test_the_command_makes_the_episode_through_run(
 
 
 def test_the_service_gets_a_frozen_snapshot_of_the_settings() -> None:
-    snapshot = run.episode_settings(PodcastSettings())
+    row = build_settings()
 
-    assert snapshot.text_models == (config.TEXT_MODEL, config.TEXT_FALLBACK_MODEL)
-    assert snapshot.prices[config.TTS_MODEL] == config.TTS_MODEL_PRICE
+    snapshot = run.episode_settings(row)
+
+    assert snapshot.text_models == (row.text_model, row.fallback_model)
+    assert snapshot.prices[row.voice_model] == ModelPrice(
+        row.voice_input_price, row.voice_output_price
+    )
     with pytest.raises(ValidationError):
         snapshot.voice_model = "outro"  # type: ignore[misc]
 
@@ -224,6 +323,10 @@ def test_select_today_returns_the_days_stories_and_makes_no_episode(
     monkeypatch: pytest.MonkeyPatch, settings: Settings
 ) -> None:
     settings.GEMINI_API_KEY = "test-key"
+    row = create_settings()
+    Feed.objects.create(
+        outlet="g1", section=Feed.Section.POLITICA, url="https://g1.globo.com/rss/g1/"
+    )
     read: list[int] = []
 
     async def fetch(
@@ -239,7 +342,7 @@ def test_select_today_returns_the_days_stories_and_makes_no_episode(
     monkeypatch.setattr(run, "telegram_client", no_telegram)
 
     selection = run.select_today(
-        model_factory=fake_factory({config.TEXT_MODEL: [STORIES]}, [])
+        model_factory=fake_factory({row.text_model: [STORIES]}, [])
     )
 
     assert selection.error is None
@@ -248,9 +351,9 @@ def test_select_today_returns_the_days_stories_and_makes_no_episode(
         NewsStory("Chuva no Sul", "geral", ""),
     ]
     assert [(usage.step, usage.model) for usage in selection.usages] == [
-        ("selection", config.TEXT_MODEL)
+        ("selection", row.text_model)
     ]
-    assert read == [len(config.STARTING_FEEDS)]
+    assert read == [1]
     assert not Episode.objects.exists()
 
 
@@ -262,6 +365,7 @@ def test_select_today_returns_the_error_instead_of_raising(
     monkeypatch: pytest.MonkeyPatch, settings: Settings, failure: str
 ) -> None:
     settings.GEMINI_API_KEY = "test-key"
+    row = create_settings()
 
     async def fetch(*_args: object) -> list[NewsItem]:
         return [] if failure == "no news" else news_items()
@@ -278,8 +382,8 @@ def test_select_today_returns_the_error_instead_of_raising(
         monkeypatch.setattr(run, "news_window", broken)
     no_stories = '{"stories": []}'
     outcomes = {
-        config.TEXT_MODEL: [no_stories] * 2,
-        config.TEXT_FALLBACK_MODEL: [no_stories] * 2,
+        row.text_model: [no_stories] * 2,
+        row.fallback_model: [no_stories] * 2,
     }
 
     selection = run.select_today(model_factory=fake_factory(outcomes, []))
@@ -294,7 +398,7 @@ def test_each_run_builds_its_own_text_models_and_clients(
 ) -> None:
     settings.OPENAI_API_KEY = "test-key"
     openai = "openai:gpt-4.1-mini"
-    snapshot = run.episode_settings(PodcastSettings()).model_copy(
+    snapshot = run.episode_settings(build_settings()).model_copy(
         update={"text_models": (openai,)}
     )
     seen: list[tuple[TextModels, httpx.AsyncClient, BaseChatModel]] = []

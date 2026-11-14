@@ -10,7 +10,7 @@ from pytest_django import Settings
 
 from news_podcast.api.core.config import LOCAL_TZ
 from news_podcast.api.core.llm import BadAnswerError, TextModels
-from news_podcast.api.episode import config, prompts
+from news_podcast.api.episode import prompts
 from news_podcast.api.episode.feeds import format_for_selection
 from news_podcast.api.episode.prompts import selection_template
 from news_podcast.api.episode.run import episode_settings
@@ -26,7 +26,7 @@ from news_podcast.api.episode.selection import (
     selection_values,
     valid_stories,
 )
-from news_podcast.models import PodcastSettings
+from tests.news_podcast.factories import build_settings
 from tests.news_podcast.fake_models import FakeChatModel, fake_factory
 
 DEFAULT_OPTIONS = EpisodeOptions(12, 18, 1.0)
@@ -89,8 +89,13 @@ def test_the_selection_prompt_follows_the_configured_options() -> None:
     start = datetime(2026, 11, 6, 20, 0, tzinfo=LOCAL_TZ)
     end = datetime(2026, 11, 7, 20, 0, tzinfo=LOCAL_TZ)
 
+    template = (
+        "O ouvinte quer um resumo em {min_minutes} a {max_minutes} minutos. "
+        "Escolha de {min_stories} a {max_stories} histórias."
+    )
+
     selection = system_message(
-        selection_template(prompts.SELECTION_PROMPT),
+        selection_template(template),
         {"headlines": "", **selection_values(options, start, end)},
     )
 
@@ -122,6 +127,7 @@ def test_the_headlines_reach_the_model_as_they_are() -> None:
 
 def test_the_selection_step_returns_the_valid_stories(settings: Settings) -> None:
     settings.GEMINI_API_KEY = "test-key"
+    model = "gemini-main"
     items = [news_item("3", "Juros sobem"), news_item("7", "Chuva no Sul")]
     answer = {
         "stories": [
@@ -147,16 +153,16 @@ def test_the_selection_step_returns_the_valid_stories(settings: Settings) -> Non
     async def scenario() -> list[SelectedStory]:
         async with httpx.AsyncClient() as client:
             text = TextModels(
-                [config.TEXT_MODEL],
+                [model],
                 [],
                 client,
-                fake_factory({config.TEXT_MODEL: [json.dumps(answer)]}, asked, built),
+                fake_factory({model: [json.dumps(answer)]}, asked, built),
             )
-            snapshot = episode_settings(PodcastSettings())
+            snapshot = episode_settings(build_settings())
             return await select_stories(text, snapshot, items, START, END)
 
     stories = asyncio.run(scenario())
 
     assert [story.title for story in stories] == ["Juros"]
-    [messages] = built[config.TEXT_MODEL].received
+    [messages] = built[model].received
     assert messages[1].content == format_for_selection(items, LOCAL_TZ)

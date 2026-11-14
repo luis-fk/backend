@@ -3,45 +3,37 @@ from typing import Any
 import pytest
 from django.core.exceptions import ValidationError
 
-from news_podcast.api.episode import config
-from news_podcast.api.episode.schemas import EpisodeOptions
-from news_podcast.models import STARTING_VALUES, Feed, PodcastSettings
+from news_podcast.models import Feed, PodcastSettings, SettingsMissing
+from tests.news_podcast.factories import SETTINGS, build_settings
 
 DATABASES = pytest.mark.django_db(databases=["default", "news_podcast_db"])
 
 
-def test_the_settings_start_with_the_values_in_the_code() -> None:
-    podcast_settings = PodcastSettings()
-
-    podcast_settings.full_clean()
-    assert podcast_settings.episode_options() == EpisodeOptions(12, 18, 1.0)
-    assert podcast_settings.text_models() == [
-        config.TEXT_MODEL,
-        config.TEXT_FALLBACK_MODEL,
-    ]
-    assert podcast_settings.prices() == {
-        config.TEXT_MODEL: config.TEXT_MODEL_PRICE,
-        config.TEXT_FALLBACK_MODEL: config.TEXT_FALLBACK_MODEL_PRICE,
-        config.TTS_MODEL: config.TTS_MODEL_PRICE,
+def test_the_factory_builds_a_complete_row_that_passes_the_admin_checks() -> None:
+    editable = {
+        field.name
+        for field in PodcastSettings._meta.concrete_fields
+        if field.editable and not field.primary_key
     }
 
+    assert set(SETTINGS) == editable
+    build_settings().full_clean()
 
-def test_the_starting_values_stay_out_of_the_migrations() -> None:
-    # A migration records each field's default, so a text there would need a new
-    # migration whenever it changes in the code; a function doesn't.
-    for field in PodcastSettings._meta.concrete_fields:
-        if field.has_default() and not isinstance(field.default, bool):
-            assert callable(field.default), field.name
 
-    podcast_settings = PodcastSettings()
-    for name, value in STARTING_VALUES.items():
-        assert getattr(podcast_settings, name) == value, name
+def test_only_paused_has_a_default() -> None:
+    defaults = [
+        field.name
+        for field in PodcastSettings._meta.concrete_fields
+        if field.has_default()
+    ]
+
+    assert defaults == ["paused"]
 
 
 def test_without_a_fallback_only_the_text_model_writes() -> None:
-    podcast_settings = PodcastSettings(fallback_model="")
+    podcast_settings = build_settings(fallback_model="")
 
-    assert podcast_settings.text_models() == [config.TEXT_MODEL]
+    assert podcast_settings.text_models() == [podcast_settings.text_model]
     assert "" not in podcast_settings.prices()
 
 
@@ -51,7 +43,11 @@ def test_without_a_fallback_only_the_text_model_writes() -> None:
         ({"min_minutes": 3}, "min_minutes", "greater than or equal to 5"),
         ({"min_minutes": 18, "max_minutes": 12}, "max_minutes", "less than the min"),
         ({"speech_speed": 0.25}, "speech_speed", "greater than or equal to 0.5"),
-        ({"speech_speed": 2.0}, "max_minutes", "36 minutes of speech"),
+        (
+            {"max_minutes": 18, "speech_speed": 2.0},
+            "max_minutes",
+            "36 minutes of speech",
+        ),
         ({"script_prompt": "Oi, {ouvinte}!"}, "script_prompt", "{ouvinte}"),
         ({"expand_prompt": "Roteiro: {script"}, "expand_prompt", "literal brace"),
         ({"selection_prompt": 'Use {"stories": []}'}, "selection_prompt", "{{"),
@@ -67,7 +63,7 @@ def test_invalid_settings_say_what_is_wrong(
     values: dict[str, Any], field: str, message: str
 ) -> None:
     with pytest.raises(ValidationError) as caught:
-        PodcastSettings(**values).full_clean()
+        build_settings(**values).full_clean()
 
     assert message in " ".join(caught.value.message_dict[field])
 
@@ -87,13 +83,13 @@ def test_a_value_of_the_wrong_type_is_named_instead_of_crashing_clean(
     field: str, value: Any, message: str
 ) -> None:
     with pytest.raises(ValidationError) as caught:
-        PodcastSettings(**{field: value}).full_clean()
+        build_settings(**{field: value}).full_clean()
 
     assert message in " ".join(caught.value.message_dict[field])
 
 
 def test_a_prompt_may_use_its_placeholders_and_doubled_braces() -> None:
-    PodcastSettings(
+    build_settings(
         script_prompt='{podcast_name}, com {host_a}: {{"turns": []}}'
     ).full_clean()
 
@@ -112,7 +108,7 @@ def test_a_prompt_may_use_its_placeholders_and_doubled_braces() -> None:
 )
 def test_a_text_model_needs_a_provider_the_podcast_knows(field: str, name: str) -> None:
     with pytest.raises(ValidationError) as caught:
-        PodcastSettings(**{field: name}).full_clean()
+        build_settings(**{field: name}).full_clean()
 
     message = " ".join(caught.value.message_dict[field])
     assert "google_genai" in message
@@ -124,11 +120,11 @@ def test_a_text_model_needs_a_provider_the_podcast_knows(field: str, name: str) 
     ["gemini-3.8-flash", "google_genai:gemini-3.8-flash", "openai:gpt-4.1-mini"],
 )
 def test_a_text_model_is_a_bare_gemini_name_or_provider_model(name: str) -> None:
-    PodcastSettings(text_model=name, fallback_model=name).full_clean()
+    build_settings(text_model=name, fallback_model=name).full_clean()
 
 
 def test_the_fallback_model_may_be_empty() -> None:
-    PodcastSettings(fallback_model="").full_clean()
+    build_settings(fallback_model="").full_clean()
 
 
 @pytest.mark.parametrize(
@@ -142,7 +138,7 @@ def test_the_fallback_model_may_be_empty() -> None:
 )
 def test_the_voice_model_needs_a_voice_provider(name: str) -> None:
     with pytest.raises(ValidationError) as caught:
-        PodcastSettings(voice_model=name).full_clean()
+        build_settings(voice_model=name).full_clean()
 
     message = " ".join(caught.value.message_dict["voice_model"])
     assert "google_genai" in message
@@ -153,35 +149,64 @@ def test_the_voice_model_needs_a_voice_provider(name: str) -> None:
     "name", ["gemini-3.8-flash-lite-tts", "google_genai:gemini-3.8-flash-lite-tts"]
 )
 def test_the_voice_model_is_a_bare_gemini_name_or_provider_model(name: str) -> None:
-    PodcastSettings(voice_model=name).full_clean()
+    build_settings(voice_model=name).full_clean()
 
 
 @DATABASES
-def test_the_feed_list_starts_with_the_one_in_the_code() -> None:
-    sources = Feed.sources()
+def test_a_google_news_feed_is_read_through_google_news() -> None:
+    Feed.objects.create(
+        outlet="ICL Notícias",
+        section=Feed.Section.GERAL,
+        url="https://news.google.com/rss/search?q=site:iclnoticias.com.br+when:2d",
+    )
+    Feed.objects.create(
+        outlet="g1", section=Feed.Section.POLITICA, url="https://g1.globo.com/rss/g1/"
+    )
 
-    assert {(s.outlet, s.section, s.url) for s in sources} == set(config.STARTING_FEEDS)
-    icl = next(source for source in sources if source.outlet == "ICL Notícias")
-    assert icl.via_google_news
+    sources = {source.outlet: source for source in Feed.sources()}
+
+    assert sources["ICL Notícias"].via_google_news
+    assert not sources["g1"].via_google_news
 
 
 @DATABASES
 def test_feeds_are_read_in_section_order() -> None:
-    Feed.start_if_empty()
-    Feed.objects.create(
-        outlet="Valor", section=Feed.Section.ECONOMIA, url="https://valor.example/rss"
-    )
+    for outlet, section in [
+        ("g1", Feed.Section.POLITICA),
+        ("BBC", Feed.Section.GERAL),
+        ("Valor", Feed.Section.ECONOMIA),
+    ]:
+        Feed.objects.create(
+            outlet=outlet, section=section, url=f"https://{outlet.lower()}.example/rss"
+        )
 
     sections = [source.section for source in Feed.sources()]
 
     # Of a headline in two feeds of one outlet, the first feed's copy stays.
-    assert sections == sorted(sections)
+    assert sections == ["Economia", "Geral", "Política"]
 
 
 @DATABASES
-def test_feeds_turned_off_are_not_read_and_the_list_does_not_start_again() -> None:
-    Feed.sources()
-    Feed.objects.update(active=False)
+def test_feeds_turned_off_are_not_read() -> None:
+    Feed.objects.create(
+        outlet="g1",
+        section=Feed.Section.GERAL,
+        url="https://g1.globo.com/rss/g1/",
+        active=False,
+    )
 
     assert Feed.sources() == []
-    assert Feed.objects.count() == len(config.STARTING_FEEDS)
+
+
+@DATABASES
+def test_without_a_row_load_says_to_run_the_seed_and_creates_none() -> None:
+    with pytest.raises(SettingsMissing, match="seed_news_podcast"):
+        PodcastSettings.load()
+
+    assert not PodcastSettings.objects.exists()
+
+
+@DATABASES
+def test_an_empty_feed_list_stays_empty() -> None:
+    assert Feed.sources() == []
+    assert not Feed.objects.exists()

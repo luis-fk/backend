@@ -26,7 +26,7 @@ from news_podcast.api.episode.options import news_window
 from news_podcast.api.episode.schemas import EpisodeReport, EpisodeSettings, FeedSource
 from news_podcast.api.episode.selection import select_stories
 from news_podcast.api.episode.service import EpisodeError, EpisodeService
-from news_podcast.models import Episode, Feed, PodcastSettings
+from news_podcast.models import Episode, Feed, PodcastSettings, SettingsMissing
 
 logger = logging.getLogger(__name__)
 
@@ -70,7 +70,7 @@ def make_episode(*, scheduled: bool, send: bool) -> None:
     try:
         podcast_settings = PodcastSettings.load()
         sources = Feed.sources()
-    except DatabaseError as error:
+    except (DatabaseError, SettingsMissing) as error:
         if send:
             asyncio.run(report_failure(FAILURE_SUBJECT, "configurações", error))
         raise

@@ -27,7 +27,7 @@ from news_podcast.api.episode.service import (
     EpisodeError,
     EpisodeService,
 )
-from news_podcast.models import PodcastSettings
+from tests.news_podcast.factories import build_settings
 
 TURNS = [Turn(speaker="Bia", text="Bom dia")]
 ITEM = NewsItem(
@@ -78,7 +78,7 @@ def telegram_service(
         http_client=client,
         telegram=telegram,
         chat_id=chat_id,
-        settings=episode_settings(PodcastSettings()),
+        settings=episode_settings(build_settings()),
         sources=[],
         admin_chat_id=admin_chat_id,
     )
@@ -247,7 +247,7 @@ def test_without_the_gemini_key_the_run_fails_at_the_selection_at_once(
                 http_client=client,
                 telegram=None,
                 chat_id=None,
-                settings=episode_settings(PodcastSettings()),
+                settings=episode_settings(build_settings()),
                 sources=[],
                 model_factory=no_model,
             )
@@ -298,7 +298,7 @@ def fail_at_the_voice(
         transport = httpx.MockTransport(no_voice_request)
         async with httpx.AsyncClient(transport=transport) as client:
             telegram = FakeTelegram(client)
-            snapshot = episode_settings(PodcastSettings()).model_copy(
+            snapshot = episode_settings(build_settings()).model_copy(
                 update={"voice_model": voice_model}
             )
             service = EpisodeService(
@@ -393,7 +393,7 @@ def test_the_voice_step_draws_on_the_run_s_waits_and_keeps_its_usage(
                 http_client=client,
                 telegram=None,
                 chat_id=None,
-                settings=episode_settings(PodcastSettings()),
+                settings=episode_settings(build_settings()),
                 sources=[],
             )
             reach_the_voice(monkeypatch, service, tmp_path)

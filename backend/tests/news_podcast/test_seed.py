@@ -14,7 +14,6 @@ from langchain_core.prompts import ChatPromptTemplate
 
 from news_podcast.api.core.config import LOCAL_TZ
 from news_podcast.api.core.schemas import Script, Turn
-from news_podcast.api.episode.config import STARTING_FEEDS
 from news_podcast.api.episode.prompts import (
     lengthening_template,
     script_template,
@@ -23,7 +22,7 @@ from news_podcast.api.episode.prompts import (
 from news_podcast.api.episode.schemas import EpisodeOptions
 from news_podcast.api.episode.script import lengthening_values, script_values
 from news_podcast.api.episode.selection import selection_values
-from news_podcast.models import STARTING_VALUES, Feed, PodcastSettings
+from news_podcast.models import Feed, PodcastSettings
 
 DATABASES = pytest.mark.django_db(databases=["default", "news_podcast_db"])
 SEED_DIR = Path(__file__).resolve().parents[2] / "news_podcast" / "seed"
@@ -88,27 +87,15 @@ def seed_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     return tmp_path
 
 
-def test_the_seed_settings_are_the_starting_values_in_the_code() -> None:
-    assert read(SEED_DIR, "settings.json") == {"paused": False, **STARTING_VALUES}
-
-
-def test_the_seed_feeds_are_the_starting_feeds_in_the_code() -> None:
-    feeds = read(SEED_DIR, "feeds.json")
-
-    assert [(feed["outlet"], feed["section"], feed["url"]) for feed in feeds] == list(
-        STARTING_FEEDS
-    )
-    assert all(feed["active"] is True for feed in feeds)
-
-
 def test_the_seed_settings_pass_the_admin_checks() -> None:
     PodcastSettings(**read(SEED_DIR, "settings.json")).full_clean()
 
 
-def test_the_seed_feeds_have_unique_urls_and_known_sections() -> None:
+def test_the_seed_feeds_are_active_with_unique_urls_and_known_sections() -> None:
     feeds = read(SEED_DIR, "feeds.json")
     urls = [feed["url"] for feed in feeds]
 
+    assert all(feed["active"] is True for feed in feeds)
     assert len(set(urls)) == len(urls)
     assert {feed["section"] for feed in feeds} <= set(Feed.Section.values)
 
