@@ -4,28 +4,13 @@ from typing import Literal, NamedTuple
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from news_podcast.api.core.schemas import ModelPrice
+
 
 class EpisodeOptions(NamedTuple):
     min_minutes: int
     max_minutes: int
     speech_speed: float
-
-
-class Host(NamedTuple):
-    name: str
-    speaker_id: str
-    gemini_voice: str
-
-
-class ModelPrice(NamedTuple):
-    input_per_million: float
-    output_per_million: float
-
-
-class TelegramChat(NamedTuple):
-    id: str
-    name: str
-    is_group: bool
 
 
 class FeedSource(BaseModel):
@@ -46,8 +31,8 @@ class NewsItem(BaseModel):
     content: str = ""
 
 
-# Gemini reads the field descriptions of SelectedStory and Turn, so they are in
-# Portuguese, like the prompts.
+# Gemini reads the field descriptions of SelectedStory, so they are in Portuguese,
+# like the prompts.
 class SelectedStory(BaseModel):
     model_config = ConfigDict(
         coerce_numbers_to_str=True, json_schema_serialization_defaults_required=True
@@ -87,26 +72,21 @@ class StoryBrief(BaseModel):
     other_headlines: list[SourceText] = []
 
 
-class Turn(BaseModel):
-    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+class EpisodeSettings(BaseModel):
+    """The admin's settings for one run, read by run.py outside the event loop, so
+    the service never touches the ORM."""
 
-    speaker: str = Field(description="Quem fala: um dos dois apresentadores.")
-    text: str = Field(description="O que a pessoa diz.")
-    headline: bool = Field(
-        default=False,
-        description="true só nas manchetes da escalada, na abertura do episódio.",
-    )
+    model_config = ConfigDict(frozen=True)
 
-
-class Script(BaseModel):
-    turns: list[Turn]
-
-
-class Usage(BaseModel):
-    step: str
-    model: str
-    input_tokens: int = 0
-    output_tokens: int = 0
+    options: EpisodeOptions
+    text_models: tuple[str, ...]
+    voice_model: str
+    selection_prompt: str
+    script_prompt: str
+    expand_prompt: str
+    voice_style: str
+    headline_voice_style: str
+    prices: dict[str, ModelPrice]
 
 
 class EpisodeReport(BaseModel):

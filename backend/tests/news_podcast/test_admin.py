@@ -2,11 +2,14 @@ from datetime import UTC, datetime
 from typing import Any
 
 import pytest
+from django.contrib.auth import get_user_model
+from django.contrib.messages import get_messages
 from django.forms.models import model_to_dict
 from django.test import Client
+from pytest_django import DjangoAssertNumQueries
 
-from news_podcast.api.episode import config, prompts
 from news_podcast.models import Episode, Feed, PodcastSettings
+from tests.news_podcast.factories import create_settings
 
 SETTINGS_URL = "/admin/news_podcast/podcastsettings/"
 EPISODES_URL = "/admin/news_podcast/episode/"
@@ -21,19 +24,59 @@ def form_data(row: PodcastSettings, **changes: Any) -> dict[str, Any]:
 
 
 @DATABASES
-def test_the_settings_open_with_the_values_in_the_code(admin_client: Client) -> None:
-    response = admin_client.get(SETTINGS_URL, follow=True)
+def test_without_the_row_the_settings_page_says_to_run_the_seed(
+    admin_client: Client,
+) -> None:
+    response = admin_client.get(SETTINGS_URL)
 
-    form = response.context["adminform"].form
-    assert form["text_model"].value() == config.TEXT_MODEL
-    assert form["script_prompt"].value() == prompts.SCRIPT_PROMPT
+    assert response.status_code == 200
+    assert "seed_news_podcast" in response.content.decode()
+    assert not PodcastSettings.objects.exists()
 
 
 @DATABASES
-def test_there_is_a_single_settings_row(admin_client: Client) -> None:
-    for _ in range(2):
-        admin_client.get(SETTINGS_URL)
-    row = PodcastSettings.objects.get()
+def test_the_settings_page_opens_the_row(admin_client: Client) -> None:
+    row = create_settings()
+
+    response = admin_client.get(SETTINGS_URL)
+
+    assert response.status_code == 302
+    assert response["Location"] == f"{SETTINGS_URL}{row.pk}/change/"
+
+
+@DATABASES
+def test_the_admin_index_never_queries_the_podcast_database(
+    admin_client: Client, django_assert_num_queries: DjangoAssertNumQueries
+) -> None:
+    with django_assert_num_queries(0, using="news_podcast_db"):
+        response = admin_client.get("/admin/")
+
+    assert response.status_code == 200
+
+
+@DATABASES
+@pytest.mark.parametrize("with_row", [True, False])
+def test_the_settings_page_needs_the_permission_before_anything_else(
+    client: Client, with_row: bool
+) -> None:
+    if with_row:
+        create_settings()
+    staff = get_user_model().objects.create_user(
+        username="ana", password="senha", is_staff=True
+    )
+    client.force_login(staff)
+
+    response = client.get(SETTINGS_URL)
+
+    assert response.status_code == 403
+    assert list(get_messages(response.wsgi_request)) == []
+
+
+@DATABASES
+def test_the_settings_row_can_be_neither_added_nor_deleted(
+    admin_client: Client,
+) -> None:
+    row = create_settings()
 
     assert admin_client.get(f"{SETTINGS_URL}add/").status_code == 403
     assert admin_client.get(f"{SETTINGS_URL}{row.pk}/delete/").status_code == 403
@@ -41,7 +84,7 @@ def test_there_is_a_single_settings_row(admin_client: Client) -> None:
 
 @DATABASES
 def test_the_admin_saves_a_change(admin_client: Client) -> None:
-    row = PodcastSettings.objects.create()
+    row = create_settings()
 
     response = admin_client.post(
         f"{SETTINGS_URL}{row.pk}/change/", form_data(row, paused=True, max_minutes=15)
@@ -57,7 +100,8 @@ def test_the_admin_saves_a_change(admin_client: Client) -> None:
 def test_the_admin_refuses_a_placeholder_the_service_does_not_fill(
     admin_client: Client,
 ) -> None:
-    row = PodcastSettings.objects.create()
+    row = create_settings()
+    before = row.script_prompt
 
     response = admin_client.post(
         f"{SETTINGS_URL}{row.pk}/change/",
@@ -67,7 +111,7 @@ def test_the_admin_refuses_a_placeholder_the_service_does_not_fill(
     errors = response.context["adminform"].form.errors
     assert "{ouvinte}" in errors["script_prompt"][0]
     row.refresh_from_db()
-    assert row.script_prompt == prompts.SCRIPT_PROMPT
+    assert row.script_prompt == before
 
 
 @DATABASES
@@ -113,8 +157,8 @@ def test_the_history_shows_the_voice_pace(admin_client: Client) -> None:
 
 
 @DATABASES
-def test_the_feeds_page_opens_with_the_starting_list(admin_client: Client) -> None:
-    page = admin_client.get(FEEDS_URL).content.decode()
+def test_an_empty_feed_list_opens_empty(admin_client: Client) -> None:
+    response = admin_client.get(FEEDS_URL)
 
-    assert "ICL Notícias" in page
-    assert Feed.objects.count() == len(config.STARTING_FEEDS)
+    assert response.status_code == 200
+    assert not Feed.objects.exists()

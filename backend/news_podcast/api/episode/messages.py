@@ -1,50 +1,17 @@
 import html
 from collections import Counter
 from collections.abc import Mapping, Sequence
-from datetime import date
+from datetime import date, datetime
 
-from news_podcast.api.episode.config import BRL_PER_USD
-from news_podcast.api.episode.costs import (
-    format_brl,
-    format_brl_rounded,
-    total_cost_usd,
-)
-from news_podcast.api.episode.schemas import (
-    ModelPrice,
-    StoryBrief,
-    TelegramChat,
-    Usage,
-)
+from news_podcast.api.core.config import BRL_PER_USD, LOCAL_TZ
+from news_podcast.api.core.costs import format_brl_rounded, total_cost_usd
+from news_podcast.api.core.messages import brl, long_date
+from news_podcast.api.core.schemas import ModelPrice, Usage
+from news_podcast.api.episode.schemas import StoryBrief
 
-WEEKDAYS = (
-    "segunda-feira",
-    "terça-feira",
-    "quarta-feira",
-    "quinta-feira",
-    "sexta-feira",
-    "sábado",
-    "domingo",
-)
-MONTHS = (
-    "janeiro",
-    "fevereiro",
-    "março",
-    "abril",
-    "maio",
-    "junho",
-    "julho",
-    "agosto",
-    "setembro",
-    "outubro",
-    "novembro",
-    "dezembro",
-)
+FAILURE_SUBJECT = "o episódio de hoje"
 DAYS_PER_MONTH = 30
 COST_STEPS = (("Leitura", "selection"), ("Roteiro", "script"), ("Voz", "voice"))
-
-
-def long_date(day: date) -> str:
-    return f"{WEEKDAYS[day.weekday()]}, {day.day} de {MONTHS[day.month - 1]}"
 
 
 def outlet_counts(briefs: Sequence[StoryBrief]) -> Counter[str]:
@@ -98,39 +65,5 @@ def step_cost(
     return brl(total_cost_usd(in_step, prices))
 
 
-def brl(usd: float) -> str:
-    return format_brl(usd * BRL_PER_USD)
-
-
-def failure_message(step: str, error: Exception) -> str:
-    return (
-        "⚠️ Não consegui gerar o episódio de hoje.\n"
-        f"<b>Etapa:</b> {html.escape(step)}\n"
-        f"<b>Erro:</b> {html.escape(str(error)[:600])}\n"
-        "O log completo fica no Railway."
-    )
-
-
-def chat_list_message(chats: Sequence[TelegramChat]) -> str:
-    lines = [
-        f"{'👥' if chat.is_group else '👤'} {html.escape(chat.name)}: "
-        f"<code>{chat.id}</code>"
-        for chat in chats
-    ]
-    return "\n".join(
-        [
-            "Conversas que o bot viu nas últimas 24 horas:",
-            *lines,
-            "",
-            "Para o resumo ir para outra conversa, troque a variável "
-            "<b>TELEGRAM_CHAT_ID</b> do podcast no Railway pelo número dela.",
-        ]
-    )
-
-
-def chat_id_message(chat_id: str) -> str:
-    return (
-        "Achei esta conversa! Para o resumo chegar aqui, salve este número na "
-        "variável <b>TELEGRAM_CHAT_ID</b> do podcast no Railway:\n"
-        f"<code>{chat_id}</code>"
-    )
+def local_label(moment: datetime) -> str:
+    return moment.astimezone(LOCAL_TZ).strftime("%d/%m às %H:%M")

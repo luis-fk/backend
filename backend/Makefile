@@ -1,4 +1,4 @@
-.PHONY: setup install install-dev run migrate migrate-prod makemigrations seed \
+.PHONY: setup install install-dev run migrate migrate-prod makemigrations seed seed-prod \
         shell db-up db-down db-reset lint type-check test check prune-branches
 
 # ── Setup ────────────────────────────────────────────────────────────────────
@@ -40,6 +40,10 @@ seed:
 	uv run python manage.py seed_plants
 	uv run python manage.py seed_political_culture
 	uv run python manage.py seed_cfflch
+	uv run python manage.py seed_news_podcast
+
+seed-prod:
+	ENV_FILE=.env.production uv run python manage.py seed_news_podcast --production
 
 shell:
 	uv run python manage.py shell

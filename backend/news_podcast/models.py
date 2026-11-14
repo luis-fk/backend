@@ -1,16 +1,23 @@
-from functools import partial
 from string import Formatter
-from typing import Any
 
 from django.core.exceptions import ValidationError
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 
-from news_podcast.api.episode import config, prompts
+from news_podcast.api.core.config import (
+    LOCAL_TZ,
+    MAX_SPEECH_MINUTES,
+    SHORTEST_EPISODE_MINUTES,
+    SPEECH_SPEED_LIMITS,
+)
+from news_podcast.api.core.llm import model_name_error
+from news_podcast.api.core.schemas import ModelPrice
+from news_podcast.api.core.voice.providers import voice_model_error
+from news_podcast.api.episode import prompts
 from news_podcast.api.episode.feeds import GOOGLE_NEWS_HOST
-from news_podcast.api.episode.schemas import EpisodeOptions, FeedSource, ModelPrice
+from news_podcast.api.episode.schemas import EpisodeOptions, FeedSource
 
-SLOWEST, FASTEST = config.SPEECH_SPEED_LIMITS
+SLOWEST, FASTEST = SPEECH_SPEED_LIMITS
 BRACES_HELP = "Write a literal brace as {{ or }}."
 PROMPT_FIELDS = {
     "selection_prompt": prompts.SELECTION_FIELDS,
@@ -42,37 +49,13 @@ def placeholder_error(template: str, fields: tuple[str, ...]) -> str | None:
     return None
 
 
-# The values a new settings row starts with. The fields read them through
-# starting_value, so a migration records only the field's name, and editing a
-# value in config.py or prompts.py needs no migration.
-STARTING_VALUES: dict[str, Any] = {
-    "min_minutes": config.DEFAULT_MIN_MINUTES,
-    "max_minutes": config.DEFAULT_MAX_MINUTES,
-    "speech_speed": config.DEFAULT_SPEECH_SPEED,
-    "text_model": config.TEXT_MODEL,
-    "text_input_price": config.TEXT_MODEL_PRICE.input_per_million,
-    "text_output_price": config.TEXT_MODEL_PRICE.output_per_million,
-    "fallback_model": config.TEXT_FALLBACK_MODEL,
-    "fallback_input_price": config.TEXT_FALLBACK_MODEL_PRICE.input_per_million,
-    "fallback_output_price": config.TEXT_FALLBACK_MODEL_PRICE.output_per_million,
-    "voice_model": config.TTS_MODEL,
-    "voice_input_price": config.TTS_MODEL_PRICE.input_per_million,
-    "voice_output_price": config.TTS_MODEL_PRICE.output_per_million,
-    "selection_prompt": prompts.SELECTION_PROMPT,
-    "script_prompt": prompts.SCRIPT_PROMPT,
-    "expand_prompt": prompts.EXPAND_PROMPT,
-    "voice_style": config.TTS_STYLE,
-    "headline_voice_style": config.HEADLINE_TTS_STYLE,
-}
-
-
-def starting_value(field_name: str) -> Any:
-    return STARTING_VALUES[field_name]
+class SettingsMissing(Exception):
+    """There is no settings row: only seed_news_podcast creates it."""
 
 
 class PodcastSettings(models.Model):
-    """The episode settings, edited in the Django admin. A single row, which starts
-    with the values in config.py and prompts.py."""
+    """The episode settings, edited in the Django admin. A single row, which only
+    seed_news_podcast creates."""
 
     paused = models.BooleanField(
         default=False,
@@ -80,81 +63,53 @@ class PodcastSettings(models.Model):
     )
     min_minutes = models.PositiveSmallIntegerField(
         "minimum minutes",
-        default=partial(starting_value, "min_minutes"),
-        validators=[MinValueValidator(config.SHORTEST_EPISODE_MINUTES)],
+        validators=[MinValueValidator(SHORTEST_EPISODE_MINUTES)],
         help_text="Length of the file on Telegram, at the speech speed.",
     )
-    max_minutes = models.PositiveSmallIntegerField(
-        "maximum minutes", default=partial(starting_value, "max_minutes")
-    )
+    max_minutes = models.PositiveSmallIntegerField("maximum minutes")
     speech_speed = models.FloatField(
-        default=partial(starting_value, "speech_speed"),
         validators=[MinValueValidator(SLOWEST), MaxValueValidator(FASTEST)],
         help_text="Speeds up the file itself; Telegram's speed button multiplies it.",
     )
-    text_model = models.CharField(
-        max_length=100, default=partial(starting_value, "text_model")
-    )
+    text_model = models.CharField(max_length=100)
     text_input_price = models.FloatField(
-        "input price",
-        default=partial(starting_value, "text_input_price"),
-        validators=[MinValueValidator(0)],
+        "input price", validators=[MinValueValidator(0)]
     )
     text_output_price = models.FloatField(
-        "output price",
-        default=partial(starting_value, "text_output_price"),
-        validators=[MinValueValidator(0)],
+        "output price", validators=[MinValueValidator(0)]
     )
     fallback_model = models.CharField(
         max_length=100,
         blank=True,
-        default=partial(starting_value, "fallback_model"),
         help_text="Writes the text when the text model is unavailable. Optional.",
     )
     fallback_input_price = models.FloatField(
-        "input price",
-        default=partial(starting_value, "fallback_input_price"),
-        validators=[MinValueValidator(0)],
+        "input price", validators=[MinValueValidator(0)]
     )
     fallback_output_price = models.FloatField(
-        "output price",
-        default=partial(starting_value, "fallback_output_price"),
-        validators=[MinValueValidator(0)],
+        "output price", validators=[MinValueValidator(0)]
     )
-    voice_model = models.CharField(
-        max_length=100, default=partial(starting_value, "voice_model")
-    )
+    voice_model = models.CharField(max_length=100)
     voice_input_price = models.FloatField(
-        "input price",
-        default=partial(starting_value, "voice_input_price"),
-        validators=[MinValueValidator(0)],
+        "input price", validators=[MinValueValidator(0)]
     )
     voice_output_price = models.FloatField(
-        "output price",
-        default=partial(starting_value, "voice_output_price"),
-        validators=[MinValueValidator(0)],
+        "output price", validators=[MinValueValidator(0)]
     )
     selection_prompt = models.TextField(
-        default=partial(starting_value, "selection_prompt"),
-        help_text=placeholders_help(prompts.SELECTION_FIELDS),
+        help_text=placeholders_help(prompts.SELECTION_FIELDS)
     )
-    script_prompt = models.TextField(
-        default=partial(starting_value, "script_prompt"),
-        help_text=placeholders_help(prompts.SCRIPT_FIELDS),
-    )
+    script_prompt = models.TextField(help_text=placeholders_help(prompts.SCRIPT_FIELDS))
     expand_prompt = models.TextField(
-        default=partial(starting_value, "expand_prompt"),
         help_text="Sent once when the script comes out short. "
-        + placeholders_help(prompts.EXPAND_FIELDS),
+        + placeholders_help(prompts.EXPAND_FIELDS)
     )
     voice_style = models.TextField(
-        default=partial(starting_value, "voice_style"),
         help_text="How the hosts talk. If the pace changes, recalibrate "
-        "NATURAL_WORDS_PER_MINUTE in config.py.",
+        "NATURAL_WORDS_PER_MINUTE in api/core/config.py."
     )
     headline_voice_style = models.TextField(
-        default=partial(starting_value, "headline_voice_style"),
-        help_text="How the opening headlines are read.",
+        help_text="How the opening headlines are read."
     )
 
     class Meta:
@@ -166,28 +121,44 @@ class PodcastSettings(models.Model):
 
     def clean(self) -> None:
         errors: dict[str, str] = {}
-        speech_minutes = self.max_minutes * self.speech_speed
-        if self.min_minutes > self.max_minutes:
-            errors["max_minutes"] = "Must not be less than the minimum."
-        elif speech_minutes > config.MAX_SPEECH_MINUTES:
-            errors["max_minutes"] = (
-                f"{self.max_minutes} minutes at {self.speech_speed:g}x are "
-                f"{speech_minutes:g} minutes of speech, over the limit of "
-                f"{config.MAX_SPEECH_MINUTES} (MAX_SPEECH_MINUTES in config.py). Lower "
-                "the maximum or the speed."
-            )
+        # Django runs clean() even after clean_fields() refused a value, such as a
+        # null, so each check below runs only on a value of its type.
+        numbers = (self.min_minutes, self.max_minutes, self.speech_speed)
+        if all(isinstance(number, int | float) for number in numbers):
+            speech_minutes = self.max_minutes * self.speech_speed
+            if self.min_minutes > self.max_minutes:
+                errors["max_minutes"] = "Must not be less than the minimum."
+            elif speech_minutes > MAX_SPEECH_MINUTES:
+                errors["max_minutes"] = (
+                    f"{self.max_minutes} minutes at {self.speech_speed:g}x are "
+                    f"{speech_minutes:g} minutes of speech, over the limit of "
+                    f"{MAX_SPEECH_MINUTES} (MAX_SPEECH_MINUTES in api/core/config.py). "
+                    "Lower the maximum or the speed."
+                )
+        for name in ("text_model", "fallback_model"):
+            model = getattr(self, name)
+            if isinstance(model, str) and model and (error := model_name_error(model)):
+                errors[name] = error
+        voice = self.voice_model
+        if isinstance(voice, str) and voice and (error := voice_model_error(voice)):
+            errors["voice_model"] = error
         for name, fields in PROMPT_FIELDS.items():
-            error = placeholder_error(getattr(self, name), fields)
-            if error:
+            prompt = getattr(self, name)
+            if isinstance(prompt, str) and (error := placeholder_error(prompt, fields)):
                 errors[name] = error
         if errors:
             raise ValidationError(errors)
 
     @classmethod
     def load(cls) -> "PodcastSettings":
-        """The settings row, created with the starting values the first time a run
-        or the admin needs it."""
-        return cls.objects.order_by("pk").first() or cls.objects.create()
+        """The settings row, which only seed_news_podcast creates."""
+        podcast_settings = cls.objects.order_by("pk").first()
+        if podcast_settings is None:
+            raise SettingsMissing(
+                "Não há configurações do podcast no banco: rode seed_news_podcast "
+                "(make seed no local, make seed-prod em produção)."
+            )
+        return podcast_settings
 
     def episode_options(self) -> EpisodeOptions:
         return EpisodeOptions(self.min_minutes, self.max_minutes, self.speech_speed)
@@ -213,8 +184,8 @@ class PodcastSettings(models.Model):
 
 
 class Feed(models.Model):
-    """A news feed the episodes read, edited in the Django admin. The list starts with
-    STARTING_FEEDS in config.py the first time a run or the admin needs it."""
+    """A news feed the episodes read, edited in the Django admin. The list comes from
+    seed_news_podcast, and an empty list stays empty."""
 
     class Section(models.TextChoices):
         ECONOMIA = "Economia"
@@ -235,7 +206,7 @@ class Feed(models.Model):
         help_text="An RSS feed, or a Google News search like "
         "https://news.google.com/rss/search?q=site:site.com.br+when:1d"
         "&hl=pt-BR&gl=BR&ceid=BR:pt-419. Only the sites in FULL_TEXT_DOMAINS "
-        "(config.py) are read in full.",
+        "(api/episode/config.py) are read in full.",
     )
     active = models.BooleanField(
         default=True, help_text="Turned off, the episodes don't read it."
@@ -249,17 +220,8 @@ class Feed(models.Model):
         return f"{self.outlet} · {self.section}"
 
     @classmethod
-    def start_if_empty(cls) -> None:
-        if not Feed.objects.exists():
-            Feed.objects.bulk_create(
-                Feed(outlet=outlet, section=section, url=url)
-                for outlet, section, url in config.STARTING_FEEDS
-            )
-
-    @classmethod
     def sources(cls) -> list[FeedSource]:
         """The active feeds, read outside the event loop, where the ORM can run."""
-        cls.start_if_empty()
         return [feed.source() for feed in cls.objects.filter(active=True)]
 
     def source(self) -> FeedSource:
@@ -291,11 +253,11 @@ class Episode(models.Model):
     cost_usd = models.FloatField(
         "cost (US$)", help_text="Paid-plan cost, at the prices in the settings."
     )
-    usage = models.JSONField(default=list, help_text="Tokens of each Gemini answer.")
+    usage = models.JSONField(default=list, help_text="Tokens of each model answer.")
     error = models.TextField(blank=True, help_text="The step that failed and why.")
 
     class Meta:
         ordering = ["-started_at"]
 
     def __str__(self) -> str:
-        return f"{self.started_at.astimezone(config.LOCAL_TZ):%d/%m/%Y %H:%M}"
+        return f"{self.started_at.astimezone(LOCAL_TZ):%d/%m/%Y %H:%M}"

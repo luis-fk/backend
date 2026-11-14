@@ -1,184 +1,213 @@
 # news_podcast · Resumo das 7
 
-Todo dia chega no Telegram uma mensagem de voz com dois apresentadores (Bia e Léo)
-contando o que aconteceu nas 24 horas anteriores, a partir dos feeds cadastrados no admin.
-Ela chega perto das 7h e, no padrão, tem de 12 a 18 minutos (de 8 a 12 em 1,5x). Feeds,
-duração, velocidade, modelos, preços e prompts mudam no admin do Django (veja
-*Configurações*). O
-episódio é só essa mensagem de voz: o custo e o resultado de cada execução ficam no
-histórico do admin, e as fontes usadas, no log da execução no Railway.
+Every day a voice message reaches Telegram with two hosts (Bia and Léo) telling what
+happened in the previous 24 hours, from the feeds registered in the admin. It arrives
+around 7:00 and, by default, lasts 12 to 18 minutes (8 to 12 at 1.5x). Feeds, length,
+speed, models, prices and prompts change in the Django admin (see *Settings*). The
+episode is only that voice message: each run's cost and result stay in the admin's
+history, and the sources it used, in the run's log on Railway.
 
-O app tem banco próprio, o `news_podcast_db` (`NEWS_PODCAST_DATABASE_URL`), com as
-configurações, os feeds e o histórico. O resto é um management command.
+The app has its own database, `news_podcast_db` (`NEWS_PODCAST_DATABASE_URL`), with the
+settings, the feeds and the history. The rest is a management command.
 
-## Como funciona
+## How it works
 
-| Etapa | Arquivo | O que acontece |
+| Step | File | What happens |
 |---|---|---|
-| Feeds | `api/episode/feeds.py` | Baixa em paralelo os feeds ativos do admin e mantém só o que saiu entre 6h de ontem e 6h de hoje. |
-| Seleção | `service.py` + prompt de seleção | O modelo de texto recebe todas as manchetes, junta as que falam do mesmo fato, aplica as regras editoriais e, pesando quantos veículos diferentes deram cada fato (cada veículo conta uma vez), escolhe uma história para cada minuto e meio de episódio (de 8 a 12 no padrão), com o tempo de cada uma. |
-| Leitura | `api/episode/articles.py` | Para cada história, lê o texto completo de até 3 veículos (o ICL vem primeiro). Os demais veículos que deram a notícia entram como manchete. Páginas de vídeo, que não têm texto, não são lidas, e outro veículo fica com a vaga. Todos os feeds são de sites sem paywall. |
-| Roteiro | `service.py` + prompt do roteiro | O modelo de texto escreve o diálogo com 170 palavras por minuto de episódio, vezes a velocidade (de 2.040 a 3.060 palavras no padrão), abrindo com uma escalada de 3 a 5 manchetes curtas, como nos telejornais. Se vier curto demais, pede uma versão mais longa uma vez. |
-| Voz | `api/episode/gemini.py` | O modelo de voz gera o diálogo com as duas vozes, em blocos de cerca de 650 palavras. Se o Gemini estiver fora do ar, o código espera e tenta de novo (veja *Bom saber*). |
-| Áudio | `api/episode/audio.py` | O ffmpeg junta os trechos, normaliza o volume e gera um OGG/Opus de 32 kbps (cerca de 4 MB para 15 minutos), o formato das mensagens de voz do Telegram. |
-| Envio | `api/episode/telegram.py` | `sendVoice` com o título e a data na legenda (por ser mensagem de voz, o Telegram mostra o botão de velocidade 1x, 1,5x, 2x). Sai assim que fica pronto, sem esperar a hora cheia. Se algo falhar, chega uma mensagem dizendo em qual etapa. |
+| Feeds | `api/episode/feeds.py` | Downloads the admin's active feeds in parallel and keeps only what came out between 6:00 yesterday and 6:00 today. |
+| Selection | `api/episode/selection.py` + selection prompt | The text model, through `TextModels` (`api/core/llm.py`, with LangChain), gets every headline, groups the ones about the same fact, applies the editorial rules and, weighing how many different outlets reported each fact (each outlet counts once), picks one story for every minute and a half of episode (8 to 12 by default), with each one's length. |
+| Reading | `api/episode/articles.py` | For each story, reads the full text from up to 3 outlets (ICL first). The other outlets that ran the story come in as headlines. Video pages, which have no text, are not read, and another outlet takes their slot. Every feed is from a site without a paywall. |
+| Script | `api/episode/script.py` + script prompt | The text model, also through `TextModels`, writes the dialogue at 170 words per minute of episode, times the speed (2,040 to 3,060 words by default), opening with 3 to 5 short headlines, as TV news shows do. If it comes out too short, it asks once for a longer version. |
+| Voice | `api/core/voice/` | The voice model reads the dialogue with the two hosts' voices, in chunks of about 650 words, through its provider's implementation (`GeminiVoice`, the only one for now). If Gemini is down, the code waits and tries again (see *Good to know*). |
+| Audio | `api/core/audio.py` | ffmpeg joins the chunks, normalizes the volume and makes a 32 kbps OGG/Opus file (about 4 MB for 15 minutes), the format of Telegram voice messages. |
+| Sending | `api/core/telegram.py` | `sendVoice` with the title and the date in the caption (as a voice message, Telegram shows the 1x, 1.5x, 2x speed button). It goes out as soon as it is ready, without waiting for the full hour. If something fails, a message says in which step. |
 
-O episódio diário roda num serviço Cron do Railway (veja *Agendamento*).
+The daily episode runs on a Railway Cron service (see *Scheduling*).
 
-## Configuração (uma vez só)
+## Setup (once)
 
-- **Bot do Telegram:** crie com o `@BotFather` (`/newbot`), guarde o token e mande
-  `/start` para o bot.
-- **Chave do Gemini:** em [aistudio.google.com](https://aistudio.google.com), *Get API
-  key*. O plano grátis não pede cartão.
-- **Banco:** o `news_podcast_db` no Postgres do Railway, com a
-  `NEWS_PODCAST_DATABASE_URL` também no serviço do backend (o admin usa o banco), e as
-  migrations rodadas (`make migrate-prod`, que lê o `.env.production`).
-- **O seu chat:** com o `TELEGRAM_BOT_TOKEN` no `.env`, rode na pasta `backend/`
-  `uv run python manage.py news_podcast chat-id`. O bot te manda o número da conversa,
-  que vai no `TELEGRAM_CHAT_ID` do serviço (veja *Agendamento*). Para um grupo, veja
-  *Mandar para um grupo*.
+- **Telegram bot:** create it with `@BotFather` (`/newbot`), keep the token and send
+  `/start` to the bot.
+- **Gemini key:** at [aistudio.google.com](https://aistudio.google.com), *Get API key*.
+  The free plan asks for no card.
+- **Database:** `news_podcast_db` on Railway's Postgres, with
+  `NEWS_PODCAST_DATABASE_URL` also on the backend service (the admin uses the database),
+  and the migrations applied (`make migrate-prod`, which reads `.env.production`).
+- **Starting data:** `make seed` fills a local database from `news_podcast/seed/`:
+  the settings row from `settings.json` when there is none, and the feeds from
+  `feeds.json` when the list is empty. So a value changed or a feed added in `seed/`
+  after a database was seeded reaches it only through the admin. Production already
+  has its data, so `make seed-prod` writes nothing there today: it runs only when
+  `PLAN.md` says so, for a release that brings starting data for a new table, and
+  it shows the database's address and asks for `yes`.
+- **Your chat:** with `TELEGRAM_BOT_TOKEN` in `.env`, run
+  `uv run python manage.py news_podcast chat-id` from the `backend/` folder. The bot sends
+  you the conversation's number, which goes in the service's `TELEGRAM_CHAT_ID` (see
+  *Scheduling*). For a group, see *Sending to a group*.
 
-## Agendamento (Railway)
+## Scheduling (Railway)
 
-Um serviço Cron no projeto do Railway, a partir do mesmo repositório:
+A Cron service in the Railway project, from the same repository:
 
-1. *New → GitHub Repo* com este repositório. Em *Settings*: Root Directory `/backend`,
+1. *New → GitHub Repo* with this repository. In *Settings*: Root Directory `/backend`,
    branch `main`, Custom Start Command `python manage.py news_podcast episode
-   --scheduled` e Cron Schedule `40 9 * * *` (6h40 em Brasília; o Railway usa UTC).
-2. Em *Variables*: `RAILPACK_DEPLOY_APT_PACKAGES=ffmpeg` (instala o ffmpeg só neste
-   serviço), `GEMINI_API_KEY`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`,
-   `TELEGRAM_ADMIN_CHAT_ID` e `NEWS_PODCAST_DATABASE_URL`. O Django também exige, para
-   subir, `SECRET_KEY`, `API_TOKEN_SECRET` (32 caracteres ou mais),
-   `OPEN_WEATHER_API_KEY`, `SERVER_URL`, `NGROK_URL`, `FRONT_END_URL`,
-   `ENVIRONMENT=development` (assim ele não pede o `REDIS_URL`) e as outras quatro
-   `*_DATABASE_URL`. Para essas, valores fictícios servem (as URLs de banco podem ser
-   `sqlite:///dummy.db`), porque o podcast só usa o banco dele.
+   --scheduled` and Cron Schedule `40 9 * * *` (6:40 in Brasília; Railway uses UTC).
+2. In *Variables*: `RAILPACK_DEPLOY_APT_PACKAGES=ffmpeg` (installs ffmpeg on this
+   service only), `GEMINI_API_KEY`, `OPENAI_API_KEY` (only if a text model is OpenAI's),
+   `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, `TELEGRAM_ADMIN_CHAT_ID` and
+   `NEWS_PODCAST_DATABASE_URL`. To start, Django also needs `SECRET_KEY`,
+   `API_TOKEN_SECRET` (32 characters or more), `OPEN_WEATHER_API_KEY`, `SERVER_URL`,
+   `NGROK_URL`, `FRONT_END_URL`, `ENVIRONMENT=development` (so it doesn't ask for
+   `REDIS_URL`) and the other four `*_DATABASE_URL`. Dummy values work for those (the
+   database URLs can be `sqlite:///dummy.db`), since the podcast only uses its own
+   database.
 
-O episódio sai assim que fica pronto. O nome ("Resumo das 7") e o bom dia seguem a hora
-cheia seguinte ao início da execução, e as notícias vão até a hora cheia anterior: com o
-cron às 6h40, ele lê o que saiu até as 6h e chega perto das 7h. Para mudar o horário ou a
-frequência, mude só o Cron Schedule, em UTC e uns 20 minutos antes da hora do episódio
-(`40 21 * * *` envia perto das 19h de Brasília). Evite o episódio da meia-noite (cron
-entre 23h e 0h de Brasília): ele chegaria antes da meia-noite, já com a data do dia
-seguinte. Uma execução só começa se a anterior já terminou.
+The episode goes out as soon as it is ready. Its name ("Resumo das 7") and the greeting
+follow the next full hour after the run starts, and the news goes up to the full hour
+before: with the cron at 6:40, it reads what came out until 6:00 and arrives around 7:00.
+To change the time or the frequency, change only the Cron Schedule, in UTC and about 20
+minutes before the episode's hour (`40 21 * * *` sends around 19:00 in Brasília). Avoid
+the midnight episode (cron between 23:00 and 0:00 in Brasília): it would arrive before
+midnight, already dated the next day. A run only starts if the previous one has ended.
 
-Um deploy do backend também refaz este serviço e mata uma execução em andamento, sem
-tempo de folga. Por isso, releases para a `main` ficam fora do horário do episódio,
-das 6h40 até ele chegar.
+A backend deploy also redeploys this service and kills a running execution, with no
+grace period. So releases to `main` stay out of the episode's time, from 6:40 until it
+arrives.
 
-Para rodar na mão, use o *Run now* do serviço ou `railway cron run`. Como é o mesmo
-comando do cron, ele respeita a pausa e lê as notícias até a hora cheia em que começou.
-Rodando local sem `--scheduled`, ele lê as notícias até o momento em que começa.
+To run it by hand, use the service's *Run now* or `railway cron run`. Since it is the
+cron's command, it respects the pause and reads the news up to the full hour it started
+in. Run locally without `--scheduled`, it reads the news up to the moment it starts.
 
-## Mandar para um grupo
+## Sending to a group
 
-O bot só envia para a conversa do `TELEGRAM_CHAT_ID`. Quem só abre o bot e manda
-`/start` não recebe nada. Para mais gente ouvir, use um grupo:
+The bot only sends to the `TELEGRAM_CHAT_ID` conversation. Someone who just opens the bot
+and sends `/start` gets nothing. For more people to listen, use a group:
 
-1. No Telegram, crie um grupo com as pessoas e adicione o bot (procure pelo @ dele).
-   Se só administradores podem postar no grupo, faça do bot um administrador; sem
-   isso, o Telegram recusa o envio.
-2. Rode o `chat-id` (veja *Configuração*). Com o `TELEGRAM_CHAT_ID` ou o
-   `TELEGRAM_ADMIN_CHAT_ID` no `.env`, o bot manda só para essa conversa a lista das
-   conversas que viu nas últimas 24 horas, com o número de cada uma. O grupo aparece com
-   👥 e um número negativo.
-3. Troque `TELEGRAM_CHAT_ID` pelo número do grupo no serviço do Railway. Daí em diante o
-   resumo vai para o grupo. Os avisos de erro, inclusive o de um envio que o grupo
-   recusou, vão para o `TELEGRAM_ADMIN_CHAT_ID` (o número da sua conversa com o bot),
-   para não aparecerem no grupo; sem ele, vão para o grupo também.
+1. In Telegram, create a group with the people and add the bot (search for its @). If
+   only admins can post in the group, make the bot an admin; otherwise Telegram refuses
+   the send.
+2. Run `chat-id` (see *Setup*). With `TELEGRAM_CHAT_ID` or `TELEGRAM_ADMIN_CHAT_ID` in
+   `.env`, the bot sends only to that conversation the list of the conversations it saw
+   in the last 24 hours, with each one's number. The group shows with 👥 and a negative
+   number.
+3. Replace `TELEGRAM_CHAT_ID` with the group's number on the Railway service. From then
+   on the episode goes to the group. Error notices, including one about a send the group
+   refused, go to `TELEGRAM_ADMIN_CHAT_ID` (the number of your conversation with the
+   bot), so they don't show up in the group; without it, they go to the group too.
 
-Se o grupo não aparecer na lista (o Telegram só guarda as últimas 24 horas para o bot),
-mande `/start@nome_do_bot` no grupo e rode de novo. Se o Telegram transformar o grupo em
-supergrupo, o que acontece ao mudar algumas configurações dele, o número muda: repita os
-passos 2 e 3.
+If the group isn't in the list (Telegram only keeps the last 24 hours for the bot), send
+`/start@bot_name` in the group and run it again. If Telegram turns the group into a
+supergroup, which happens when some of its settings change, the number changes: repeat
+steps 2 and 3.
 
-## Configurações
+## Settings
 
-Ficam no admin do Django, em *News podcast → Settings*. É uma linha só, que começa com os
-valores do `config.py` e do `prompts.py`; depois disso, mudar esses arquivos não muda o
-que está no banco. Cada mudança vale a partir da próxima execução, e um valor inválido
-não salva: o admin mostra o erro no campo.
+They live in the Django admin, under *News podcast → Settings*. It is a single row,
+created only by the seed (`make seed`, see *Setup*), and after that it changes only in
+the admin. Without it, a run fails at "configurações" and the Settings page says to
+run the seed. Each change applies from the next run on, and an invalid value doesn't
+save: the admin shows the error on the field.
 
-- **Paused:** as execuções do Railway (o cron e o *Run now*) terminam sem episódio.
-- **Duração e velocidade:** a duração vale para o arquivo, já na velocidade escolhida.
-  Com `1.25`, o roteiro fica 25% maior para caber no mesmo tempo, e a voz custa 25% a
-  mais. O número de histórias acompanha a duração (uma a cada minuto e meio).
-- **Limite:** o máximo da duração vezes a velocidade pode chegar a 30 minutos de fala
-  (`MAX_SPEECH_MINUTES` no `config.py`). Cada pedido de voz gera uns 4 minutos e o plano
-  grátis permite 10 pedidos por dia, então 30 minutos dão uns 8 pedidos. No plano pago,
-  dá para aumentar esse limite.
-- **Modelos e preços:** o modelo de texto, o reserva (opcional) e o de voz, cada um com
-  o preço em US$ por milhão de tokens de entrada e de saída, da tabela do Google. O custo
-  do histórico usa esses preços, então um modelo novo precisa do preço dele.
-- **Prompts e estilos de voz:** o prompt da seleção, o do roteiro e o de alongamento
-  (pedido uma vez, quando o roteiro vem curto), e os estilos da conversa e das manchetes
-  da escalada. Cada prompt só aceita os `{campos}` listados embaixo dele, sem
-  formatação (`{today}` funciona, `{today:%d}` não); uma chave literal se escreve `{{`
-  ou `}}`. Se mudar o estilo ou a voz, ajuste
-  `NATURAL_WORDS_PER_MINUTE` (palavras por minuto da voz antes do ffmpeg); senão o
-  episódio sai mais curto ou mais longo que o previsto.
+- **Paused:** Railway's runs (the cron and *Run now*) end with no episode.
+- **Length and speed:** the length is the file's, already at the chosen speed. With
+  `1.25`, the script is 25% longer to fit the same time, and the voice costs 25% more.
+  The number of stories follows the length (one every minute and a half).
+- **Limit:** the maximum length times the speed can reach 30 minutes of speech
+  (`MAX_SPEECH_MINUTES` in `api/core/config.py`). Each voice request makes about 4
+  minutes and the free plan allows 10 requests a day, so 30 minutes take about 8
+  requests. On the paid plan, this limit can go up.
+- **Models and prices:** the text model, the fallback (optional) and the voice model,
+  each with its price in US$ per million input and output tokens, from the provider's
+  price list. The history's cost uses these prices, so a new model needs its price. Text
+  models are written `provider:model`, with `google_genai` or `openai`
+  (`google_genai:gemini-3.8-flash`, `openai:gpt-4.1-mini`); a bare name that starts with
+  `gemini` is Google's, and the admin refuses any other provider. To use an OpenAI model,
+  first put `OPENAI_API_KEY` on the cron service, and the prices from OpenAI's price
+  list. The voice model is written the same way, and `google_genai` is the only voice
+  provider for now (`google_genai:gemini-3.8-flash-lite-tts` or the bare
+  `gemini-3.8-flash-lite-tts`); *Adjustments* says how to add another.
+- **Prompts and voice styles:** the selection prompt, the script prompt and the
+  lengthening prompt (asked once, when the script comes out short), and the styles of the
+  conversation and of the opening headlines. Each prompt accepts only the `{fields}`
+  listed under it, with no format (`{today}` works, `{today:%d}` doesn't); a literal
+  brace is written `{{` or `}}`. If you change the style or the voice, adjust
+  `NATURAL_WORDS_PER_MINUTE` (the voice's words per minute before ffmpeg); otherwise the
+  episode comes out shorter or longer than planned.
 
 ## Feeds
 
-Ficam no admin, em *News podcast → Feeds*: veículo, seção, URL e se está ativo (um feed
-desligado fica de fora sem ser apagado). A lista começa com o `STARTING_FEEDS` do
-`config.py` e, depois disso, só muda no admin; apagando todos, ela começa de novo.
+They live in the admin, under *News podcast → Feeds*: outlet, section, URL and whether
+it is active (a feed turned off stays out without being deleted). The list comes from
+the seed and, after that, changes only in the admin; with every feed deleted, a run
+fails at "leitura dos feeds".
 
-- **Quais sites:** só sites sem paywall. Para ler a matéria inteira, o domínio precisa
-  estar em `FULL_TEXT_DOMAINS` (`config.py`); fora dessa lista, ela entra só com o
-  título e o resumo do RSS.
-- **Veículo:** os feeds de um mesmo veículo levam o mesmo nome, porque cada história lê
-  uma fonte por veículo e uma manchete repetida em dois feeds dele conta uma vez.
-- **Google News:** sites sem RSS entram por uma busca, como
+- **Which sites:** only sites without a paywall. To read the full article, the domain
+  must be in `FULL_TEXT_DOMAINS` (`api/episode/config.py`); outside that list, the
+  article comes in only with the RSS title and summary.
+- **Outlet:** an outlet's feeds share the same name, because each story reads one source
+  per outlet and a headline repeated in two of its feeds counts once.
+- **Google News:** sites without RSS come in through a search, such as
   `https://news.google.com/rss/search?q=site:site.com.br+when:1d&hl=pt-BR&gl=BR&ceid=BR:pt-419`.
-  Uma busca traz no máximo 100 itens, por isso sites grandes, como CNN Brasil e Poder360,
-  entram por seção, e a do SBT deixa os vídeos de fora
-  (`-site:sbtnews.sbt.com.br/videos`).
+  A search brings at most 100 items, so big sites, such as CNN Brasil and Poder360, come
+  in by section, and SBT's leaves its videos out (`-site:sbtnews.sbt.com.br/videos`).
 
-## Histórico
+## History
 
-Em *News podcast → Episodes*, uma linha por execução: hora de início (de Brasília),
-status (enviado, falhou ou, com `--no-send`, não enviado), duração, palavras por
-minuto, custo no plano pago em reais e, se falhou, a etapa e o erro. A página de cada
-execução mostra as palavras do roteiro e os tokens de cada resposta do Gemini. Na
-velocidade 1x, as palavras por minuto são o ritmo da voz: se ficarem longe de 170, o
-`NATURAL_WORDS_PER_MINUTE` do `config.py` precisa de ajuste, senão o episódio sai mais
-curto ou mais longo que o pedido. O áudio não fica guardado. O topo da lista mostra o custo total
-do que está filtrado (por mês ou por status). Uma execução pausada não aparece, e uma
-que falha no meio grava o custo do que já rodou.
+Under *News podcast → Episodes*, one row per run: start time (Brasília), status (sent,
+failed or, with `--no-send`, not sent), length, words per minute, cost on the paid plan
+in reais and, if it failed, the step and the error. Each run's page shows the script's
+words and the tokens of each model answer. At 1x speed, the words per minute are the
+voice's pace: if they are far from 170, `NATURAL_WORDS_PER_MINUTE` in
+`api/core/config.py` needs adjusting, or the episode comes out shorter or longer than
+asked. The audio is not kept. The top of the list shows the total cost of what is
+filtered (by month or by status). A paused run doesn't show up, and one that fails
+midway records the cost of what already ran.
 
-## Ajustes
+## Adjustments
 
-- **Apresentadores e as vozes deles:** `HOSTS` no `config.py`.
-- **Dólar usado para mostrar os custos em reais:** `BRL_PER_USD` (fixo) no `config.py`.
+- **The hosts and their voices:** `HOSTS` in `api/core/config.py`, with each host's
+  voice for each voice provider (on Gemini, Bia is Kore and Léo is Charon).
+- **Another voice provider:** write its implementation in `api/core/voice/`, a class
+  with `synthesize`, like `GeminiVoice` in `gemini.py`; add it to `VOICE_PROVIDERS` in
+  `api/core/voice/providers.py`, which builds the voice and which the admin checks the
+  voice model against; give each host in `HOSTS` its voice for that provider; then
+  write `provider:model` and its prices in the admin.
+- **The dollar rate used to show costs in reais:** `BRL_PER_USD` (fixed) in
+  `api/core/config.py`.
 
-Para rodar localmente sem enviar, a partir da pasta `backend/`, com ffmpeg instalado, as
-chaves e o `NEWS_PODCAST_DATABASE_URL` no `.env` e as migrations rodadas:
+To run it locally without sending, from the `backend/` folder, with ffmpeg installed,
+the keys and `NEWS_PODCAST_DATABASE_URL` in `.env`, the migrations applied and
+`make seed` run:
 
 ```
 uv run python manage.py news_podcast episode --no-send
 ```
 
-O áudio e os JSON da seleção e do roteiro ficam em `backend/news_podcast_output/`, que
-está no `.gitignore`.
+The audio and the selection's and the script's JSON go to `backend/news_podcast_output/`,
+which is in `.gitignore`.
 
-## Bom saber
+## Good to know
 
-- O custo do histórico é o do plano pago; no plano grátis, a execução não custa nada. Os
-  preços iniciais são promocionais até 31/12/2026 e dobram em 1/1/2027 (texto 1,50 e
-  7,50; voz 1,00 e 12,00 por milhão de tokens): atualize no admin nesse dia.
-- A velocidade acelera o próprio arquivo com o filtro `atempo` do ffmpeg. O botão de
-  velocidade do player do Telegram (1x, 1,5x, 2x) continua valendo, e as duas
-  velocidades se multiplicam.
-- Se o modelo de texto estiver sobrecarregado, o texto é feito com o reserva, e as
-  etapas seguintes já vão direto para ele. Se nenhum dos dois der uma resposta boa
-  enquanto um deles estiver fora do ar, o código espera 10 minutos e depois 20 e
-  pergunta aos dois de novo, e o episódio chega mais tarde na mesma medida.
-- A voz não tem reserva: se o Gemini estiver fora do ar, o código espera 10 minutos e
-  depois 20 e tenta de novo, e o episódio chega mais tarde na mesma medida. Se ainda
-  falhar, ou se a cota do dia acabar, o episódio do dia não sai e chega uma mensagem de
-  erro no Telegram.
-- Uma execução que passa de 2 horas para e manda uma mensagem de erro: o Railway não
-  começa a execução agendada enquanto a anterior está rodando, e uma execução travada
-  bloquearia os dias seguintes.
+- The history's cost is the paid plan's; on the free plan, a run costs nothing. The
+  starting prices are promotional until 2026-12-31 and double on 2027-01-01 (text 1.50
+  and 7.50; voice 1.00 and 12.00 per million tokens): update them in the admin that day.
+- The speed speeds up the file itself with ffmpeg's `atempo` filter. The speed button of
+  Telegram's player (1x, 1.5x, 2x) still works, and the two speeds multiply.
+- If the text model is overloaded, the text is made with the fallback, and the next
+  steps go straight to it. If neither gives a good answer while one of them is down, the
+  code waits 10 minutes, then 20, and asks both again, and the episode arrives that much
+  later.
+- Each model gets two answers before the next one. A request that fails because of an
+  overload, a per-minute limit or the connection is sent again up to 3 times, waiting as
+  long as the provider asks. A model out of the day's quota, without its key, with an
+  unknown provider or that refuses the request is left out until the end of the run,
+  with the reason in the log and in the error.
+- After changing the text model, listen to the first episodes: the prompts were tuned
+  for Gemini.
+- The voice has no fallback: if Gemini is down, the code waits 10 minutes, then 20, and
+  tries again, and the episode arrives that much later. If it still fails, or if the
+  day's quota runs out, the day's episode doesn't go out and an error message arrives on
+  Telegram.
+- A run that goes past 2 hours stops and sends an error message: Railway doesn't start
+  the scheduled run while the previous one is running, and a stuck run would block the
+  next days.
