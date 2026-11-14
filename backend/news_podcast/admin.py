@@ -3,6 +3,7 @@ from typing import Any
 from django import forms
 from django.contrib import admin, messages
 from django.contrib.admin.widgets import AdminTextareaWidget
+from django.core.exceptions import PermissionDenied
 from django.db.models import Sum
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import redirect
@@ -91,6 +92,10 @@ class PodcastSettingsAdmin(admin.ModelAdmin):
     def changelist_view(
         self, request: HttpRequest, extra_context: dict[str, Any] | None = None
     ) -> HttpResponse:
+        # Django checks the permission only in the list it renders, after the row
+        # would have been read and its link or the seed message shown.
+        if not self.has_view_or_change_permission(request):
+            raise PermissionDenied
         # The list goes straight to the form of the single row.
         try:
             podcast_settings = PodcastSettings.load()

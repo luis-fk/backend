@@ -26,7 +26,7 @@ from news_podcast.api.episode.selection import (
     selection_values,
     valid_stories,
 )
-from tests.news_podcast.factories import build_settings
+from tests.news_podcast.factories import SETTINGS, build_settings
 from tests.news_podcast.fake_models import FakeChatModel, fake_factory
 
 DEFAULT_OPTIONS = EpisodeOptions(12, 18, 1.0)
@@ -127,7 +127,7 @@ def test_the_headlines_reach_the_model_as_they_are() -> None:
 
 def test_the_selection_step_returns_the_valid_stories(settings: Settings) -> None:
     settings.GEMINI_API_KEY = "test-key"
-    model = "gemini-main"
+    model = SETTINGS["text_model"]
     items = [news_item("3", "Juros sobem"), news_item("7", "Chuva no Sul")]
     answer = {
         "stories": [

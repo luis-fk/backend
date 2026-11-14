@@ -2,6 +2,8 @@ from datetime import UTC, datetime
 from typing import Any
 
 import pytest
+from django.contrib.auth import get_user_model
+from django.contrib.messages import get_messages
 from django.forms.models import model_to_dict
 from django.test import Client
 from pytest_django import DjangoAssertNumQueries
@@ -53,11 +55,28 @@ def test_the_admin_index_never_queries_the_podcast_database(
 
 
 @DATABASES
-def test_there_is_a_single_settings_row(admin_client: Client) -> None:
-    create_settings()
-    for _ in range(2):
-        admin_client.get(SETTINGS_URL)
-    row = PodcastSettings.objects.get()
+@pytest.mark.parametrize("with_row", [True, False])
+def test_the_settings_page_needs_the_permission_before_anything_else(
+    client: Client, with_row: bool
+) -> None:
+    if with_row:
+        create_settings()
+    staff = get_user_model().objects.create_user(
+        username="ana", password="senha", is_staff=True
+    )
+    client.force_login(staff)
+
+    response = client.get(SETTINGS_URL)
+
+    assert response.status_code == 403
+    assert list(get_messages(response.wsgi_request)) == []
+
+
+@DATABASES
+def test_the_settings_row_can_be_neither_added_nor_deleted(
+    admin_client: Client,
+) -> None:
+    row = create_settings()
 
     assert admin_client.get(f"{SETTINGS_URL}add/").status_code == 403
     assert admin_client.get(f"{SETTINGS_URL}{row.pk}/delete/").status_code == 403

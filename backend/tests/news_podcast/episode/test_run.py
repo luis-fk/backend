@@ -21,8 +21,8 @@ from news_podcast.api.episode import run
 from news_podcast.api.episode import service as service_module
 from news_podcast.api.episode.schemas import EpisodeReport, NewsItem
 from news_podcast.api.episode.service import EpisodeError, EpisodeService
-from news_podcast.models import Episode, Feed, PodcastSettings
-from tests.news_podcast.factories import build_settings, create_settings
+from news_podcast.models import Episode, Feed, PodcastSettings, SettingsMissing
+from tests.news_podcast.factories import SETTINGS, build_settings, create_settings
 from tests.news_podcast.fake_models import fake_factory
 
 # transaction=True: the command closes its connection before writing the history,
@@ -359,13 +359,14 @@ def test_select_today_returns_the_days_stories_and_makes_no_episode(
 
 @DATABASE
 @pytest.mark.parametrize(
-    "failure", ["settings", "feeds", "window", "no news", "no answer"]
+    "failure", ["settings", "no row", "feeds", "window", "no news", "no answer"]
 )
 def test_select_today_returns_the_error_instead_of_raising(
     monkeypatch: pytest.MonkeyPatch, settings: Settings, failure: str
 ) -> None:
     settings.GEMINI_API_KEY = "test-key"
-    row = create_settings()
+    if failure != "no row":
+        create_settings()
 
     async def fetch(*_args: object) -> list[NewsItem]:
         return [] if failure == "no news" else news_items()
@@ -382,8 +383,8 @@ def test_select_today_returns_the_error_instead_of_raising(
         monkeypatch.setattr(run, "news_window", broken)
     no_stories = '{"stories": []}'
     outcomes = {
-        row.text_model: [no_stories] * 2,
-        row.fallback_model: [no_stories] * 2,
+        SETTINGS["text_model"]: [no_stories] * 2,
+        SETTINGS["fallback_model"]: [no_stories] * 2,
     }
 
     selection = run.select_today(model_factory=fake_factory(outcomes, []))
@@ -391,6 +392,8 @@ def test_select_today_returns_the_error_instead_of_raising(
     assert selection.stories == []
     assert selection.error is not None
     assert len(selection.usages) == (4 if failure == "no answer" else 0)
+    if failure == "no row":
+        assert isinstance(selection.error, SettingsMissing)
 
 
 def test_each_run_builds_its_own_text_models_and_clients(

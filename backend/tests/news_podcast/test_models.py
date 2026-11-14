@@ -3,6 +3,8 @@ from typing import Any
 import pytest
 from django.core.exceptions import ValidationError
 
+from news_podcast.api.core.schemas import ModelPrice
+from news_podcast.api.episode.schemas import EpisodeOptions
 from news_podcast.models import Feed, PodcastSettings, SettingsMissing
 from tests.news_podcast.factories import SETTINGS, build_settings
 
@@ -28,6 +30,17 @@ def test_only_paused_has_a_default() -> None:
     ]
 
     assert defaults == ["paused"]
+
+
+def test_the_settings_give_the_options_and_each_model_s_price() -> None:
+    podcast_settings = build_settings()
+
+    assert podcast_settings.episode_options() == EpisodeOptions(12, 18, 1.0)
+    assert podcast_settings.prices() == {
+        "gemini-text": ModelPrice(0.75, 3.75),
+        "gemini-fallback": ModelPrice(0.5, 2.0),
+        "gemini-voice": ModelPrice(0.5, 6.0),
+    }
 
 
 def test_without_a_fallback_only_the_text_model_writes() -> None:

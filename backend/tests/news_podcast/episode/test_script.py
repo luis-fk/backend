@@ -21,13 +21,13 @@ from news_podcast.api.episode.script import (
     script_values,
     write_script,
 )
-from tests.news_podcast.factories import build_settings
+from tests.news_podcast.factories import SETTINGS, build_settings
 from tests.news_podcast.fake_models import FakeChatModel, fake_factory
 
 TURNS = [Turn(speaker="Bia", text="Bom dia")]
 DEFAULT_OPTIONS = EpisodeOptions(12, 18, 1.0)
-MAIN = "gemini-main"
-FALLBACK = "gemini-fallback"
+MAIN = SETTINGS["text_model"]
+FALLBACK = SETTINGS["fallback_model"]
 
 
 def system_message(template: ChatPromptTemplate, values: dict[str, Any]) -> str:

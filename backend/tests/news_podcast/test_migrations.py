@@ -67,6 +67,7 @@ def test_the_squashed_migration_holds_no_starting_value() -> None:
     }
     source = (MIGRATIONS_DIR / f"{SQUASHED[1]}.py").read_text(encoding="utf-8")
 
+    assert module.Migration.replaces == [*PRODUCTION, DEFAULTS]
     assert defaults == {
         ("episode", "usage"),
         ("feed", "active"),
