@@ -207,7 +207,9 @@ class LessonSettings(models.Model):
         help_text=f"Under {LESSON_MINUTES_LIMIT}: a lesson stays short.",
     )
     voice_model = models.CharField(
-        max_length=100, help_text="The lesson's own voice, with its own daily quota."
+        max_length=100,
+        help_text="A model other than the episode's voice, so each keeps its own "
+        "daily quota.",
     )
     voice_input_price = models.FloatField(
         "input price", validators=[MinValueValidator(0)]

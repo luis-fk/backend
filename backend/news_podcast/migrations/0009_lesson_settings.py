@@ -17,7 +17,7 @@ class Migration(migrations.Migration):
                 ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
                 ('min_minutes', models.PositiveSmallIntegerField(help_text="Length of the lesson's file, at the speech speed in Settings.", validators=[django.core.validators.MinValueValidator(1)], verbose_name='minimum minutes')),
                 ('max_minutes', models.PositiveSmallIntegerField(help_text='Under 10: a lesson stays short.', verbose_name='maximum minutes')),
-                ('voice_model', models.CharField(help_text="The lesson's own voice, with its own daily quota.", max_length=100)),
+                ('voice_model', models.CharField(help_text="A model other than the episode's voice, so each keeps its own daily quota.", max_length=100)),
                 ('voice_input_price', models.FloatField(validators=[django.core.validators.MinValueValidator(0)], verbose_name='input price')),
                 ('voice_output_price', models.FloatField(validators=[django.core.validators.MinValueValidator(0)], verbose_name='output price')),
                 ('choice_prompt', models.TextField(help_text='Picks the topic among the candidates, when one connects to a story. Placeholders, with no format: {today}. Write a literal brace as {{ or }}.')),

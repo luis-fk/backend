@@ -11,12 +11,14 @@ from django.test import Client, RequestFactory
 from pytest_django import DjangoAssertNumQueries
 
 from news_podcast.models import (
+    LESSON_PROMPT_FIELDS,
     Area,
     Episode,
     Feed,
     LessonSettings,
     PodcastSettings,
     Topic,
+    placeholder_error,
 )
 from tests.news_podcast.factories import (
     create_area,
@@ -429,3 +431,38 @@ def test_the_lesson_form_saves_a_lesson_of_1_to_9_minutes(admin_client: Client) 
     assert response.status_code == 302
     row.refresh_from_db()
     assert (row.min_minutes, row.max_minutes) == (1, 9)
+
+
+@DATABASES
+@pytest.mark.parametrize(("field", "fields"), list(LESSON_PROMPT_FIELDS.items()))
+def test_the_lesson_form_shows_the_placeholder_message_and_saves_a_full_prompt(
+    admin_client: Client, field: str, fields: tuple[str, ...]
+) -> None:
+    row = create_lesson_settings()
+    url = f"{LESSON_URL}{row.pk}/change/"
+    full = " ".join(f"{{{name}}}" for name in fields) + " {{literal}}"
+
+    refused = admin_client.post(url, form_data(row, **{field: "Oi, {ouvinte}!"}))
+    saved = admin_client.post(url, form_data(row, **{field: full}))
+
+    errors = refused.context["adminform"].form.errors[field]
+    assert errors == [placeholder_error("Oi, {ouvinte}!", fields)]
+    assert saved.status_code == 302
+    row.refresh_from_db()
+    assert getattr(row, field) == full
+
+
+@DATABASES
+@pytest.mark.parametrize(
+    "name", ["gemini-3.8-flash-tts", "google_genai:gemini-3.8-flash-tts"]
+)
+def test_the_lesson_form_saves_a_gemini_voice(admin_client: Client, name: str) -> None:
+    row = create_lesson_settings()
+
+    response = admin_client.post(
+        f"{LESSON_URL}{row.pk}/change/", form_data(row, voice_model=name)
+    )
+
+    assert response.status_code == 302
+    row.refresh_from_db()
+    assert row.voice_model == name
