@@ -49,11 +49,6 @@ def placeholder_error(template: str, fields: tuple[str, ...]) -> str | None:
     return None
 
 
-def starting_value(field_name: str) -> None:
-    """Migration 0005, which the squash replaced, builds its defaults from this name
-    when it is imported, so it stays until the replaced migrations are deleted."""
-
-
 class SettingsMissing(Exception):
     """There is no settings row: only seed_news_podcast creates it."""
 

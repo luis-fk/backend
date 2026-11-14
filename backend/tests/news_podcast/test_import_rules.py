@@ -13,6 +13,7 @@ MODELS = "news_podcast.models"
 # these modules and every command.
 ORM_MODULES = (MODELS, "news_podcast.admin", f"{EPISODE}.run", f"{LESSON}.run")
 COMMANDS = "news_podcast.management.commands"
+MIGRATIONS = "news_podcast.migrations"
 SEED_COMMAND = f"{COMMANDS}.seed_news_podcast"
 VOICE = f"{CORE}.voice"
 # The features reach the voice only through its interface, so an implementation such
@@ -84,6 +85,10 @@ def broken_rules(module: str, imports: set[str]) -> list[str]:
         forbidden.append(EPISODE)
     if module not in ORM_MODULES and not inside(module, COMMANDS):
         forbidden.append(MODELS)
+    if inside(module, MIGRATIONS):
+        # A migration is schema only: app code it imported would have to stay for as
+        # long as the migration does.
+        forbidden.append("news_podcast")
     return [
         f"{module} imports {name}"
         for name in sorted(imports)
@@ -110,8 +115,6 @@ def broken_voice_rules(module: str, found: list[tuple[str, str | None]]) -> list
 def test_the_app_follows_its_import_rules() -> None:
     broken: list[str] = []
     for path in sorted(APP_DIR.rglob("*.py")):
-        if "migrations" in path.relative_to(APP_DIR).parts:
-            continue
         module = module_name(path)
         source = path.read_text()
         is_package = path.name == "__init__.py"
@@ -241,3 +244,19 @@ def test_the_seed_folder_rule_counts_paths_not_mentions(
     source: str, found: bool
 ) -> None:
     assert names_the_seed_folder(source) is found
+
+
+@pytest.mark.parametrize(
+    ("line", "allowed"),
+    [
+        ("from django.db import migrations, models", True),
+        ("import django.core.validators", True),
+        ("import news_podcast.models", False),
+        ("from news_podcast.api.core import config", False),
+        ("from news_podcast import validators", False),
+    ],
+)
+def test_a_migration_imports_nothing_from_the_app(line: str, allowed: bool) -> None:
+    module = f"{MIGRATIONS}.0008_future"
+
+    assert (broken_rules(module, imported_modules(line, module)) == []) is allowed
