@@ -79,6 +79,8 @@ def test_invalid_settings_say_what_is_wrong(
         ("max_minutes", None, "cannot be null"),
         ("speech_speed", "rápido", "must be a float"),
         ("selection_prompt", None, "cannot be null"),
+        ("text_model", ["google_genai:gemini-3.8-flash"] * 4, "at most 100"),
+        ("voice_model", ["google_genai:gemini-3.8-flash-lite-tts"] * 3, "at most 100"),
     ],
 )
 def test_a_value_of_the_wrong_type_is_named_instead_of_crashing_clean(

@@ -201,12 +201,13 @@ def test_the_features_reach_the_voice_only_through_its_interface(
 
 
 def names_the_seed_folder(source: str) -> bool:
-    """Whether a source builds a path into seed/: a string that is the folder's name,
-    or one that starts with it. A text that only mentions seed/ doesn't count."""
+    """Whether a source writes a path into seed/: a string with no spaces that has
+    seed as one of its parts. A sentence that mentions seed/ doesn't count."""
     return any(
         isinstance(node, ast.Constant)
         and isinstance(node.value, str)
-        and (node.value == "seed" or node.value.startswith("seed/"))
+        and not any(char.isspace() for char in node.value)
+        and "seed" in node.value.split("/")
         for node in ast.walk(ast.parse(source))
     )
 
@@ -226,8 +227,14 @@ def test_only_the_seed_command_reads_the_seed_folder() -> None:
     [
         ('SEED_DIR = Path(__file__).parent / "seed"', True),
         ('path = Path("seed/settings.json")', True),
+        ('path = Path("news_podcast/seed/feeds.json")', True),
+        ('path = Path(f"{APP_DIR}/seed/feeds.json")', True),
+        ('path = Path("./seed/feeds.json")', True),
+        ('paths = APP_DIR.glob("*/seed/*.json")', True),
         ('"""Fills the database from seed/."""', False),
         ('help = "Reads the files in news_podcast/seed/."', False),
+        ('logger.info("seed/settings.json was read")', False),
+        ('call_command("seed_news_podcast")', False),
     ],
 )
 def test_the_seed_folder_rule_counts_paths_not_mentions(

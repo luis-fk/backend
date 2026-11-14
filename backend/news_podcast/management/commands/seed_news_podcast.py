@@ -1,4 +1,5 @@
 import json
+import math
 from collections import Counter
 from collections.abc import Mapping
 from pathlib import Path
@@ -94,23 +95,25 @@ def address(config: Mapping[str, Any]) -> str:
 def read_seed_file(name: str) -> Any:
     try:
         return json.loads((SEED_DIR / name).read_text(encoding="utf-8"))
-    except json.JSONDecodeError as error:
-        raise CommandError(f"seed/{name} isn't valid JSON: {error}") from error
+    except (OSError, ValueError) as error:
+        raise CommandError(f"seed/{name} can't be read: {error}") from error
 
 
-def settings_row(values: Mapping[str, Any]) -> PodcastSettings:
+def settings_row(values: Any) -> PodcastSettings:
     where = "seed/settings.json"
-    check_keys(values, PodcastSettings, where)
+    check_fields(values, PodcastSettings, where)
     podcast_settings = PodcastSettings(**values)
     check_values(podcast_settings, where)
     return podcast_settings
 
 
-def feed_rows(entries: list[Mapping[str, Any]]) -> list[Feed]:
+def feed_rows(entries: Any) -> list[Feed]:
+    if not isinstance(entries, list) or not entries:
+        raise CommandError("seed/feeds.json must be a list of feeds")
     feeds: list[Feed] = []
     for number, values in enumerate(entries, start=1):
         where = f"seed/feeds.json, entry {number}"
-        check_keys(values, Feed, where)
+        check_fields(values, Feed, where)
         feed = Feed(**values)
         check_values(feed, where)
         feeds.append(feed)
@@ -120,24 +123,47 @@ def feed_rows(entries: list[Mapping[str, Any]]) -> list[Feed]:
     return feeds
 
 
-def check_keys(
-    values: Mapping[str, Any], model: type[models.Model], where: str
-) -> None:
-    """A seed file holds every field the admin edits, and nothing else."""
+def check_fields(values: Any, model: type[models.Model], where: str) -> None:
+    """A seed object holds every field the admin edits, each with its JSON type, and
+    nothing else. Django would turn a list into its text, 12.7 minutes into 12 and
+    true into 1.0, and let null through a field that may be blank."""
+    if not isinstance(values, dict):
+        raise CommandError(f"{where} isn't a JSON object")
     fields = [
-        field.name
+        field
         for field in model._meta.concrete_fields
         if field.editable and not field.primary_key
     ]
-    if missing := [name for name in fields if name not in values]:
+    names = [field.name for field in fields]
+    if missing := [name for name in names if name not in values]:
         raise CommandError(f"{where} lacks {', '.join(missing)}")
-    if unknown := [name for name in values if name not in fields]:
+    if unknown := [name for name in values if name not in names]:
         raise CommandError(f"{where} has unknown fields: {', '.join(unknown)}")
+    for field in fields:
+        value = values[field.name]
+        if kind := wrong_json_type(field, value):
+            shown = json.dumps(value, ensure_ascii=False)[:50]
+            raise CommandError(f"{where}: {field.name} must be {kind}, not {shown}")
+
+
+def wrong_json_type(field: "models.Field[Any, Any]", value: Any) -> str | None:
+    """The JSON type the field needs, when value doesn't have it. JSON's true and
+    false are bools, never numbers. The annotation is quoted because Django's Field
+    takes type arguments only in its stubs."""
+    if isinstance(field, models.BooleanField):
+        return None if isinstance(value, bool) else "true or false"
+    if isinstance(field, models.IntegerField):
+        return None if type(value) is int else "a whole number"
+    if isinstance(field, models.FloatField):
+        number = type(value) in (int, float) and math.isfinite(value)
+        return None if number else "a number"
+    return None if isinstance(value, str) else "text"
 
 
 def check_values(row: models.Model, where: str) -> None:
-    """The admin's checks. Not validate_unique: on a seeded database the file's URLs
-    are already in the list, and feed_rows checks the file's own repeats."""
+    """Each field's checks and the model's clean(), as on a save in the admin. Not
+    validate_unique: on a seeded database the file's URLs are already in the list,
+    and feed_rows checks the file's own repeats."""
     try:
         row.full_clean(validate_unique=False)
     except ValidationError as error:

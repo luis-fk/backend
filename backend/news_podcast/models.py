@@ -176,7 +176,7 @@ class PodcastSettings(models.Model):
     def clean(self) -> None:
         errors: dict[str, str] = {}
         # Django runs clean() even after clean_fields() refused a value, such as a
-        # null or a word in a seed file, so only numbers and text are checked here.
+        # null, so each check below runs only on a value of its type.
         numbers = (self.min_minutes, self.max_minutes, self.speech_speed)
         if all(isinstance(number, int | float) for number in numbers):
             speech_minutes = self.max_minutes * self.speech_speed
@@ -191,10 +191,11 @@ class PodcastSettings(models.Model):
                 )
         for name in ("text_model", "fallback_model"):
             model = getattr(self, name)
-            if model and (name_error := model_name_error(model)):
-                errors[name] = name_error
-        if self.voice_model and (name_error := voice_model_error(self.voice_model)):
-            errors["voice_model"] = name_error
+            if isinstance(model, str) and model and (error := model_name_error(model)):
+                errors[name] = error
+        voice = self.voice_model
+        if isinstance(voice, str) and voice and (error := voice_model_error(voice)):
+            errors["voice_model"] = error
         for name, fields in PROMPT_FIELDS.items():
             prompt = getattr(self, name)
             if isinstance(prompt, str) and (error := placeholder_error(prompt, fields)):

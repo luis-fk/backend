@@ -35,6 +35,7 @@ LOCAL = {"ENGINE": "django.db.backends.postgresql", "HOST": "localhost"}
 REMOTE = {
     "ENGINE": "django.db.backends.postgresql",
     "HOST": "x.proxy.rlwy.net",
+    "USER": "secret-user",
     "PASSWORD": "secret-password",
 }
 
@@ -257,6 +258,7 @@ def test_a_remote_database_stops_the_seed_before_it_writes(
         seed()
 
     assert "news_podcast_db (x.proxy.rlwy.net)" in str(error.value)
+    assert "secret-user" not in str(error.value)
     assert "secret-password" not in str(error.value)
     assert prompts == []
     assert nothing_written()
@@ -276,6 +278,7 @@ def test_production_shows_the_address_and_seeds_after_a_yes(
 
     assert len(prompts) == 1
     assert "news_podcast_db: x.proxy.rlwy.net:5432/news_podcast" in out
+    assert "secret-user" not in out + prompts[0]
     assert "secret-password" not in out + prompts[0]
     assert PodcastSettings.objects.count() == 1
     assert Feed.objects.count() == len(read(SEED_DIR, "feeds.json"))
@@ -321,12 +324,52 @@ def test_a_settings_file_with_an_unknown_field_stops_the_seed(seed_dir: Path) ->
 
 
 @DATABASES
-def test_a_null_number_is_named_instead_of_crashing(seed_dir: Path) -> None:
+@pytest.mark.parametrize(
+    ("field", "value", "kind"),
+    [
+        ("max_minutes", None, "a whole number"),
+        ("fallback_model", None, "text"),
+        ("min_minutes", 12.7, "a whole number"),
+        ("max_minutes", True, "a whole number"),
+        ("max_minutes", float("inf"), "a whole number"),
+        ("speech_speed", True, "a number"),
+        ("speech_speed", float("nan"), "a number"),
+        ("text_input_price", "0.75", "a number"),
+        ("expand_prompt", ["Roteiro:", "{script}"], "text"),
+        ("voice_model", {"google_genai": "gemini-3.8-flash-lite-tts"}, "text"),
+        ("paused", 0, "true or false"),
+    ],
+)
+def test_a_value_of_the_wrong_json_type_stops_the_seed(
+    seed_dir: Path, field: str, value: Any, kind: str
+) -> None:
     values = read(seed_dir, "settings.json")
-    values["max_minutes"] = None
+    values[field] = value
     write(seed_dir, "settings.json", values)
 
-    with pytest.raises(CommandError, match="max_minutes: This field cannot be null"):
+    with pytest.raises(CommandError, match=f"settings.json: {field} must be {kind}"):
+        seed()
+
+    assert nothing_written()
+
+
+@DATABASES
+@pytest.mark.parametrize(
+    ("field", "value", "kind"),
+    [
+        ("outlet", 360, "text"),
+        ("url", None, "text"),
+        ("active", "sim", "true or false"),
+    ],
+)
+def test_a_feed_value_of_the_wrong_json_type_stops_the_seed(
+    seed_dir: Path, field: str, value: Any, kind: str
+) -> None:
+    feeds = read(seed_dir, "feeds.json")
+    feeds[2][field] = value
+    write(seed_dir, "feeds.json", feeds)
+
+    with pytest.raises(CommandError, match=f"entry 3: {field} must be {kind}"):
         seed()
 
     assert nothing_written()
@@ -384,10 +427,56 @@ def test_a_repeated_feed_url_stops_the_seed(seed_dir: Path) -> None:
 
 
 @DATABASES
-def test_a_broken_seed_file_is_named(seed_dir: Path) -> None:
-    (seed_dir / "feeds.json").write_text("[{", encoding="utf-8")
+@pytest.mark.parametrize(
+    ("name", "content", "message"),
+    [
+        ("feeds.json", "[{", "seed/feeds.json can't be read"),
+        ("feeds.json", None, "seed/feeds.json can't be read"),
+        ("settings.json", "[]", "seed/settings.json isn't a JSON object"),
+        ("feeds.json", "[]", "seed/feeds.json must be a list of feeds"),
+        ("feeds.json", '{"outlet": "g1"}', "seed/feeds.json must be a list of feeds"),
+        ("feeds.json", "[null]", "seed/feeds.json, entry 1 isn't a JSON object"),
+    ],
+)
+def test_a_seed_file_of_the_wrong_shape_stops_the_seed(
+    seed_dir: Path, name: str, content: str | None, message: str
+) -> None:
+    if content is None:
+        (seed_dir / name).unlink()
+    else:
+        (seed_dir / name).write_text(content, encoding="utf-8")
 
-    with pytest.raises(CommandError, match="seed/feeds.json isn't valid JSON"):
+    with pytest.raises(CommandError, match=re.escape(message)):
         seed()
 
     assert nothing_written()
+
+
+@DATABASES
+def test_a_broken_file_stops_production_before_the_question(
+    seed_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    values = read(seed_dir, "settings.json")
+    del values["max_minutes"]
+    write(seed_dir, "settings.json", values)
+    monkeypatch.setattr(
+        settings, "DATABASES", {"default": REMOTE, "news_podcast_db": REMOTE}
+    )
+    prompts = answer(monkeypatch, "yes")
+
+    with pytest.raises(CommandError, match="lacks max_minutes"):
+        seed(production=True)
+
+    assert prompts == []
+    assert nothing_written()
+
+
+@DATABASES
+def test_a_seeded_database_still_has_its_files_checked(seed_dir: Path) -> None:
+    seed()
+    feeds = read(seed_dir, "feeds.json")
+    feeds[0]["section"] = "Esportes"
+    write(seed_dir, "feeds.json", feeds)
+
+    with pytest.raises(CommandError, match="entry 1: section"):
+        seed()
