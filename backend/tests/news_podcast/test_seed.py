@@ -22,7 +22,8 @@ from news_podcast.api.episode.prompts import (
 from news_podcast.api.episode.schemas import EpisodeOptions
 from news_podcast.api.episode.script import lengthening_values, script_values
 from news_podcast.api.episode.selection import selection_values
-from news_podcast.models import Feed, PodcastSettings
+from news_podcast.models import Area, Feed, PodcastSettings, Topic
+from tests.news_podcast.factories import create_area, create_topic
 
 DATABASES = pytest.mark.django_db(databases=["default", "news_podcast_db"])
 SEED_DIR = Path(__file__).resolve().parents[2] / "news_podcast" / "seed"
@@ -66,7 +67,12 @@ def answer(monkeypatch: pytest.MonkeyPatch, reply: str) -> list[str]:
 
 
 def nothing_written() -> bool:
-    return not PodcastSettings.objects.exists() and not Feed.objects.exists()
+    return not (
+        PodcastSettings.objects.exists()
+        or Feed.objects.exists()
+        or Area.objects.exists()
+        or Topic.objects.exists()
+    )
 
 
 def morning_options() -> EpisodeOptions:
@@ -81,10 +87,20 @@ def system_message(template: ChatPromptTemplate, values: dict[str, Any]) -> str:
 def seed_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     """A copy of the committed seed files, which the command reads instead, so a test
     can break one."""
-    for name in ("settings.json", "feeds.json"):
+    for name in ("settings.json", "feeds.json", "catalog.json"):
         shutil.copy(SEED_DIR / name, tmp_path / name)
     monkeypatch.setattr(f"{COMMAND}.SEED_DIR", tmp_path)
     return tmp_path
+
+
+def test_the_seed_catalog_has_the_design_s_areas_and_topics() -> None:
+    catalog = read(SEED_DIR, "catalog.json")
+    titles = [title for area in catalog for title in area["topics"]]
+
+    assert [len(area["topics"]) for area in catalog] == [15, 14, 22, 13, 11, 20, 6]
+    assert len(titles) == 101
+    assert all(isinstance(title, str) and title.strip() for title in titles)
+    assert len(set(titles)) == len(titles)
 
 
 def test_the_seed_settings_pass_the_admin_checks() -> None:
@@ -183,6 +199,63 @@ def test_an_empty_database_gets_the_seed_settings_and_feeds() -> None:
     assert feeds == read(SEED_DIR, "feeds.json")
     assert "news_podcast: settings created from seed/settings.json" in out
     assert f"news_podcast: {len(feeds)} feeds created from seed/feeds.json" in out
+
+
+@DATABASES
+def test_an_empty_catalog_gets_the_seed_areas_and_topics_in_teaching_order() -> None:
+    out = seed()
+
+    areas = list(Area.objects.all())
+    catalog = [
+        {"name": area.name, "topics": [topic.title for topic in area.topics.all()]}
+        for area in areas
+    ]
+    assert catalog == read(SEED_DIR, "catalog.json")
+    assert [area.position for area in areas] == list(range(1, 8))
+    for area in areas:
+        positions = [topic.position for topic in area.topics.all()]
+        assert positions == list(range(1, len(positions) + 1))
+    assert areas[0].name == "Os Poderes e o Estado"
+    assert (
+        areas[0].topics.get(position=1).title
+        == "Os três Poderes e os freios e contrapesos entre eles"
+    )
+    assert areas[6].name == "O Brasil no mundo"
+    assert areas[6].topics.get(position=6).title == "BRICS: o que é o grupo"
+    assert Topic.objects.filter(active=True).count() == 101
+    assert "news_podcast: 7 areas and 101 topics created from seed/catalog.json" in out
+
+
+@DATABASES
+@pytest.mark.parametrize("production", [False, True])
+def test_a_catalog_with_an_area_is_left_as_it_is(
+    monkeypatch: pytest.MonkeyPatch, production: bool
+) -> None:
+    area = create_area(name="Minha área", position=9)
+    create_topic(area, title="Meu tópico", position=3, active=False)
+    before = (list(Area.objects.values()), list(Topic.objects.values()))
+    if production:
+        monkeypatch.setattr(
+            settings, "DATABASES", {"default": REMOTE, "news_podcast_db": REMOTE}
+        )
+        answer(monkeypatch, "yes")
+
+    out = seed(production=production)
+
+    assert (list(Area.objects.values()), list(Topic.objects.values())) == before
+    assert "news_podcast: the catalog isn't empty; left as it was" in out
+
+
+@DATABASES
+def test_an_empty_catalog_is_filled_and_the_other_tables_kept() -> None:
+    seed()
+    Area.objects.all().delete()
+    PodcastSettings.objects.update(max_minutes=20)
+
+    seed()
+
+    assert PodcastSettings.objects.get().max_minutes == 20
+    assert Topic.objects.count() == 101
 
 
 @DATABASES
@@ -423,6 +496,45 @@ def test_a_repeated_feed_url_stops_the_seed(seed_dir: Path) -> None:
         ("feeds.json", "[]", "seed/feeds.json must be a list of feeds"),
         ("feeds.json", '{"outlet": "g1"}', "seed/feeds.json must be a list of feeds"),
         ("feeds.json", "[null]", "seed/feeds.json, entry 1 isn't a JSON object"),
+        ("catalog.json", None, "seed/catalog.json can't be read"),
+        ("catalog.json", "[]", "seed/catalog.json must be a list of areas"),
+        ("catalog.json", '{"name": "x"}', "seed/catalog.json must be a list of areas"),
+        (
+            "catalog.json",
+            '[{"name": "Justiça"}]',
+            "seed/catalog.json, area 1 must have name and topics, and nothing else",
+        ),
+        (
+            "catalog.json",
+            '[{"name": 7, "topics": ["O STF"]}]',
+            "seed/catalog.json, area 1: name must be text",
+        ),
+        (
+            "catalog.json",
+            '[{"name": "Justiça", "topics": []}]',
+            "seed/catalog.json, area 1: topics must be a list of titles",
+        ),
+        (
+            "catalog.json",
+            '[{"name": "Justiça", "topics": ["O STF", 7]}]',
+            "seed/catalog.json, area 1: topics must be a list of titles",
+        ),
+        (
+            "catalog.json",
+            '[{"name": "", "topics": ["O STF"]}]',
+            "seed/catalog.json, area 1: name: This field cannot be blank.",
+        ),
+        (
+            "catalog.json",
+            '[{"name": "Justiça", "topics": ["O STF", ""]}]',
+            "seed/catalog.json, area 1, topic 2: title: This field cannot be blank.",
+        ),
+        (
+            "catalog.json",
+            json.dumps([{"name": "Justiça", "topics": ["x" * 201]}]),
+            "seed/catalog.json, area 1, topic 1: title: Ensure this value has at "
+            "most 200 characters",
+        ),
     ],
 )
 def test_a_seed_file_of_the_wrong_shape_stops_the_seed(

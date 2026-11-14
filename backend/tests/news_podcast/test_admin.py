@@ -8,12 +8,19 @@ from django.forms.models import model_to_dict
 from django.test import Client
 from pytest_django import DjangoAssertNumQueries
 
-from news_podcast.models import Episode, Feed, PodcastSettings
-from tests.news_podcast.factories import create_settings
+from news_podcast.models import Area, Episode, Feed, PodcastSettings, Topic
+from tests.news_podcast.factories import (
+    create_area,
+    create_lesson_row,
+    create_settings,
+    create_topic,
+)
 
 SETTINGS_URL = "/admin/news_podcast/podcastsettings/"
 EPISODES_URL = "/admin/news_podcast/episode/"
 FEEDS_URL = "/admin/news_podcast/feed/"
+AREAS_URL = "/admin/news_podcast/area/"
+TOPICS_URL = "/admin/news_podcast/topic/"
 DATABASES = pytest.mark.django_db(databases=["default", "news_podcast_db"])
 
 
@@ -52,6 +59,9 @@ def test_the_admin_index_never_queries_the_podcast_database(
         response = admin_client.get("/admin/")
 
     assert response.status_code == 200
+    page = response.content.decode()
+    assert f'href="{AREAS_URL}"' in page
+    assert f'href="{TOPICS_URL}"' in page
 
 
 @DATABASES
@@ -162,3 +172,129 @@ def test_an_empty_feed_list_opens_empty(admin_client: Client) -> None:
 
     assert response.status_code == 200
     assert not Feed.objects.exists()
+
+
+@DATABASES
+def test_the_topics_list_shows_when_a_sent_lesson_taught_each_topic(
+    admin_client: Client,
+) -> None:
+    area = create_area(name="O Congresso e as leis")
+    taught = create_topic(area, title="Como o Congresso derruba um veto", position=11)
+    tried = create_topic(area, title="Sanção e veto", position=10)
+    create_topic(area, title="Impeachment", position=22)
+    create_lesson_row(taught, started_at=datetime(2026, 11, 13, 1, 30, tzinfo=UTC))
+    create_lesson_row(tried, status=Episode.Status.FAILED)
+    create_lesson_row(tried, status=Episode.Status.NOT_SENT)
+    create_lesson_row(tried, kind=Episode.Kind.NEWS)
+
+    page = admin_client.get(TOPICS_URL).content.decode()
+
+    # 01:30 UTC on the 13th is still the 12th in São Paulo.
+    assert page.count('<td class="field-taught">12/11/2026</td>') == 1
+    assert page.count('<td class="field-taught">-</td>') == 2
+    for column in ["title", "area", "position", "active", "taught"]:
+        assert f"column-{column}" in page
+
+
+@DATABASES
+def test_the_topics_list_filters_by_area_and_by_active(admin_client: Client) -> None:
+    congress = create_area(name="O Congresso e as leis", position=3)
+    justice = create_area(name="Justiça", position=2)
+    create_topic(congress, title="Como o Congresso derruba um veto")
+    create_topic(justice, title="O STF: o que julga")
+    create_topic(justice, title="O CNJ: quem fiscaliza os juízes", active=False)
+
+    by_area = admin_client.get(TOPICS_URL, {"area__id__exact": justice.pk})
+    inactive = admin_client.get(TOPICS_URL, {"active__exact": "0"})
+
+    listed = [str(topic) for topic in by_area.context["cl"].result_list]
+    assert listed == ["O STF: o que julga", "O CNJ: quem fiscaliza os juízes"]
+    assert [str(topic) for topic in inactive.context["cl"].result_list] == [
+        "O CNJ: quem fiscaliza os juízes"
+    ]
+
+
+@DATABASES
+def test_the_catalog_lists_keep_one_order_through_ties(admin_client: Client) -> None:
+    first = create_area(name="Primeira", position=1)
+    tied = create_area(name="Segunda", position=1)
+    create_topic(first, title="Tópico B", position=1)
+    create_topic(first, title="Tópico A", position=1)
+    create_topic(tied, title="Tópico C", position=0)
+
+    for _ in range(2):
+        areas = admin_client.get(AREAS_URL).context["cl"].result_list
+        topics = admin_client.get(TOPICS_URL).context["cl"].result_list
+
+        assert [str(area) for area in areas] == ["Primeira", "Segunda"]
+        assert [str(topic) for topic in topics] == ["Tópico B", "Tópico A", "Tópico C"]
+
+
+@DATABASES
+def test_a_taught_topic_and_its_area_stay_when_the_admin_deletes_them(
+    admin_client: Client,
+) -> None:
+    area = create_area()
+    topic = create_topic(area)
+    create_lesson_row(topic)
+
+    for url in [f"{TOPICS_URL}{topic.pk}/delete/", f"{AREAS_URL}{area.pk}/delete/"]:
+        assert "Cannot delete" in admin_client.get(url).content.decode()
+        admin_client.post(url, {"post": "yes"})
+    admin_client.post(
+        TOPICS_URL,
+        {"action": "delete_selected", "_selected_action": [topic.pk], "post": "yes"},
+    )
+
+    assert Topic.objects.filter(pk=topic.pk).exists()
+    assert Area.objects.filter(pk=area.pk).exists()
+
+
+@DATABASES
+def test_the_kind_filter_lists_the_lessons_and_adds_up_their_cost(
+    admin_client: Client,
+) -> None:
+    Episode.objects.create(
+        started_at=datetime(2026, 11, 13, 9, 40, tzinfo=UTC),
+        status=Episode.Status.SENT,
+        cost_usd=0.10,
+    )
+    create_lesson_row(
+        started_at=datetime(2026, 11, 13, 10, 0, tzinfo=UTC), cost_usd=0.20
+    )
+    create_lesson_row(
+        started_at=datetime(2026, 11, 15, 10, 0, tzinfo=UTC), cost_usd=0.30
+    )
+
+    page = admin_client.get(EPISODES_URL, {"kind__exact": "lesson"}).content.decode()
+
+    assert page.count('<td class="field-kind">Lesson</td>') == 2
+    assert '<td class="field-kind">News</td>' not in page
+    assert "<strong>R$ 2,75</strong>" in page
+
+
+@DATABASES
+def test_a_lesson_row_shows_its_topic_story_and_pages(admin_client: Client) -> None:
+    topic = create_topic(create_area(), title="Como o Congresso derruba um veto")
+    lesson = create_lesson_row(
+        topic,
+        story_title="Congresso derruba veto ao <marco> & cia",
+        pages=[
+            {
+                "title": "Entenda o veto & a sessão",
+                "url": "https://www12.senado.leg.br/veto?a=1&b=2",
+            },
+            {"title": "Vetos", "url": "https://www.camara.leg.br/vetos"},
+        ],
+    )
+
+    page = admin_client.get(f"{EPISODES_URL}{lesson.pk}/change/").content.decode()
+
+    assert '<div class="readonly">Lesson</div>' in page
+    assert "Como o Congresso derruba um veto" in page
+    assert "Congresso derruba veto ao &lt;marco&gt; &amp; cia" in page
+    assert (
+        '<a href="https://www12.senado.leg.br/veto?a=1&amp;b=2">'
+        "Entenda o veto &amp; a sessão</a>"
+    ) in page
+    assert '<a href="https://www.camara.leg.br/vetos">Vetos</a>' in page

@@ -8,7 +8,8 @@ episode is only that voice message: each run's cost and result stay in the admin
 history, and the sources it used, in the run's log on Railway.
 
 The app has its own database, `news_podcast_db` (`NEWS_PODCAST_DATABASE_URL`), with the
-settings, the feeds and the history. The rest is a management command.
+settings, the feeds, the lesson catalog and the history. The rest is a management
+command.
 
 ## How it works
 
@@ -34,8 +35,9 @@ The daily episode runs on a Railway Cron service (see *Scheduling*).
   `NEWS_PODCAST_DATABASE_URL` also on the backend service (the admin uses the database),
   and the migrations applied (`make migrate-prod`, which reads `.env.production`).
 - **Starting data:** `make seed` fills a local database from `news_podcast/seed/`:
-  the settings row from `settings.json` when there is none, and the feeds from
-  `feeds.json` when the list is empty. So a value changed or a feed added in `seed/`
+  the settings row from `settings.json` when there is none, the feeds from
+  `feeds.json` when the list is empty, and the lesson catalog from `catalog.json`
+  when it has no area. So a value changed or a feed added in `seed/`
   after a database was seeded reaches it only through the admin. Production already
   has its data, so `make seed-prod` writes nothing there today: it runs only when
   `PLAN.md` says so, for a release that brings starting data for a new table, and
@@ -151,16 +153,33 @@ fails at "leitura dos feeds".
   A search brings at most 100 items, so big sites, such as CNN Brasil and Poder360, come
   in by section, and SBT's leaves its videos out (`-site:sbtnews.sbt.com.br/videos`).
 
+## Lesson catalog
+
+The lessons' topics, in 7 areas, live in the admin under *News podcast → Areas* and
+*Topics*. The seed fills an empty catalog once; after that it changes only in the
+admin.
+
+- **Order:** each area's topics are taught by position, from the lowest; areas too.
+  Positions can be edited right in the lists.
+- **Active:** an unticked topic leaves the course without being deleted.
+- **Taught on:** the São Paulo date of the latest lesson that was sent with the topic.
+  Failed and not-sent lessons don't count, and deleting a lesson's row in the history
+  makes its topic available again.
+- **Deleting:** a topic with lessons in the history can't be deleted, nor can its
+  area; untick it instead.
+
 ## History
 
-Under *News podcast → Episodes*, one row per run: start time (Brasília), status (sent,
+Under *News podcast → Episodes*, one row per run: start time (Brasília), kind (news or
+lesson), status (sent,
 failed or, with `--no-send`, not sent), length, words per minute, cost on the paid plan
 in reais and, if it failed, the step and the error. Each run's page shows the script's
 words and the tokens of each model answer. At 1x speed, the words per minute are the
 voice's pace: if they are far from 170, `NATURAL_WORDS_PER_MINUTE` in
 `api/core/config.py` needs adjusting, or the episode comes out shorter or longer than
 asked. The audio is not kept. The top of the list shows the total cost of what is
-filtered (by month or by status). A paused run doesn't show up, and one that fails
+filtered (by month, kind or status). A lesson's page also shows its topic, the news
+story that opened it and the pages it came from. A paused run doesn't show up, and one that fails
 midway records the cost of what already ran.
 
 ## Adjustments

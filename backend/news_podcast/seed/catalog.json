@@ -1,0 +1,138 @@
+[
+  {
+    "name": "Os Poderes e o Estado",
+    "topics": [
+      "Os três Poderes e os freios e contrapesos entre eles",
+      "União, estados e municípios: o que cabe a cada um",
+      "Governadores, prefeitos, Assembleias e Câmaras Municipais",
+      "O que faz o presidente da República, e o vice",
+      "Ministérios: como o Executivo se organiza",
+      "A Constituição e como ela muda",
+      "Servidores públicos: concurso e estabilidade",
+      "Agências reguladoras: Anatel, Aneel, Anvisa e as outras",
+      "Estatais: Petrobras, Caixa, Banco do Brasil e BNDES",
+      "SUS: quem paga e quem faz o quê",
+      "O TCU: quem fiscaliza o dinheiro público",
+      "AGU e CGU: quem representa a União na Justiça e quem controla o governo por dentro",
+      "Lei de Acesso à Informação e os sigilos do governo",
+      "As Forças Armadas na Constituição",
+      "Estado de defesa, estado de sítio e intervenção federal"
+    ]
+  },
+  {
+    "name": "Justiça",
+    "topics": [
+      "As Justiças (Federal, estadual, do Trabalho, Eleitoral e Militar): quem julga o quê",
+      "O STF: o que julga e como os ministros são escolhidos",
+      "O STJ: o tribunal das leis federais",
+      "Ministério Público, PGR e Defensoria",
+      "A Polícia Federal e as polícias: quem investiga o quê",
+      "Do inquérito à sentença: as etapas de um processo criminal",
+      "Prisão preventiva e trânsito em julgado: quando alguém pode ser preso",
+      "Habeas corpus e mandado de segurança",
+      "Como o STF decide: plenário, turmas, liminares e pedido de vista",
+      "ADI, ADC e ADPF: como uma lei é questionada no STF",
+      "Foro privilegiado: quem é julgado onde",
+      "Delação premiada: o acordo com quem colabora",
+      "O CNJ: quem fiscaliza os juízes",
+      "Anistia, indulto e graça: quem pode perdoar o quê"
+    ]
+  },
+  {
+    "name": "O Congresso e as leis",
+    "topics": [
+      "Câmara e Senado: por que duas casas e o que cada uma faz",
+      "Como um projeto vira lei, passo a passo",
+      "Quem pode propor uma lei, inclusive a iniciativa popular",
+      "As comissões e a CCJ",
+      "Os presidentes da Câmara e do Senado e o poder da pauta",
+      "Líderes, blocos e bancadas: como os votos se organizam",
+      "Presidencialismo de coalizão: por que o presidente precisa de aliados",
+      "Urgência e regimes de votação",
+      "Quóruns: maioria simples, absoluta e qualificada",
+      "Sanção e veto: o que o presidente pode fazer com uma lei",
+      "Como o Congresso derruba um veto",
+      "Lei ordinária, lei complementar e decreto",
+      "Medida provisória: prazos e o que acontece quando ela caduca",
+      "Decreto legislativo: quando o Congresso derruba um decreto do presidente",
+      "PEC: por que mudar a Constituição é mais difícil",
+      "Orçamento: LDO, LOA e como o Congresso aprova",
+      "Emendas parlamentares: individuais, de bancada e \"Pix\"",
+      "Sabatinas: como o Senado aprova ministros do STF, diretores do BC e embaixadores",
+      "CPI: o que ela pode e o que não pode",
+      "Imunidade parlamentar: o que protege e o que não protege",
+      "Cassação de mandato e o Conselho de Ética",
+      "Impeachment: como funciona o processo"
+    ]
+  },
+  {
+    "name": "Eleições e partidos",
+    "topics": [
+      "Voto obrigatório: quem precisa votar e o que acontece se faltar",
+      "A Justiça Eleitoral: o TSE e os TREs",
+      "Sistemas majoritário e proporcional",
+      "Segundo turno: quando acontece",
+      "Como os deputados são eleitos: quociente eleitoral e \"puxadores de voto\"",
+      "Mandatos, reeleição e suplentes",
+      "Partidos, federações e os fundos partidário e eleitoral",
+      "Pesquisas e propaganda eleitoral: as regras",
+      "A urna eletrônica e a auditoria",
+      "Diplomação e posse: do resultado até o cargo",
+      "Ficha Limpa e inelegibilidade",
+      "Abuso de poder e cassação pela Justiça Eleitoral",
+      "Plebiscito e referendo"
+    ]
+  },
+  {
+    "name": "Inflação, juros e Banco Central",
+    "topics": [
+      "O que é inflação e como ela afeta o seu dinheiro",
+      "Como a inflação é medida: o IPCA",
+      "IPCA, INPC e IGP-M: por que existem vários índices de inflação",
+      "O Banco Central: o que faz e por que é autônomo",
+      "O Copom e a Selic: como os juros são decididos",
+      "Por que juros altos seguram a inflação",
+      "Meta de inflação: quem define e o que acontece quando ela não é cumprida",
+      "Como a Selic chega à poupança, ao financiamento e aos investimentos",
+      "Juros do cartão e do cheque especial: o que é spread bancário",
+      "Câmbio: por que o dólar sobe e desce",
+      "Pix: como funciona e o papel do Banco Central"
+    ]
+  },
+  {
+    "name": "Economia e contas públicas",
+    "topics": [
+      "PIB: o que ele mede",
+      "Desemprego: como é medido",
+      "Impostos: quem cobra o quê",
+      "Imposto de Renda: faixas, deduções e a declaração",
+      "FPE e FPM: a parte dos impostos federais que vai a estados e municípios",
+      "Reforma tributária: o que muda com o IBS e a CBS",
+      "Déficit, superávit e resultado primário",
+      "Dívida pública: o que é e quem são os credores",
+      "Tesouro Direto: emprestar dinheiro ao governo",
+      "Risco-país e nota de crédito",
+      "Lei de Responsabilidade Fiscal",
+      "Arcabouço fiscal: a regra dos gastos do governo",
+      "Despesas obrigatórias: por que o governo controla pouco do próprio orçamento",
+      "Bloqueio e contingenciamento de gastos",
+      "Precatórios: as dívidas que a Justiça manda o governo pagar",
+      "Salário mínimo: como o reajuste é calculado",
+      "Previdência: como funciona o INSS",
+      "Bolsa Família e BPC",
+      "FGTS: o que é e quando pode sacar",
+      "Preço da gasolina: o papel da Petrobras e dos impostos"
+    ]
+  },
+  {
+    "name": "O Brasil no mundo",
+    "topics": [
+      "Política externa: quem decide",
+      "Como um tratado internacional passa a valer no Brasil",
+      "Balança comercial e reservas internacionais",
+      "Tarifas de importação e guerras comerciais",
+      "Mercosul e o acordo com a União Europeia",
+      "BRICS: o que é o grupo"
+    ]
+  }
+]
