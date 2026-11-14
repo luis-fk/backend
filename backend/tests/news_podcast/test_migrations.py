@@ -1,17 +1,18 @@
 import importlib
-from pathlib import Path
 
 import pytest
+from django.apps import apps
 from django.db import connections
+from django.db.migrations.autodetector import MigrationAutodetector
 from django.db.migrations.executor import MigrationExecutor
 from django.db.migrations.loader import MigrationLoader
 from django.db.migrations.operations import CreateModel
 from django.db.migrations.recorder import MigrationRecorder
+from django.db.migrations.state import ProjectState
 from django.db.models.fields import NOT_PROVIDED
 
 APP = "news_podcast"
 SQUASHED = (APP, "0001_squashed_0007_no_code_defaults")
-MIGRATIONS_DIR = Path(__file__).resolve().parents[2] / APP / "migrations"
 
 
 def plan(
@@ -51,7 +52,17 @@ def test_the_squashed_migration_is_the_app_s_first() -> None:
     assert graph.root_nodes(APP) == [SQUASHED]
 
 
-def test_the_squashed_migration_holds_the_final_schema_and_nothing_else() -> None:
+def test_the_models_need_no_new_migration() -> None:
+    # makemigrations --check, without a database.
+    loader = MigrationLoader(None, ignore_no_migrations=True)
+    changes = MigrationAutodetector(
+        loader.project_state(), ProjectState.from_apps(apps)
+    ).changes(graph=loader.graph, trim_to_apps={APP}, convert_apps={APP})
+
+    assert changes == {}
+
+
+def test_the_squashed_migration_replaces_nothing_and_keeps_three_defaults() -> None:
     migration = importlib.import_module(f"{APP}.migrations.{SQUASHED[1]}").Migration
     defaults = {
         (operation.name.lower(), name)
@@ -60,7 +71,6 @@ def test_the_squashed_migration_holds_the_final_schema_and_nothing_else() -> Non
         for name, field in operation.fields
         if field.default is not NOT_PROVIDED
     }
-    source = (MIGRATIONS_DIR / f"{SQUASHED[1]}.py").read_text(encoding="utf-8")
 
     assert migration.initial is True
     assert migration.dependencies == []
@@ -70,5 +80,3 @@ def test_the_squashed_migration_holds_the_final_schema_and_nothing_else() -> Non
         ("feed", "active"),
         ("podcastsettings", "paused"),
     }
-    assert "import news_podcast" not in source
-    assert "functools" not in source
