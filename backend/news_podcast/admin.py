@@ -4,15 +4,24 @@ from django import forms
 from django.contrib import admin, messages
 from django.contrib.admin.widgets import AdminTextareaWidget
 from django.core.exceptions import PermissionDenied
-from django.db.models import Sum
+from django.db.models import QuerySet, Sum
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import redirect
 from django.template.response import TemplateResponse
+from django.utils.html import format_html_join
+from django.utils.safestring import SafeString
 from django.utils.text import Truncator
 
 from news_podcast.api.core.config import LOCAL_TZ
 from news_podcast.api.core.messages import brl
-from news_podcast.models import Episode, Feed, PodcastSettings, SettingsMissing
+from news_podcast.models import (
+    Area,
+    Episode,
+    Feed,
+    PodcastSettings,
+    SettingsMissing,
+    Topic,
+)
 
 LONG_PROMPTS = ["selection_prompt", "script_prompt"]
 NUMBERS = [
@@ -115,14 +124,51 @@ class FeedAdmin(admin.ModelAdmin):
     search_fields = ["outlet", "url"]
 
 
+@admin.register(Area)
+class AreaAdmin(admin.ModelAdmin):
+    list_display = ["name", "position"]
+    list_editable = ["position"]
+
+
+@admin.register(Topic)
+class TopicAdmin(admin.ModelAdmin):
+    list_display = ["title", "area", "position", "active", "taught"]
+    list_editable = ["position", "active"]
+    list_filter = ["area", "active"]
+
+    def get_queryset(self, request: HttpRequest) -> QuerySet[Topic]:
+        return super().get_queryset(request).with_taught_at().select_related("area")
+
+    # A topic is taught when a sent lesson row points to it.
+    @admin.display(description="taught on (Brasília)", ordering="taught_at")
+    def taught(self, topic: Topic) -> str:
+        # The annotation from with_taught_at(), which the stubs can't see.
+        taught_at = getattr(topic, "taught_at")
+        if taught_at is None:
+            return "-"
+        return f"{taught_at.astimezone(LOCAL_TZ):%d/%m/%Y}"
+
+
 @admin.register(Episode)
 class EpisodeAdmin(admin.ModelAdmin):
-    list_display = ["started", "status", "length", "pace", "cost", "short_error"]
-    list_filter = ["status"]
+    list_display = [
+        "started",
+        "kind",
+        "status",
+        "length",
+        "pace",
+        "cost",
+        "short_error",
+    ]
+    list_filter = ["kind", "status"]
     date_hierarchy = "started_at"
     fields = [
         "started",
+        "kind",
         "status",
+        "topic",
+        "story_title",
+        "page_list",
         "length",
         "script_words",
         "pace",
@@ -131,7 +177,7 @@ class EpisodeAdmin(admin.ModelAdmin):
         "usage",
         "error",
     ]
-    readonly_fields = ["started", "length", "pace", "cost"]
+    readonly_fields = ["started", "page_list", "length", "pace", "cost"]
 
     # The history is written by the runs only.
     def has_add_permission(self, request: HttpRequest) -> bool:
@@ -168,6 +214,17 @@ class EpisodeAdmin(admin.ModelAdmin):
     @admin.display(description="error")
     def short_error(self, episode: Episode) -> str:
         return Truncator(episode.error).chars(80)
+
+    @admin.display(description="pages")
+    def page_list(self, episode: Episode) -> SafeString | str:
+        if not episode.pages:
+            return "-"
+        # Text, not links: the URLs come from a web search.
+        return format_html_join(
+            "\n",
+            "{}: {}<br>",
+            ((page.get("title", ""), page.get("url", "")) for page in episode.pages),
+        )
 
     def changelist_view(
         self, request: HttpRequest, extra_context: dict[str, Any] | None = None

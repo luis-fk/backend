@@ -1,14 +1,33 @@
+from datetime import UTC, datetime
 from typing import Any
 
 import pytest
 from django.core.exceptions import ValidationError
+from django.db import connections
+from django.db.migrations.executor import MigrationExecutor
+from django.db.migrations.loader import MigrationLoader
+from django.db.models import ProtectedError
 
 from news_podcast.api.core.schemas import ModelPrice
 from news_podcast.api.episode.schemas import EpisodeOptions
-from news_podcast.models import Feed, PodcastSettings, SettingsMissing
-from tests.news_podcast.factories import SETTINGS, build_settings
+from news_podcast.models import (
+    Area,
+    Episode,
+    Feed,
+    PodcastSettings,
+    SettingsMissing,
+    Topic,
+)
+from tests.news_podcast.factories import (
+    SETTINGS,
+    build_settings,
+    create_area,
+    create_lesson_row,
+    create_topic,
+)
 
 DATABASES = pytest.mark.django_db(databases=["default", "news_podcast_db"])
+SQUASH = ("news_podcast", "0001_squashed_0007_no_code_defaults")
 
 
 def test_the_factory_builds_a_complete_row_that_passes_the_admin_checks() -> None:
@@ -223,3 +242,150 @@ def test_without_a_row_load_says_to_run_the_seed_and_creates_none() -> None:
 def test_an_empty_feed_list_stays_empty() -> None:
     assert Feed.sources() == []
     assert not Feed.objects.exists()
+
+
+@DATABASES
+def test_areas_and_topics_keep_one_order_through_ties() -> None:
+    later = create_area(name="Justiça", position=2)
+    first = create_area(name="O Congresso e as leis", position=1)
+    tied = create_area(name="Eleições e partidos", position=1)
+    create_topic(first, title="B", position=1)
+    create_topic(first, title="A", position=1)
+    create_topic(tied, title="C", position=0)
+    create_topic(later, title="D", position=1)
+    # An update moves a row to the end of its table on PostgreSQL, so the tied rows
+    # created first no longer come back first on their own: only the pk orders them.
+    Area.objects.filter(pk=first.pk).update(position=1)
+    Topic.objects.filter(title="B").update(position=1)
+
+    assert list(Area.objects.values_list("name", flat=True)) == [
+        "O Congresso e as leis",
+        "Eleições e partidos",
+        "Justiça",
+    ]
+    # An area's topics stay together, even when two areas share a position.
+    assert list(Topic.objects.values_list("title", flat=True)) == ["B", "A", "C", "D"]
+
+
+@DATABASES
+def test_the_taught_date_keeps_the_teaching_order() -> None:
+    area = create_area()
+    for position in (3, 1, 2):
+        create_topic(area, title=f"tópico {position}", position=position)
+
+    titles = [topic.title for topic in Topic.objects.with_taught_at()]
+
+    assert titles == ["tópico 1", "tópico 2", "tópico 3"]
+
+
+@DATABASES
+def test_a_taught_topic_and_its_area_cannot_be_deleted() -> None:
+    area = create_area()
+    topic = create_topic(area)
+    create_lesson_row(topic)
+
+    with pytest.raises(ProtectedError):
+        topic.delete()
+    with pytest.raises(ProtectedError):
+        area.delete()
+
+    assert Topic.objects.filter(pk=topic.pk).exists()
+
+
+@DATABASES
+def test_an_area_takes_its_untaught_topics_with_it() -> None:
+    area = create_area()
+    create_topic(area)
+
+    area.delete()
+
+    assert not Topic.objects.exists()
+
+
+@DATABASES
+def test_a_topic_is_taught_on_its_latest_sent_lesson_only() -> None:
+    area = create_area()
+    taught = create_topic(area, title="taught", position=1)
+    tried = create_topic(area, title="tried", position=2)
+    create_topic(area, title="new", position=3)
+    create_lesson_row(taught, started_at=datetime(2026, 11, 10, 9, 40, tzinfo=UTC))
+    create_lesson_row(taught, started_at=datetime(2026, 11, 12, 9, 40, tzinfo=UTC))
+    create_lesson_row(
+        taught,
+        status=Episode.Status.FAILED,
+        started_at=datetime(2026, 11, 13, 9, 40, tzinfo=UTC),
+    )
+    create_lesson_row(tried, status=Episode.Status.FAILED)
+    create_lesson_row(tried, status=Episode.Status.NOT_SENT)
+    create_lesson_row(tried, kind=Episode.Kind.NEWS)
+
+    taught_at = {
+        topic.title: getattr(topic, "taught_at")
+        for topic in Topic.objects.with_taught_at()
+    }
+
+    assert taught_at == {
+        "taught": datetime(2026, 11, 12, 9, 40, tzinfo=UTC),
+        "tried": None,
+        "new": None,
+    }
+
+
+def squash_state_episode() -> Any:
+    """The Episode model as the squashed migration left it: the code still on main."""
+    state = MigrationLoader(None, ignore_no_migrations=True).project_state(SQUASH)
+    return state.apps.get_model("news_podcast", "Episode")
+
+
+def migrate_to(targets: list[tuple[str, str]]) -> None:
+    MigrationExecutor(connections["news_podcast_db"]).migrate(targets)
+
+
+def episode_columns() -> list[str]:
+    connection = connections["news_podcast_db"]
+    with connection.cursor() as cursor:
+        table = connection.introspection.get_table_description(
+            cursor, "news_podcast_episode"
+        )
+    return [column.name for column in table]
+
+
+# transaction=True: migrating runs schema changes, which a test wrapped in a
+# transaction can't do on every database.
+@pytest.mark.django_db(databases=["default", "news_podcast_db"], transaction=True)
+def test_the_migration_gives_old_rows_the_news_kind_and_no_lesson_fields() -> None:
+    try:
+        migrate_to([SQUASH])
+        assert "kind" not in episode_columns()
+        old = squash_state_episode().objects.create(
+            started_at=datetime(2026, 11, 12, 9, 40, tzinfo=UTC),
+            status="sent",
+            cost_usd=0.1,
+        )
+    finally:
+        latest = MigrationLoader(None, ignore_no_migrations=True).graph.leaf_nodes(
+            "news_podcast"
+        )
+        migrate_to(latest)
+
+    row = Episode.objects.get(pk=old.pk)
+
+    assert (row.kind, row.topic_id, row.story_title, row.pages) == (
+        "news",
+        None,
+        "",
+        [],
+    )
+
+
+@DATABASES
+def test_main_s_code_still_saves_rows_after_the_migration() -> None:
+    old = squash_state_episode().objects.create(
+        started_at=datetime(2026, 11, 14, 9, 40, tzinfo=UTC),
+        status="sent",
+        cost_usd=0.1,
+    )
+
+    row = Episode.objects.get(pk=old.pk)
+
+    assert (row.kind, row.story_title, row.pages) == ("news", "", [])

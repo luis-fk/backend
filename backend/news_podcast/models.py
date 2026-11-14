@@ -3,6 +3,7 @@ from string import Formatter
 from django.core.exceptions import ValidationError
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
+from django.db.models import Max, Q
 
 from news_podcast.api.core.config import (
     LOCAL_TZ,
@@ -233,9 +234,69 @@ class Feed(models.Model):
         )
 
 
+class Area(models.Model):
+    """An area of the lesson course, edited in the Django admin."""
+
+    name = models.CharField(max_length=100)
+    position = models.PositiveSmallIntegerField(
+        help_text="The area's place in the course: the lowest comes first."
+    )
+
+    class Meta:
+        ordering = ["position", "pk"]
+
+    def __str__(self) -> str:
+        return self.name
+
+
+# The area's pk keeps an area's topics together when two areas share a position.
+TEACHING_ORDER = ["area__position", "area__pk", "position", "pk"]
+
+
+class TopicQuerySet(models.QuerySet["Topic"]):
+    def with_taught_at(self) -> "TopicQuerySet":
+        """Each topic with taught_at: when its latest sent lesson started, or None.
+        The aggregate's GROUP BY drops Meta.ordering, so the teaching order is set
+        again."""
+        return self.annotate(
+            taught_at=Max(
+                "lessons__started_at",
+                filter=Q(
+                    lessons__kind=Episode.Kind.LESSON,
+                    lessons__status=Episode.Status.SENT,
+                ),
+            )
+        ).order_by(*TEACHING_ORDER)
+
+
+class Topic(models.Model):
+    """A lesson topic, in its area's teaching order, edited in the Django admin."""
+
+    area = models.ForeignKey(Area, on_delete=models.CASCADE, related_name="topics")
+    position = models.PositiveSmallIntegerField(
+        help_text="The topic's place in its area's teaching order."
+    )
+    title = models.CharField(max_length=200)
+    active = models.BooleanField(
+        default=True, help_text="Unticked, the lessons skip it."
+    )
+
+    objects = TopicQuerySet.as_manager()
+
+    class Meta:
+        ordering = TEACHING_ORDER
+
+    def __str__(self) -> str:
+        return self.title
+
+
 class Episode(models.Model):
-    """One run of the podcast, kept for its cost and its outcome. The audio is not
-    kept."""
+    """One run of the podcast or of a lesson, kept for its cost and its outcome. The
+    audio is not kept."""
+
+    class Kind(models.TextChoices):
+        NEWS = "news", "News"
+        LESSON = "lesson", "Lesson"
 
     class Status(models.TextChoices):
         SENT = "sent", "Sent"
@@ -255,6 +316,27 @@ class Episode(models.Model):
     )
     usage = models.JSONField(default=list, help_text="Tokens of each model answer.")
     error = models.TextField(blank=True, help_text="The step that failed and why.")
+    # The database defaults let the code still on main insert rows once this
+    # migration ran. The new code needs the new columns, so the migration runs first.
+    kind = models.CharField(max_length=10, choices=Kind.choices, db_default=Kind.NEWS)
+    topic = models.ForeignKey(
+        Topic,
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="lessons",
+        help_text="The lesson's topic. A topic with lessons can't be deleted.",
+    )
+    story_title = models.TextField(
+        blank=True,
+        db_default="",
+        help_text="The news story that opened the lesson, if any.",
+    )
+    pages = models.JSONField(
+        blank=True,
+        db_default=[],
+        help_text="The pages the lesson came from, each with its title and URL.",
+    )
 
     class Meta:
         ordering = ["-started_at"]
